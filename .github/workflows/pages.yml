@@ -25,5 +25,4 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
         with:
-          timeout: 1800000  # 30 Min – GitHub Pages reagiert bei Störungen langsam
-          error_count: 60
+          error_count: 60  # tolerant gegenüber Pages-Störungen (Timeout ist hart auf 10 Min gedeckelt)
