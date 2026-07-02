@@ -1,13 +1,27 @@
-import { state } from './state.js?v=26';
-import { db } from './db.js?v=26';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=26';
-import { getFruchtFarbe } from './frucht.js?v=26';
-import { feuchteZuHoch } from './quality.js?v=26';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=26';
+import { state } from './state.js?v=27';
+import { db } from './db.js?v=27';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=27';
+import { getFruchtFarbe } from './frucht.js?v=27';
+import { feuchteZuHoch } from './quality.js?v=27';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=27';
 
 let _activeSiloId = null;
 let _siloView = 'B';
 const _selectedFuhren = new Set();
+
+// Flachlager (Hofplatz + Hallen): virtuelle Lagerorte ohne Silo-Zeile in der DB.
+// Fuhren werden wie beim Hofplatz über fuhren.silo_id = <Schlüssel> zugeordnet.
+// Keine Kapazitäts-/Kulturprüfung – Schüttung auf Fläche.
+const FLACHLAGER = {
+  HOF:               { toggle: 'Hof',        titel: '🏗 Hofplatz · Zwischenlager', label: 'Hofplatz' },
+  HALLE_ANARODE:     { toggle: 'Anarode',    titel: '📦 Halle Anarode',            label: 'Halle Anarode' },
+  HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
+  HALLE_THONDORF:    { toggle: 'Thondorf',   titel: '📦 Halle Thondorf',           label: 'Halle Thondorf' },
+};
+// Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
+export function lagerLabel(siloId) {
+  return FLACHLAGER[siloId] ? FLACHLAGER[siloId].label : 'Silo ' + siloId;
+}
 
 export function setSiloView(v) {
   _siloView = v;
@@ -170,8 +184,8 @@ export function einlagernDialog() {
       <div class="form-group" style="margin-bottom:16px">
         <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Silo</label>
         <select id="einlagern-silo" class="form-control" style="font-size:13px">
-          <option value="">— Silo wählen —</option>
-          <option value="HOF">🏗 Hofplatz · Zwischenlager</option>
+          <option value="">— Lagerort wählen —</option>
+          ${Object.entries(FLACHLAGER).map(([k,l])=>`<option value="${k}">${l.titel}</option>`).join('')}
           ${siloOptions}
         </select>
       </div>
@@ -213,7 +227,7 @@ export async function einlagernSpeichern() {
   const fuhren = state.fuhren.filter(f => _selectedFuhren.has(f.id));
   if(!fuhren.length) return;
 
-  if(siloId !== 'HOF') {
+  if(!FLACHLAGER[siloId]) {
     const kompatibel = checkSiloKompatibel(siloId, fuhren);
     if(!kompatibel.ok) {
       showToast('⛔ ' + kompatibel.reason, 'error');
@@ -225,11 +239,11 @@ export async function einlagernSpeichern() {
 
   const silo = state.silos.find(s=>s.id===siloId);
   let errors = 0;
-  const isFirstInSilo = siloId !== 'HOF' && !getSiloKultur(siloId);
+  const isFirstInSilo = !FLACHLAGER[siloId] && !getSiloKultur(siloId);
 
   for(const f of fuhren) {
     const previousSiloId = f.siloId;
-    if(previousSiloId && previousSiloId !== 'HOF' && previousSiloId !== siloId) {
+    if(previousSiloId && !FLACHLAGER[previousSiloId] && previousSiloId !== siloId) {
       const oldSilo = state.silos.find(s=>s.id===previousSiloId);
       if(oldSilo) {
         const oldRemaining = state.fuhren.filter(x=>x.siloId===previousSiloId&&x.status==='fertig'&&x.id!==f.id);
@@ -251,7 +265,7 @@ export async function einlagernSpeichern() {
   }
 
   const ok = fuhren.length - errors;
-  const label = siloId === 'HOF' ? 'Hofplatz' : 'Silo '+siloId;
+  const label = lagerLabel(siloId);
   showToast(`✓ ${ok} Fuhre${ok>1?'n':''} → ${label}${errors?' ('+errors+' Fehler)':''}`);
   _selectedFuhren.clear();
   renderSiloManagement();
@@ -314,12 +328,15 @@ export function renderSiloManagement() {
     </div>`;
   };
 
-  const hofFuhren = state.fuhren.filter(f=>f.siloId==='HOF'&&f.status==='fertig');
-  const hofView = `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
+  // Flachlager-Ansicht (Hofplatz/Hallen): Fuhrenliste im gestrichelten Rahmen
+  const lagerView = (lagerId) => {
+    const lager = FLACHLAGER[lagerId];
+    const lagerFuhren = state.fuhren.filter(f=>f.siloId===lagerId&&f.status==='fertig');
+    return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
     <div style="width:100%;max-width:600px">
       <div style="background:var(--green-50);border:2px dashed var(--color-primary);border-radius:var(--radius-lg);min-height:200px;padding:16px;margin-bottom:16px">
-        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">🏗 Hofplatz · Zwischenlager · ${hofFuhren.length} Fuhren · ${(hofFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000).toFixed(1)} t</div>
-        ${hofFuhren.length ? hofFuhren.map(f=>{
+        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${(lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000).toFixed(1)} t</div>
+        ${lagerFuhren.length ? lagerFuhren.map(f=>{
           const n=netto(f); const fr=getFruchtFarbe(f.fruchtart);
           return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
             <div style="width:5px;flex-shrink:0;background:${fr.dot}"></div>
@@ -329,14 +346,15 @@ export function renderSiloManagement() {
                 <div style="font-size:var(--text-base);color:var(--color-text);font-weight:600">${n?(n/1000).toFixed(2)+' t':'–'}</div>
                 <div style="font-size:var(--text-sm);color:var(--color-text-muted)">${getFeld(f.feldId).name||'–'} · ${f.feuchte??'–'}%F</div>
               </div>
-              <button onclick="removeFuhreFromSilo(${f.id})" title="Vom Hof entfernen"
+              <button onclick="removeFuhreFromSilo(${f.id})" title="Aus ${lager.label} entfernen"
                 style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);cursor:pointer;font-size:14px;width:30px;height:30px;border-radius:var(--radius-xs);flex-shrink:0">✕</button>
             </div>
           </div>`;
-        }).join('') : '<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">Keine Fuhren auf dem Hofplatz</div>'}
+        }).join('') : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">Keine Fuhren in ${lager.label}</div>`}
       </div>
     </div>
   </div>`;
+  };
 
   const bRow = (silos) => `<div style="display:flex;gap:8px;justify-content:center">${silos.map(sc).join('')}</div>`;
   const bList = `<div style="display:flex;flex-direction:column;gap:4px;align-items:center;padding:8px">
@@ -384,7 +402,7 @@ export function renderSiloManagement() {
   if(!el) return;
   const bg = (v) => view===v ? 'var(--gold)' : 'transparent';
   const cl = (v) => view===v ? '#1a1400' : 'var(--text3)';
-  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : 'Hofplatz';
+  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : (FLACHLAGER[view]?.label || '');
   const emptyMsg = totalFertig ? '✓ Alle zugeordnet' : 'Keine fertigen Fuhren';
   const queueHtml = unassigned.length ? unassigned.map(fi).join('') : `<div style="text-align:center;padding:20px 8px;color:var(--text2);font-size:12px">${emptyMsg}</div>`;
   const allChecked = unassigned.length > 0 && _selectedFuhren.size === unassigned.length;
@@ -400,10 +418,12 @@ export function renderSiloManagement() {
           <div style="font-family:var(--font-display);font-size:16px;color:var(--color-text)">🏭 Silomanagement</div>
         </div>
         <div style="display:flex;align-items:center;gap:12px">
-          <div style="display:flex;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px">
-            <button onclick="setSiloView('B')" style="padding:8px 20px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:15px;font-weight:700;background:${bg('B')};color:${cl('B')}">B</button>
-            <button onclick="setSiloView('A')" style="padding:8px 20px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:15px;font-weight:700;background:${bg('A')};color:${cl('A')}">A</button>
-            <button onclick="setSiloView('HOF')" style="padding:8px 20px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:15px;font-weight:700;background:${bg('HOF')};color:${cl('HOF')}">Hof</button>
+          <div style="display:flex;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px;flex-wrap:wrap">
+            <button onclick="setSiloView('B')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('B')};color:${cl('B')}">B</button>
+            <button onclick="setSiloView('A')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('A')};color:${cl('A')}">A</button>
+            ${Object.entries(FLACHLAGER).map(([k,l]) =>
+              `<button onclick="setSiloView('${k}')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg(k)};color:${cl(k)}">${l.toggle}</button>`
+            ).join('')}
           </div>
           <div style="font-size:14px;color:var(--text2)">${capLbl}</div>
           <button class="btn btn-sm btn-outline" onclick="exportSiloCSV()">⬇ CSV</button>
@@ -428,7 +448,7 @@ export function renderSiloManagement() {
           </div>
         </div>
         <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
-          ${view==='B' ? bList : view==='A' ? aGrid : hofView}
+          ${view==='B' ? bList : view==='A' ? aGrid : lagerView(view)}
         </div>
         <div id="silo-detail-panel" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
           <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);font-size:16px;color:var(--color-text-subtle);font-weight:600">← Silo anklicken</div>
@@ -547,7 +567,7 @@ export async function removeFuhreFromSilo(fId) {
   if(!f) return;
   const previousSiloId = f.siloId;
   f.siloId = null;
-  if(previousSiloId !== 'HOF') {
+  if(!FLACHLAGER[previousSiloId]) {
     const silo = state.silos.find(s=>s.id===previousSiloId);
     const remaining = state.fuhren.filter(x=>x.siloId===previousSiloId&&x.status==='fertig');
     if(silo && remaining.length === 0) {

@@ -1,7 +1,7 @@
-import { state } from './state.js?v=26';
-import { db } from './db.js?v=26';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=26';
-import { getFruchtFarbe } from './frucht.js?v=26';
+import { state } from './state.js?v=27';
+import { db } from './db.js?v=27';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=27';
+import { getFruchtFarbe } from './frucht.js?v=27';
 
 let _editOpenId = null;
 
@@ -47,7 +47,7 @@ export function renderAdminFuhren() {
         <div><span style="font-size:11px;color:var(--text2)">Protein </span><span style="font-size:14px;font-weight:600">${f.protein??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">HL </span><span style="font-size:14px;font-weight:600">${f.hlGewicht??'–'}</span></div>
       </div>
-      ${f.siloId?`<div style="margin-top:6px;font-size:11px;color:var(--blue)">🏭 Silo ${f.siloId}</div>`:''}
+      ${f.siloId?`<div style="margin-top:6px;font-size:11px;color:var(--blue)">🏭 ${window.lagerLabel?window.lagerLabel(f.siloId):'Silo '+f.siloId}</div>`:''}
       ${showEdit ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${!isVerified ? `
           <button class="btn btn-sm btn-outline" onclick="toggleFuhreEdit(${f.id})">✏ Bearbeiten</button>

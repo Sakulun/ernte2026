@@ -1,5 +1,5 @@
-import { db } from './db.js?v=26';
-import { getSb } from './db.js?v=26';
+import { db } from './db.js?v=27';
+import { getSb } from './db.js?v=27';
 
 let appReady = false;
 
