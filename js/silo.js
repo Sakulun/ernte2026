@@ -1,9 +1,9 @@
-import { state } from './state.js?v=27';
-import { db } from './db.js?v=27';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=27';
-import { getFruchtFarbe } from './frucht.js?v=27';
-import { feuchteZuHoch } from './quality.js?v=27';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=27';
+import { state } from './state.js?v=28';
+import { db } from './db.js?v=28';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=28';
+import { getFruchtFarbe } from './frucht.js?v=28';
+import { feuchteZuHoch } from './quality.js?v=28';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=28';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -15,6 +15,7 @@ const _selectedFuhren = new Set();
 const FLACHLAGER = {
   HOF:               { toggle: 'Hof',        titel: '🏗 Hofplatz · Zwischenlager', label: 'Hofplatz' },
   HALLE_ANARODE:     { toggle: 'Anarode',    titel: '📦 Halle Anarode',            label: 'Halle Anarode' },
+  HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt',  titel: '📦 Halle Höhnstedt',          label: 'Halle Höhnstedt' },
   HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
   HALLE_THONDORF:    { toggle: 'Thondorf',   titel: '📦 Halle Thondorf',           label: 'Halle Thondorf' },
 };
