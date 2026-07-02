@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Static File Server (ernteneu)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "."],
+      "autoPort": true
+    }
+  ]
+}
