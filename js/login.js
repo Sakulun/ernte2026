@@ -1,6 +1,6 @@
-import { state } from './state.js?v=25';
-import { db } from './db.js?v=25';
-import { hashPW, hashPWLegacy } from './helpers.js?v=25';
+import { state, loadAppData } from './state.js?v=26';
+import { db, getSb } from './db.js?v=26';
+import { hashPW, hashPWLegacy } from './helpers.js?v=26';
 
 const _loginAttempts = {};
 
@@ -76,7 +76,24 @@ export async function doLogin() {
     const user = state.users.find(u => u.id === result.id);
     if(!user) { errEl.style.display = 'block'; errEl.textContent = 'Benutzer nicht gefunden.'; return; }
     delete _loginAttempts[name.toLowerCase()];
+
+    // Supabase-Auth-Session aufbauen (RLS: Daten sind nur für angemeldete Nutzer
+    // lesbar). Auth-Passwort = pw-Hash; check_password hat Legacy-Hashes bereits
+    // auf das neue Format migriert, der Trigger hält das Auth-Konto synchron.
+    const sb = getSb();
+    try {
+      let { error } = await sb.auth.signInWithPassword({ email: `n${result.id}@ernte2026.local`, password: hashed });
+      if(error && legacyHashed) ({ error } = await sb.auth.signInWithPassword({ email: `n${result.id}@ernte2026.local`, password: legacyHashed }));
+      if(error) console.warn('Auth-Session nicht aufgebaut (Übergangsmodus):', error.message);
+    } catch(e) { console.warn('Auth-Session nicht aufgebaut (Übergangsmodus):', e); }
+
+    errEl.style.display = 'block';
+    errEl.style.color = 'var(--text2)';
+    errEl.textContent = 'Lade Daten…';
+    try { await loadAppData(); }
+    catch(e) { errEl.style.color = ''; errEl.textContent = 'Daten konnten nicht geladen werden: ' + e.message; return; }
     errEl.style.display = 'none';
+    errEl.style.color = '';
     loginUser(user);
   } catch(e) {
     errEl.style.display = 'block';
@@ -107,6 +124,7 @@ export function loginUser(user) {
 }
 
 export function logout() {
+  try { const sb = getSb(); if(sb?.auth) sb.auth.signOut().catch(()=>{}); } catch(e) {}
   if(window.hideSiloOverlay) window.hideSiloOverlay();
   if(window.closeWaageErfassung) window.closeWaageErfassung();
   const _fab = document.getElementById('we-fab'); if(_fab) _fab.remove();

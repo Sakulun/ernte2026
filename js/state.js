@@ -1,5 +1,5 @@
-import { db } from './db.js?v=25';
-import { getSb } from './db.js?v=25';
+import { db } from './db.js?v=26';
+import { getSb } from './db.js?v=26';
 
 let appReady = false;
 
@@ -80,19 +80,14 @@ export function startPolling() {
   }, 15000);
 }
 
-export async function bootApp() {
-  showLoader('Verbinde mit Datenbank…');
+let _subscribed = false;
+
+// Lädt alle Betriebsdaten + startet Echtzeit-Sync. Wird NACH dem Login aufgerufen
+// (RLS: Tabellen sind nur für angemeldete Nutzer lesbar, nicht für anon).
+export async function loadAppData() {
   try {
-    showLoader('Lade Nutzer…');
-    state.users = await db.getNutzer().catch(e => { console.warn('getNutzer:', e); return state.users; });
-
-    showLoader('Lade Schläge…');
     state.felder = await db.getFelder().catch(e => { console.warn('getFelder:', e); return state.felder; });
-
-    showLoader('Lade Fuhren…');
     state.fuhren = await db.getFuhren().catch(e => { console.warn('getFuhren:', e); return []; });
-
-    showLoader('Lade Silos…');
     state.silos = await db.getSilos().catch(e => { console.warn('getSilos:', e); return []; });
     state.lieferungen = await db.getLieferungen().catch(e => { console.warn('getLieferungen:', e); return []; });
     state.vermehrungen = await db.getVermehrungen().catch(e => { console.warn('getVermehrungen:', e); return []; });
@@ -128,6 +123,7 @@ export async function bootApp() {
 
     showLoader('Echtzeit-Sync wird gestartet…');
     try {
+      if(!_subscribed) { _subscribed = true;
       db.subscribeAll(async (payload) => {
         const tbl = payload.table;
         if(tbl === 'gps_positionen') {
@@ -186,9 +182,37 @@ export async function bootApp() {
           if(nachher > vorher && window.showToast) window.showToast('🚛 Neue Fuhre zugewiesen!');
         }
       });
+      }
     } catch(e) { console.warn('Realtime nicht verfügbar:', e); }
 
     startPolling();
+  } catch(err) {
+    console.error('loadAppData error:', err);
+    throw err;
+  }
+}
+
+export async function bootApp() {
+  showLoader('Verbinde mit Datenbank…');
+  try {
+    showLoader('Lade Nutzer…');
+    state.users = await db.getNutzer().catch(e => { console.warn('getNutzer:', e); return state.users; });
+
+    // Bestehende Auth-Session? → automatisch wieder anmelden (Daten laden + Dashboard)
+    try {
+      const sb = getSb();
+      const { data: { session } } = await sb.auth.getSession();
+      const m = session?.user?.email?.match(/^n(\d+)@ernte2026\.local$/);
+      const user = m ? state.users.find(u => u.id === parseInt(m[1])) : null;
+      if(user) {
+        showLoader('Lade Daten…');
+        await loadAppData();
+        hideLoader();
+        appReady = true;
+        window.loginUser(user);
+        return;
+      }
+    } catch(e) { console.warn('Session-Restore fehlgeschlagen:', e); }
 
     hideLoader();
     appReady = true;
