@@ -1,9 +1,9 @@
-import { state } from './state.js?v=29';
-import { db } from './db.js?v=29';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=29';
-import { isBioFeld } from './bio.js?v=29';
-import { getQualitaetsfelder } from './quality.js?v=29';
-import { parseGewicht } from './abfahrer.js?v=29';
+import { state } from './state.js?v=30';
+import { db } from './db.js?v=30';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=30';
+import { isBioFeld } from './bio.js?v=30';
+import { getQualitaetsfelder } from './quality.js?v=30';
+import { parseGewicht } from './abfahrer.js?v=30';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -112,7 +112,11 @@ function formHTML() {
       </div>
       <div class="form-group">
         <label>Leergewicht (kg)</label>
-        <input type="text" inputmode="numeric" id="leer-${WID}" placeholder="12.600" style="font-size:20px;font-weight:700;letter-spacing:0.5px" oninput="fmtGewicht(this);updNetto('${WID}')">
+        <div style="display:flex;gap:6px">
+          <input type="text" inputmode="numeric" id="leer-${WID}" placeholder="12.600" style="font-size:20px;font-weight:700;letter-spacing:0.5px;flex:1;min-width:0" oninput="fmtGewicht(this);updNetto('${WID}')">
+          <button type="button" onclick="openHaengerzugWahl()" title="Hängerzug wählen – Leergewicht übernehmen"
+            style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>
+        </div>
       </div>
     </div>
     <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
@@ -330,6 +334,90 @@ export function openWaageErfassung() {
 
 export function closeWaageErfassung() {
   closeBestaetigung();
+  closeHaengerzugWahl();
   const ov = document.getElementById('we-overlay');
   if(ov) ov.remove();
+}
+
+// ── Hängerzug-Auswahl: festes Leergewicht per Antippen übernehmen ────────────
+// Admin & Silomeister können Hängerzüge direkt in der Auswahl anlegen/ändern/löschen.
+function renderHaengerzugWahl(editId = null) {
+  let ov = document.getElementById('we-hz-overlay');
+  if(!ov) { ov = document.createElement('div'); ov.id = 'we-hz-overlay'; document.body.appendChild(ov); }
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:7500;display:flex;align-items:center;justify-content:center;padding:16px';
+  const darfVerwalten = ['admin','silomeister'].includes(state.currentUser?.role);
+  const hz = state.haengerzuege || [];
+  const edit = editId != null ? hz.find(h => h.id === editId) : null;
+  const btnStyle = 'flex-shrink:0;width:40px;background:none;border:1px solid var(--color-border);border-radius:var(--radius-sm);cursor:pointer;font-size:15px;color:var(--color-text-muted)';
+  const rows = hz.length ? hz.map(h => `
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button onclick="waehleHaengerzug(${h.id})"
+        style="flex:1;min-width:0;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:14px;cursor:pointer">
+        <span style="font-size:16px;font-weight:700;color:var(--color-text);text-align:left">🚛 ${escapeHtml(h.name)}</span>
+        <span style="font-size:16px;font-weight:800;color:var(--gold);white-space:nowrap">${h.leergewicht_kg.toLocaleString('de-DE')} kg</span>
+      </button>
+      ${darfVerwalten ? `
+        <button onclick="hzEditStart(${h.id})" title="Bearbeiten" style="${btnStyle}">✎</button>
+        <button onclick="hzLoeschen(${h.id})" title="Löschen" style="${btnStyle};color:var(--red)">🗑</button>` : ''}
+    </div>`).join('')
+    : '<div style="text-align:center;color:var(--color-text-muted);padding:24px 8px;font-size:14px">Noch keine Hängerzüge angelegt.</div>';
+  const form = darfVerwalten ? `
+    <div style="border-top:1px solid var(--color-border);margin-top:10px;padding-top:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px;color:var(--color-text)">${edit ? '✎ Hängerzug bearbeiten' : '+ Neuer Hängerzug'}</div>
+      <div style="display:flex;gap:8px">
+        <input id="hz-name" class="input" placeholder="Name (z.B. Fendt + Krampe)" value="${edit ? escapeHtml(edit.name) : ''}" style="flex:2;min-width:0">
+        <input id="hz-kg" class="input" type="number" inputmode="numeric" placeholder="Leergew. kg" value="${edit ? edit.leergewicht_kg : ''}" style="flex:1;min-width:0">
+        <button class="btn btn-primary" style="flex-shrink:0" onclick="hzSpeichern(${edit ? edit.id : 'null'})">💾</button>
+      </div>
+    </div>` : '';
+  ov.innerHTML = `<div class="card" style="max-width:460px;width:100%;max-height:85vh;overflow:auto">
+    <div class="card-header"><div>
+      <div class="card-title">🚛 Hängerzug wählen</div>
+      <div class="card-sub">Antippen übernimmt das Leergewicht</div>
+    </div>
+    <button onclick="closeHaengerzugWahl()" aria-label="Schließen" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-muted)">✕</button></div>
+    ${rows}
+    ${form}
+  </div>`;
+}
+
+export function openHaengerzugWahl() { renderHaengerzugWahl(); }
+export function closeHaengerzugWahl() { document.getElementById('we-hz-overlay')?.remove(); }
+
+export function waehleHaengerzug(id) {
+  const h = (state.haengerzuege || []).find(x => x.id === id);
+  const inp = document.getElementById('leer-' + WID);
+  if(h && inp) {
+    inp.value = h.leergewicht_kg.toLocaleString('de-DE');
+    if(window.updNetto) window.updNetto(WID);
+    showToast(`🚛 ${h.name} · ${h.leergewicht_kg.toLocaleString('de-DE')} kg übernommen`);
+  }
+  closeHaengerzugWahl();
+}
+
+export function hzEditStart(id) { renderHaengerzugWahl(id); }
+
+export async function hzSpeichern(editId) {
+  const name = document.getElementById('hz-name')?.value.trim();
+  const kg = parseInt(document.getElementById('hz-kg')?.value);
+  if(!name || !kg || kg <= 0) { showToast('Bitte Name und Leergewicht (kg) angeben', 'error'); return; }
+  try {
+    if(editId) await db.updateHaengerzug(editId, { name, leergewicht_kg: kg });
+    else await db.insertHaengerzug(name, kg);
+    state.haengerzuege = await db.getHaengerzuege();
+    showToast('✓ Hängerzug gespeichert');
+    renderHaengerzugWahl();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
+export async function hzLoeschen(id) {
+  const h = (state.haengerzuege || []).find(x => x.id === id);
+  if(!h) return;
+  if(!confirm(`Hängerzug "${h.name}" (${h.leergewicht_kg.toLocaleString('de-DE')} kg) löschen?`)) return;
+  try {
+    await db.deleteHaengerzug(id);
+    state.haengerzuege = await db.getHaengerzuege();
+    showToast('🗑 Hängerzug gelöscht');
+    renderHaengerzugWahl();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }

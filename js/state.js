@@ -1,5 +1,5 @@
-import { db } from './db.js?v=29';
-import { getSb } from './db.js?v=29';
+import { db } from './db.js?v=30';
+import { getSb } from './db.js?v=30';
 
 let appReady = false;
 
@@ -43,6 +43,7 @@ export const state = {
   warenbewegungen: [],
   kontakte: [],
   kontrakte: [],
+  haengerzuege: [],
   waageLive: null,
   nextId: 1, nextNr: 1, lastFeldId: null, lastSorte: null,
 };
@@ -95,6 +96,7 @@ export async function loadAppData() {
     state.warenbewegungen = await db.getWarenbewegungen().catch(e => { console.warn('getWarenbewegungen:', e); return []; });
     state.kontakte = await db.getKontakte().catch(e => { console.warn('getKontakte:', e); return []; });
     state.kontrakte = await db.getKontrakte().catch(e => { console.warn('getKontrakte:', e); return []; });
+    state.haengerzuege = await db.getHaengerzuege().catch(e => { console.warn('getHaengerzuege:', e); return []; });
     const sb = getSb();
     try { const { data: wlData } = await sb.from('waage_live').select('*').eq('id',1).single(); state.waageLive = wlData || null; } catch(e) { state.waageLive = null; }
     const lnrs = state.lieferungen.map(l=>parseInt((l.nr||'').replace('L-',''))).filter(n=>!isNaN(n));

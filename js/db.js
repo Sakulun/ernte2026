@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=29';
+import { SB_URL, SB_KEY } from './config.js?v=30';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -161,6 +161,25 @@ export const db = {
     const { data, error } = await sb.from('vermehrungen').select('*');
     if(error) throw error;
     return data || [];
+  },
+  // Hängerzüge mit festem Leergewicht (Auswahl-Button beim Einwiegen)
+  async getHaengerzuege() {
+    const { data, error } = await sb.from('haengerzuege').select('*').eq('aktiv', true).order('name');
+    if(error) throw error;
+    return data || [];
+  },
+  async insertHaengerzug(name, leergewichtKg) {
+    const { data, error } = await sb.from('haengerzuege').insert({ name, leergewicht_kg: leergewichtKg }).select().single();
+    if(error) throw error;
+    return data;
+  },
+  async updateHaengerzug(id, updates) {
+    const { error } = await sb.from('haengerzuege').update(updates).eq('id', id);
+    if(error) throw error;
+  },
+  async deleteHaengerzug(id) {
+    const { error } = await sb.from('haengerzuege').delete().eq('id', id);
+    if(error) throw error;
   },
   async getLieferungen() {
     const { data, error } = await sb.from('lieferungen').select('*').order('id', {ascending:false});
