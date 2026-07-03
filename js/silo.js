@@ -1,9 +1,9 @@
-import { state } from './state.js?v=28';
-import { db } from './db.js?v=28';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=28';
-import { getFruchtFarbe } from './frucht.js?v=28';
-import { feuchteZuHoch } from './quality.js?v=28';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=28';
+import { state } from './state.js?v=29';
+import { db } from './db.js?v=29';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=29';
+import { getFruchtFarbe } from './frucht.js?v=29';
+import { feuchteZuHoch } from './quality.js?v=29';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=29';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -22,6 +22,38 @@ const FLACHLAGER = {
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
   return FLACHLAGER[siloId] ? FLACHLAGER[siloId].label : 'Silo ' + siloId;
+}
+
+// Koordinaten der Lagerstandorte (Ortsmitte genügt – die Standorte liegen
+// 10–40 km auseinander). Für die Zuordnung eingewogener Fuhren per GPS.
+export const LAGER_STANDORTE = [
+  { key: 'BEESENSTEDT',       label: 'Beesenstedt (Hof)', lat: 51.5671, lon: 11.7338 },
+  { key: 'HALLE_ANARODE',     label: 'Anarode',           lat: 51.5502, lon: 11.4049 },
+  { key: 'HALLE_HOEHNSTEDT',  label: 'Höhnstedt',         lat: 51.5016, lon: 11.7410 },
+  { key: 'HALLE_LAUCHSTAEDT', label: 'Bad Lauchstädt',    lat: 51.3874, lon: 11.8680 },
+  { key: 'HALLE_THONDORF',    label: 'Thondorf',          lat: 51.5992, lon: 11.5291 },
+];
+
+// Nächstgelegener Lagerstandort zu einer GPS-Position (Haversine, km)
+export function naechstesLager(lat, lon) {
+  if(lat == null || lon == null) return null;
+  const R = 6371, rad = Math.PI/180;
+  let best = null;
+  for(const o of LAGER_STANDORTE) {
+    const dLat = (o.lat-lat)*rad, dLon = (o.lon-lon)*rad;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat*rad)*Math.cos(o.lat*rad)*Math.sin(dLon/2)**2;
+    const d = 2*R*Math.asin(Math.sqrt(a));
+    if(!best || d < best.distKm) best = { ...o, distKm: d };
+  }
+  return best;
+}
+
+// Kurztext für die Anzeige, z.B. "Höhnstedt · 0,8 km" oder "unterwegs (Richtung Thondorf, 14,2 km)"
+export function standortText(lat, lon) {
+  const o = naechstesLager(lat, lon);
+  if(!o) return '';
+  const km = o.distKm.toFixed(1).replace('.', ',');
+  return o.distKm <= 10 ? `${o.label} · ${km} km` : `unterwegs (Richtung ${o.label}, ${km} km)`;
 }
 
 export function setSiloView(v) {
@@ -394,6 +426,7 @@ export function renderSiloManagement() {
             <span style="font-size:12px;color:var(--text3)">${f.feuchte!=null?f.feuchte+'%F':''}${f.feuchte!=null&&f.protein!=null?' · ':''}${f.protein!=null?f.protein+'%P':''}</span>
             <span style="font-size:11px;color:var(--text3)">${datum}</span>
           </div>
+          ${f.lat!=null?`<div style="font-size:11px;color:var(--blue-500);margin-top:2px">📍 ${standortText(f.lat,f.lon)}</div>`:''}
         </div>
       </div>
     </div>`;

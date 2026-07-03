@@ -1,7 +1,7 @@
-import { state } from './state.js?v=28';
-import { db } from './db.js?v=28';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=28';
-import { getFruchtFarbe } from './frucht.js?v=28';
+import { state } from './state.js?v=29';
+import { db } from './db.js?v=29';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=29';
+import { getFruchtFarbe } from './frucht.js?v=29';
 
 let _editOpenId = null;
 
@@ -48,6 +48,7 @@ export function renderAdminFuhren() {
         <div><span style="font-size:11px;color:var(--text2)">HL </span><span style="font-size:14px;font-weight:600">${f.hlGewicht??'–'}</span></div>
       </div>
       ${f.siloId?`<div style="margin-top:6px;font-size:11px;color:var(--blue)">🏭 ${window.lagerLabel?window.lagerLabel(f.siloId):'Silo '+f.siloId}</div>`:''}
+      ${f.lat!=null&&window.standortText?`<div style="margin-top:4px;font-size:11px;color:var(--text2)">📍 ${window.standortText(f.lat,f.lon)}</div>`:''}
       ${showEdit ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${!isVerified ? `
           <button class="btn btn-sm btn-outline" onclick="toggleFuhreEdit(${f.id})">✏ Bearbeiten</button>

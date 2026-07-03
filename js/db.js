@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=28';
+import { SB_URL, SB_KEY } from './config.js?v=29';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -74,6 +74,8 @@ export const db = {
       gluten: f.gluten ? parseFloat(f.gluten) : null,
       oelgehalt: f.oelgehalt ? parseFloat(f.oelgehalt) : null,
       sorte: f.sorte || null,
+      lat: f.lat != null ? parseFloat(f.lat) : null,
+      lon: f.lon != null ? parseFloat(f.lon) : null,
       zeit: f.zeit,
       verifiziert: f.verifiziert || false,
       verifiziertVon: f.verifiziert_von || null,
@@ -92,6 +94,7 @@ export const db = {
       status: 'offen',
       drescher_id: f.drescherId, abfahrer_id: f.abfahrerId,
       feld_id: f.feldId, fruchtart: f.fruchtart, sorte: f.sorte||null,
+      lat: f.lat ?? null, lon: f.lon ?? null,
       zeit: f.zeit
     }).select().single();
     if(error) throw error;
@@ -107,6 +110,7 @@ export const db = {
       vollgewicht: f.vollgewicht ?? null, leergewicht: f.leergewicht ?? null,
       feuchte: f.feuchte ?? null, protein: f.protein ?? null, gluten: f.gluten ?? null,
       hl_gewicht: f.hlGewicht ?? null, oelgehalt: f.oelgehalt ?? null, fallzahl: f.fallzahl ?? null,
+      lat: f.lat ?? null, lon: f.lon ?? null,
       zeit: f.zeit
     }).select().single();
     if(error) throw error;

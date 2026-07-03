@@ -1,9 +1,9 @@
-import { state } from './state.js?v=28';
-import { db } from './db.js?v=28';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=28';
-import { isBioFeld } from './bio.js?v=28';
-import { getQualitaetsfelder } from './quality.js?v=28';
-import { parseGewicht } from './abfahrer.js?v=28';
+import { state } from './state.js?v=29';
+import { db } from './db.js?v=29';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=29';
+import { isBioFeld } from './bio.js?v=29';
+import { getQualitaetsfelder } from './quality.js?v=29';
+import { parseGewicht } from './abfahrer.js?v=29';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -17,6 +17,24 @@ const WID = 'waage';
 let _container = null;
 let _lockAbfahrer = null;   // feste Abfahrer-ID (Selbsterfassung) oder null = Auswahl
 let _modus = 'abschluss';
+
+// GPS-Position beim Einwiegen: für die Zuordnung der Fuhre zum Lagerstandort.
+// Darf das Wiegen NIE blockieren – bei fehlendem Empfang/Verweigerung läuft
+// alles normal weiter (lat/lon bleiben leer).
+let _gpsPos = null; // { lat, lon, ts }
+function erfasseGPS(timeoutMs = 6000) {
+  return new Promise(resolve => {
+    if(!navigator.geolocation) return resolve(_gpsPos);
+    let done = false;
+    const finish = (p) => { if(!done) { done = true; resolve(p); } };
+    const t = setTimeout(() => finish(_gpsPos), timeoutMs);
+    navigator.geolocation.getCurrentPosition(
+      pos => { clearTimeout(t); _gpsPos = { lat: pos.coords.latitude, lon: pos.coords.longitude, ts: Date.now() }; finish(_gpsPos); },
+      ()  => { clearTimeout(t); finish(_gpsPos); },
+      { enableHighAccuracy: false, maximumAge: 120000, timeout: timeoutMs }
+    );
+  });
+}
 
 function fruchtartFuerSorte(feldId, sorte) {
   const feld = getFeld(feldId);
@@ -109,6 +127,7 @@ export function renderWaageErfassungInto(el, opts = {}) {
   _lockAbfahrer = (opts.abfahrerId != null) ? opts.abfahrerId : null;
   _modus = opts.modus || 'abschluss';
   el.innerHTML = `<div class="card" style="max-width:560px;margin:0 auto">${formHTML()}</div>`;
+  erfasseGPS(8000); // GPS schon beim Öffnen anwärmen (Ergebnis wird gecacht)
 }
 
 function reRenderOrClose() {
@@ -176,7 +195,8 @@ export async function weStarten() {
   const sorte = sorteEl ? (sorteEl.value || null) : null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   // Fuhren-Nummer wird serverseitig vergeben (nutzerunabhängig eindeutig).
-  const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte, zeit: new Date().toISOString() };
+  const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
+    lat: _gpsPos?.lat ?? null, lon: _gpsPos?.lon ?? null, zeit: new Date().toISOString() };
   const btn = document.getElementById('we-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Wird gestartet…'; }
   try {
@@ -192,7 +212,8 @@ export async function weStarten() {
 
 // Waage-Tablet / Abfahrer: prüft Eingaben und zeigt ein Bestätigungs-Popup mit
 // allen Werten ("Speichern" / "Bearbeiten") – erst danach wird gespeichert.
-export function weAbschliessen() {
+let _gpsFuerFuhre = null; // in weAbschliessen erfasst, in weAbschliessenSpeichern gespeichert
+export async function weAbschliessen() {
   const feldId = parseInt(document.getElementById('we-feld')?.value);
   const abfahrerId = leseAbfahrerId();
   if(!feldId || !abfahrerId) { alert('Bitte Schlag und Abfahrer wählen.'); return; }
@@ -209,7 +230,9 @@ export function weAbschliessen() {
     return { label:o.label, val: (raw!=='' && raw!=null) ? raw : null };
   });
   const abfName = state.users.find(u=>u.id===abfahrerId)?.name || '';
-  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows });
+  // GPS-Position bestimmen (kurzer Timeout; blockiert nie – ohne Empfang gibt es einfach keinen Standort)
+  _gpsFuerFuhre = await erfasseGPS(4000);
+  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows, gps: _gpsFuerFuhre });
 }
 
 // Tatsächliches Speichern (nach Bestätigung im Popup).
@@ -231,6 +254,7 @@ async function weAbschliessenSpeichern() {
     status:'fertig', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
     vollgewicht: v, leergewicht: l,
     feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null,
+    lat: _gpsFuerFuhre?.lat ?? null, lon: _gpsFuerFuhre?.lon ?? null,
     zeit: new Date().toISOString()
   };
   try {
@@ -258,6 +282,9 @@ function zeigeBestaetigung(d) {
     ? row('Art', '🌱 Vermehrung · ' + escapeHtml(d.sorte))
     : row('Art', 'Konsum');
   const qHtml = d.qRows.map(q => row(q.label, q.val!=null ? escapeHtml(String(q.val)) : '<span style="color:var(--amber)">— fehlt</span>')).join('');
+  const standort = d.gps && window.standortText
+    ? '📍 ' + escapeHtml(window.standortText(d.gps.lat, d.gps.lon) || 'erfasst')
+    : '<span style="color:var(--text3)">— kein GPS</span>';
   ov.innerHTML = `<div class="card" style="max-width:440px;width:100%;max-height:90vh;overflow:auto">
     <div class="card-header"><div>
       <div class="card-title">Fuhre prüfen &amp; speichern</div>
@@ -272,6 +299,7 @@ function zeigeBestaetigung(d) {
       ${row('Leergewicht', d.l.toLocaleString('de-DE') + ' kg')}
       ${row('Netto', '<b>' + n.toLocaleString('de-DE') + ' kg</b> · ' + kg2t(n))}
       ${qHtml}
+      ${row('Standort', standort)}
     </table>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn btn-outline btn-full" id="we-conf-edit">&#9998; Bearbeiten</button>
