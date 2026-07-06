@@ -1,7 +1,7 @@
-import { state } from './state.js?v=30';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=30';
-import { getFruchtFarbe } from './frucht.js?v=30';
-import { getQualitaetsfelder } from './quality.js?v=30';
+import { state } from './state.js?v=31';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=31';
+import { getFruchtFarbe } from './frucht.js?v=31';
+import { getQualitaetsfelder } from './quality.js?v=31';
 
 // ── Übersicht: Vermehrungen ──────────────────────────────────────────────────
 // Alle Vermehrungssorten mit Status (geerntet/in Ernte/offen), Mengen & Ø-Qualität.

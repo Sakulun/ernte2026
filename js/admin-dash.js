@@ -1,6 +1,6 @@
-import { state } from './state.js?v=30';
-import { getFeld, getUser, netto } from './helpers.js?v=30';
-import { getFruchtFarbe } from './frucht.js?v=30';
+import { state } from './state.js?v=31';
+import { getFeld, getUser, netto } from './helpers.js?v=31';
+import { getFruchtFarbe } from './frucht.js?v=31';
 
 export function renderAdminDash() {
   const fertig = state.fuhren.filter(f=>f.status==='fertig');

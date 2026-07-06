@@ -1,6 +1,6 @@
-import { state } from './state.js?v=30';
-import { db } from './db.js?v=30';
-import { getUser, netto } from './helpers.js?v=30';
+import { state } from './state.js?v=31';
+import { db } from './db.js?v=31';
+import { getUser, netto } from './helpers.js?v=31';
 
 let _mapInstance = null;
 let _gpsWatcher = null;
@@ -160,8 +160,11 @@ function updateGPSMarkers(map) {
     const loc = _userLocations[u.id];
     if(!loc) return;
     const latlng = [loc.lat, loc.lon];
-    const ago = Math.round((Date.now()-loc.ts)/1000);
-    const popupTxt = `<b>${u.name}</b><br>${u.label}<br><span style="color:var(--color-text-subtle);font-size:10px">vor ${ago}s</span>`;
+    const d = new Date(loc.ts);
+    const heute = d.toDateString() === new Date().toDateString();
+    const zeitStr = (heute ? 'heute' : d.toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'}))
+      + ', ' + d.toLocaleTimeString('de-DE') + ' Uhr';
+    const popupTxt = `<b>${u.name}</b><br>${u.label}<br><span style="color:var(--color-text-subtle);font-size:10px">Zuletzt gesehen: ${zeitStr}</span>`;
     if(_gpsMarkers[u.id]) {
       _gpsMarkers[u.id].setLatLng(latlng);
       _gpsMarkers[u.id].setPopupContent(popupTxt);
