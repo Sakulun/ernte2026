@@ -1,7 +1,7 @@
-import { state } from './state.js?v=31';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=31';
-import { getFruchtFarbe } from './frucht.js?v=31';
-import { getQualitaetsfelder } from './quality.js?v=31';
+import { state } from './state.js?v=32';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=32';
+import { getFruchtFarbe } from './frucht.js?v=32';
+import { getQualitaetsfelder } from './quality.js?v=32';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};
@@ -45,7 +45,8 @@ function schlagFuhrenDetail(feldId, fruchtart) {
 
 export function renderAdminFortschritt() {
   const kulturen = {};
-  state.felder.forEach(f => {
+  // Nur echte Schläge – Umlagerung/Zukauf-Quellen gehören nicht in den Erntefortschritt
+  state.felder.filter(f => (f.typ||'schlag')==='schlag').forEach(f => {
     if(!kulturen[f.fruchtart]) kulturen[f.fruchtart] = { ha_gesamt:0, ha_aktiv:0, ha_abgeerntet:0, kg_geerntet:0, fuhren:0, schlaege:{} };
     const k = kulturen[f.fruchtart];
     k.ha_gesamt += f.flaeche;
@@ -54,7 +55,7 @@ export function renderAdminFortschritt() {
     if(!k.schlaege[f.id]) k.schlaege[f.id] = { id:f.id, name:f.name, flaeche:f.flaeche, status:f.status, kg:0, fuhren:0 };
   });
 
-  state.fuhren.filter(f=>f.status==='fertig').forEach(f => {
+  state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f)).forEach(f => {
     const fa = f.fruchtart || getFeld(f.feldId).fruchtart || 'Unbekannt';
     if(!kulturen[fa]) kulturen[fa] = { ha_gesamt:0, ha_aktiv:0, ha_abgeerntet:0, kg_geerntet:0, fuhren:0, schlaege:{} };
     const k = kulturen[fa];
@@ -70,7 +71,7 @@ export function renderAdminFortschritt() {
   const gesamtHa = state.felder.reduce((s,f)=>s+f.flaeche,0);
   const abgerntetHa = state.felder.filter(f=>f.status==='abgeerntet').reduce((s,f)=>s+f.flaeche,0);
   const aktivHa = state.felder.filter(f=>f.status==='aktiv').reduce((s,f)=>s+f.flaeche,0);
-  const gesamtT = state.fuhren.filter(f=>f.status==='fertig').reduce((s,f)=>s+(netto(f)||0),0);
+  const gesamtT = state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f)).reduce((s,f)=>s+(netto(f)||0),0);
   const gesamtPct = gesamtHa>0 ? (abgerntetHa/gesamtHa*100) : 0;
 
   const sorted = Object.entries(kulturen).sort((a,b)=>b[1].ha_gesamt-a[1].ha_gesamt);

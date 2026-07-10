@@ -1,4 +1,4 @@
-import { state } from './state.js?v=31';
+import { state } from './state.js?v=32';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
@@ -10,6 +10,20 @@ export const fmtDate = iso => new Date(iso).toLocaleDateString('de-DE',{day:'2-d
 
 export function abfahrerIstFrei(uid) {
   return !state.fuhren.some(f=>f.abfahrerId===uid && f.status==='offen');
+}
+
+// Echte Ernte-Fuhre (von einem Schlag)? Umlagerungen zwischen Lagern und Zukauf
+// von Lieferanten sind eigene Fuhren-Typen und dürfen Ernte-Statistiken
+// (t gesamt, dt/ha, Fortschritt) nicht verfälschen.
+export function istErnteFuhre(f) {
+  return ((getFeld(f.feldId).typ) || 'schlag') === 'schlag';
+}
+// Kennzeichnung der Fuhren-Art für Anzeigen/Exporte
+export function fuhrenArt(f) {
+  const typ = getFeld(f.feldId).typ || 'schlag';
+  if(typ === 'umlagerung') return 'Umlagerung';
+  if(typ === 'lieferant') return 'Zukauf';
+  return f.sorte ? 'Vermehrung' : 'Konsum';
 }
 
 export function showToast(msg, type='success') {

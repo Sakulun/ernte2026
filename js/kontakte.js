@@ -1,10 +1,21 @@
-import { state } from './state.js?v=31';
-import { db } from './db.js?v=31';
-import { showToast, escapeHtml } from './helpers.js?v=31';
+import { state } from './state.js?v=32';
+import { db } from './db.js?v=32';
+import { showToast, escapeHtml } from './helpers.js?v=32';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
-  const kRow = (k) => `
+  const kRow = (k) => {
+    // Lieferanten können für die Fuhren-Erfassung freigeschaltet werden
+    // (erscheinen dann als Zukauf-Quelle im Schlag-Dropdown der Fahrer).
+    const istLieferant = k.typ === 'lieferant' || k.typ === 'beides';
+    const zukaufFeld = istLieferant ? state.felder.find(f => f.typ === 'lieferant' && f.kontaktId === k.id) : null;
+    const zukaufAktiv = zukaufFeld?.status === 'aktiv';
+    const zukaufBtn = istLieferant && k.aktiv
+      ? `<button class="btn btn-sm" title="Lieferant als Zukauf-Quelle in der Fuhren-Erfassung"
+           style="background:${zukaufAktiv?'var(--green)':'none'};border:1px solid ${zukaufAktiv?'var(--green)':'var(--border2)'};color:${zukaufAktiv?'#fff':'var(--text2)'}"
+           onclick="lieferantFuhrenToggle(${k.id})">🌾 Fuhren: ${zukaufAktiv?'AKTIV':'aus'}</button>`
+      : '';
+    return `
     <div class="card" style="margin-bottom:6px;opacity:${k.aktiv?1:0.5}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="flex:1">
@@ -14,12 +25,14 @@ export function renderKontakte() {
           ${k.email||k.telefon?`<div style="font-size:11px;color:var(--text3)">${[k.email,k.telefon].filter(Boolean).join(' · ')}</div>`:''}
           ${k.iban?`<div style="font-size:10px;color:var(--text3);font-family:monospace">${escapeHtml(k.iban)}</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+          ${zukaufBtn}
           <button class="btn btn-sm btn-outline" onclick="kontaktEditDialog(${k.id})">✏</button>
           <button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:${k.aktiv?'var(--red)':'var(--green)'}" onclick="kontaktToggleAktiv(${k.id})">${k.aktiv?'✕':'✓'}</button>
         </div>
       </div>
     </div>`;
+  };
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
     <div class="stat-box" style="flex:1;margin-right:8px"><div class="stat-val" style="font-size:22px">${state.kontakte.filter(k=>k.aktiv).length}</div><div class="stat-label">aktive Kontakte</div></div>
     <button class="btn btn-primary" onclick="kontaktNeuDialog()">+ Neuer Kontakt</button>
@@ -89,6 +102,28 @@ export async function kontaktSpeichern(id) {
     showToast('✓ Kontakt gespeichert');
     renderKontakte();
   } catch(e) { showToast('⚠ '+e.message,'error'); }
+}
+
+// Lieferant für die Fuhren-Erfassung an/aus: legt beim ersten Aktivieren ein
+// Spezial-"Feld" (typ 'lieferant') an, danach wird nur der Status umgeschaltet.
+export async function lieferantFuhrenToggle(kontaktId) {
+  const k = state.kontakte.find(x => x.id === kontaktId);
+  if(!k) return;
+  const feld = state.felder.find(f => f.typ === 'lieferant' && f.kontaktId === kontaktId);
+  try {
+    if(!feld) {
+      const id = await db.insertFeldLieferant(k.name, kontaktId);
+      state.felder.push({ id, name: k.name, flaeche: 0, fruchtart: '', status: 'aktiv',
+        betrieb: 'Zukauf', bio: false, flik: '', nummer: '', typ: 'lieferant', kontaktId });
+      showToast('✓ ' + k.name + ' als Zukauf-Quelle aktiviert');
+    } else {
+      const neu = feld.status === 'aktiv' ? 'inaktiv' : 'aktiv';
+      await db.updateFeldStatus(feld.id, neu);
+      feld.status = neu;
+      showToast(neu === 'aktiv' ? '✓ Zukauf-Quelle aktiviert' : 'Zukauf-Quelle deaktiviert');
+    }
+    renderKontakte();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 
 export async function kontaktToggleAktiv(id) {

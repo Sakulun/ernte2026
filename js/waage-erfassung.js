@@ -1,9 +1,9 @@
-import { state } from './state.js?v=31';
-import { db } from './db.js?v=31';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=31';
-import { isBioFeld } from './bio.js?v=31';
-import { getQualitaetsfelder } from './quality.js?v=31';
-import { parseGewicht } from './abfahrer.js?v=31';
+import { state } from './state.js?v=32';
+import { db } from './db.js?v=32';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=32';
+import { isBioFeld } from './bio.js?v=32';
+import { getQualitaetsfelder } from './quality.js?v=32';
+import { parseGewicht } from './abfahrer.js?v=32';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -38,6 +38,10 @@ function erfasseGPS(timeoutMs = 6000) {
 
 function fruchtartFuerSorte(feldId, sorte) {
   const feld = getFeld(feldId);
+  // Umlagerung/Zukauf: Fruchtart liegt nicht fest, sondern wird je Fuhre gewählt
+  if((feld.typ || 'schlag') !== 'schlag') {
+    return document.getElementById('we-fruchtart-select')?.value || '';
+  }
   if(sorte) {
     const v = state.vermehrungen.find(x => x.feld_id === feldId && x.sorte === sorte);
     if(v && v.fruchtart) return v.fruchtart;
@@ -61,9 +65,15 @@ function renderQualGrid() {
 }
 
 function formHTML() {
-  const aktiv = state.felder.filter(f => f.status === 'aktiv').sort((a,b)=>a.name.localeCompare(b.name,'de'));
-  const feldOptions = aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
-  const warn = aktiv.length ? '' : `<div class="alert alert-warn">&#9888; Keine aktiven Schläge – bitte zuerst Schläge aktivieren.</div>`;
+  const aktiv = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') === 'schlag').sort((a,b)=>a.name.localeCompare(b.name,'de'));
+  // Spezialquellen: Umlagerung zwischen Lagern + aktivierte Zukauf-Lieferanten
+  const spezial = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') !== 'schlag')
+    .sort((a,b) => a.typ === b.typ ? a.name.localeCompare(b.name,'de') : (a.typ === 'umlagerung' ? -1 : 1));
+  const spezialOptions = spezial.map(f =>
+    `<option value="${f.id}">${f.typ==='umlagerung' ? '🔄 Umlagerung zwischen Lagern' : '🚚 Zukauf: ' + escapeHtml(f.name)}</option>`).join('');
+  const feldOptions = spezialOptions + aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
+  const gesamt = aktiv.length + spezial.length;
+  const warn = gesamt ? '' : `<div class="alert alert-warn">&#9888; Keine aktiven Schläge – bitte zuerst Schläge aktivieren.</div>`;
 
   let abfahrerBlock;
   if(_lockAbfahrer != null) {
@@ -82,7 +92,7 @@ function formHTML() {
     <div class="card-header"><div>${kopf}</div></div>
     <div class="form-group">
       <label>Schlag (${aktiv.length} aktiv)</label>
-      <select id="we-feld" onchange="weFeldWahl()" ${!aktiv.length?'disabled':''}>
+      <select id="we-feld" onchange="weFeldWahl()" ${!gesamt?'disabled':''}>
         <option value="">— Schlag wählen —</option>${feldOptions}
       </select>
     </div>
@@ -98,7 +108,7 @@ function formHTML() {
 
   if(_modus === 'offen') {
     return `${oben}
-      <button class="btn btn-primary btn-full" id="we-btn" onclick="weStarten()" ${!aktiv.length?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#9654; Fuhre starten</button>`;
+      <button class="btn btn-primary btn-full" id="we-btn" onclick="weStarten()" ${!gesamt?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#9654; Fuhre starten</button>`;
   }
 
   const waageWidget = window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(WID) : '';
@@ -122,7 +132,7 @@ function formHTML() {
     <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
     <div class="section-label">Qualität <span style="font-size:10px;color:var(--text2);font-weight:400">– optional, fehlende werden abgefragt</span></div>
     <div class="gewicht-grid" id="we-qual-grid"></div>
-    <button class="btn btn-green btn-full" id="we-btn" onclick="weAbschliessen()" ${!aktiv.length?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#10003; Fuhre abschließen</button>`;
+    <button class="btn btn-green btn-full" id="we-btn" onclick="weAbschliessen()" ${!gesamt?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#10003; Fuhre abschließen</button>`;
 }
 
 export function renderWaageErfassungInto(el, opts = {}) {
@@ -154,6 +164,18 @@ export function weFeldWahl() {
     return;
   }
   const feld = getFeld(feldId);
+  // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau)
+  if((feld.typ || 'schlag') !== 'schlag') {
+    const arten = [...new Set(state.felder.filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart).map(x => x.fruchtart))]
+      .sort((a,b) => a.localeCompare(b,'de'));
+    el.innerHTML = `<select id="we-fruchtart-select" onchange="weFruchtartWahl()" style="width:100%;border:none;background:none;font:inherit;color:inherit;padding:0">
+      <option value="">— Fruchtart wählen —</option>${arten.map(a=>`<option>${escapeHtml(a)}</option>`).join('')}
+    </select>`;
+    el.style.color = 'var(--gold2)';
+    if(sorteGroup) { sorteGroup.style.display = 'none'; if(sorteSelect) sorteSelect.value = ''; }
+    renderQualGrid();
+    return;
+  }
   const bio = isBioFeld(feldId);
   el.innerHTML = (bio ? '<span style="color:var(--color-success);font-weight:700">🌿 BIO</span> · ' : '') + (feld.fruchtart || '–');
   el.style.color = bio ? 'var(--color-success)' : 'var(--gold2)';
@@ -167,6 +189,11 @@ export function weFeldWahl() {
     sorteGroup.style.display = 'none';
     if(sorteSelect) sorteSelect.value = '';
   }
+  renderQualGrid();
+}
+
+// Fruchtart-Wahl bei Umlagerung/Zukauf: Qualitätsfelder an die Kultur anpassen
+export function weFruchtartWahl() {
   renderQualGrid();
 }
 
@@ -198,6 +225,7 @@ export async function weStarten() {
   const sorteEl = document.getElementById('we-sorte');
   const sorte = sorteEl ? (sorteEl.value || null) : null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
+  if((getFeld(feldId).typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
   // Fuhren-Nummer wird serverseitig vergeben (nutzerunabhängig eindeutig).
   const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
     lat: _gpsPos?.lat ?? null, lon: _gpsPos?.lon ?? null, zeit: new Date().toISOString() };
@@ -227,6 +255,7 @@ export async function weAbschliessen() {
   const sorte = document.getElementById('we-sorte')?.value || null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   const feld = getFeld(feldId);
+  if((feld.typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
   const qf = getQualitaetsfelder(fruchtart);
   const qRows = Object.entries(qf).map(([key,o]) => {
     const el = document.getElementById('qual-'+key+'-'+WID);
@@ -282,7 +311,11 @@ function zeigeBestaetigung(d) {
   const td = 'padding:6px 4px;border-bottom:1px solid var(--color-border)';
   const tdL = td + ';color:var(--text2);width:42%';
   const row = (k,val) => `<tr><td style="${tdL}">${escapeHtml(k)}</td><td style="${td};font-weight:600">${val}</td></tr>`;
-  const artZeile = d.sorte
+  const artZeile = d.feld.typ === 'umlagerung'
+    ? row('Art', '🔄 Umlagerung zwischen Lagern')
+    : d.feld.typ === 'lieferant'
+    ? row('Art', '🚚 Zukauf · ' + escapeHtml(d.feld.name))
+    : d.sorte
     ? row('Art', '🌱 Vermehrung · ' + escapeHtml(d.sorte))
     : row('Art', 'Konsum');
   const qHtml = d.qRows.map(q => row(q.label, q.val!=null ? escapeHtml(String(q.val)) : '<span style="color:var(--amber)">— fehlt</span>')).join('');
@@ -295,7 +328,7 @@ function zeigeBestaetigung(d) {
       <div class="card-sub">Bitte die Werte kontrollieren</div>
     </div></div>
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin:4px 0 8px">
-      ${row('Schlag', escapeHtml(d.feld.name||'–'))}
+      ${row((d.feld.typ||'schlag')!=='schlag' ? 'Herkunft' : 'Schlag', escapeHtml(d.feld.name||'–'))}
       ${row('Fruchtart', escapeHtml(d.fruchtart||'–'))}
       ${artZeile}
       ${row('Abfahrer', escapeHtml(d.abfName||'–'))}

@@ -1,7 +1,7 @@
-import { state } from './state.js?v=31';
-import { db } from './db.js?v=31';
-import { showToast } from './helpers.js?v=31';
-import { isBioFeld, bioBadge } from './bio.js?v=31';
+import { state } from './state.js?v=32';
+import { db } from './db.js?v=32';
+import { showToast } from './helpers.js?v=32';
+import { isBioFeld, bioBadge } from './bio.js?v=32';
 
 let schlagFilter = 'alle';
 let schlagSearch = '';
@@ -37,7 +37,7 @@ export function renderAdminSchlaege() {
     return `<div class="schlag-item ${f.status}" style="${isBio?'border-left:3px solid var(--color-success)':''}">
       <div class="schlag-info">
         <div class="schlag-name">${f.name}${isBio?bioBadge(true):''}${vermBadge}</div>
-        <div class="schlag-detail">${f.fruchtart} · ${f.flaeche} ha${f.betrieb?' · '+f.betrieb:''}</div>
+        <div class="schlag-detail">${(f.typ||'schlag')!=='schlag' ? (f.typ==='umlagerung'?'🔄 Umlagerung zwischen Lagern – Fruchtart je Fuhre wählbar':'🚚 Zukauf-Quelle (Lieferant) – Fruchtart je Fuhre wählbar') : `${f.fruchtart} · ${f.flaeche} ha${f.betrieb?' · '+f.betrieb:''}`}</div>
       </div>
       ${statusBadge}
       <div class="schlag-actions">${btnAktivieren}${btnFertig}${btnReset}</div>
@@ -102,7 +102,7 @@ function renderAdminSchlaegeListe() {
     return `<div class="schlag-item ${f.status}" style="${isBio?'border-left:3px solid var(--color-success)':''}">
       <div class="schlag-info">
         <div class="schlag-name">${f.name}${isBio?bioBadge(true):''}${vermBadge}</div>
-        <div class="schlag-detail">${f.fruchtart} · ${f.flaeche} ha${f.betrieb?' · '+f.betrieb:''}</div>
+        <div class="schlag-detail">${(f.typ||'schlag')!=='schlag' ? (f.typ==='umlagerung'?'🔄 Umlagerung zwischen Lagern – Fruchtart je Fuhre wählbar':'🚚 Zukauf-Quelle (Lieferant) – Fruchtart je Fuhre wählbar') : `${f.fruchtart} · ${f.flaeche} ha${f.betrieb?' · '+f.betrieb:''}`}</div>
       </div>
       ${statusBadge}
       <div class="schlag-actions">${btnAktivieren}${btnFertig}${btnReset}</div>

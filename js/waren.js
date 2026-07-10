@@ -1,8 +1,8 @@
-import { state } from './state.js?v=31';
-import { db } from './db.js?v=31';
-import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=31';
-import { getSiloBestand, getSiloKultur } from './silo.js?v=31';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=31';
+import { state } from './state.js?v=32';
+import { db } from './db.js?v=32';
+import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=32';
+import { getSiloBestand, getSiloKultur } from './silo.js?v=32';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=32';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));

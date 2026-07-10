@@ -1,10 +1,10 @@
-import { state } from './state.js?v=31';
-import { getFeld, getUser, netto, showToast } from './helpers.js?v=31';
-import { getSiloFill, getSiloKultur } from './silo.js?v=31';
+import { state } from './state.js?v=32';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=32';
+import { getSiloFill, getSiloKultur } from './silo.js?v=32';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=31';
+} from './config.js?v=32';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -26,13 +26,14 @@ export function exportTagesbericht() {
   const gesamtT  = fertig.reduce((s,f)=>s+(netto(f)||0),0)/1000;
 
   const kulturen = {};
-  state.felder.forEach(f=>{
+  // Nur echte Schläge/Ernte-Fuhren – Umlagerung/Zukauf verfälschen die Erntebilanz
+  state.felder.filter(f => (f.typ||'schlag')==='schlag').forEach(f=>{
     if(!kulturen[f.fruchtart]) kulturen[f.fruchtart]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[]};
     kulturen[f.fruchtart].ha_gesamt+=f.flaeche;
     if(f.status==='abgeerntet') kulturen[f.fruchtart].ha_abg+=f.flaeche;
     if(f.status==='aktiv') kulturen[f.fruchtart].ha_aktiv+=f.flaeche;
   });
-  fertig.forEach(f=>{
+  fertig.filter(istErnteFuhre).forEach(f=>{
     const fa=f.fruchtart||'Unbekannt';
     if(!kulturen[fa]) kulturen[fa]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[]};
     kulturen[fa].kg+=(netto(f)||0);
@@ -298,7 +299,7 @@ export async function exportExcelAuswertung() {
     const feld = getFeld(f.feldId); const n = netto(f) || 0;
     aoa.push([
       f.nr, new Date(f.zeit).toLocaleDateString('de-DE'), new Date(f.zeit).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
-      feld.betrieb||'', feld.name||'', f.fruchtart||'', f.sorte?'Vermehrung':'Konsum', f.sorte||'', getUser(f.abfahrerId).name||'',
+      feld.betrieb||'', feld.name||'', f.fruchtart||'', fuhrenArt(f), f.sorte||'', getUser(f.abfahrerId).name||'',
       f.vollgewicht||null, f.leergewicht||null, n? Math.round(n/10)/100 : null,
       f.feuchte??null, f.protein??null, f.hlGewicht??null, f.oelgehalt??null, f.status, f.siloId||''
     ]);
@@ -340,7 +341,7 @@ export async function exportExcelAuswertung() {
   // unabhängig davon ob Konsum oder Vermehrung.
   const feldIdsFertig = [...new Set(fertige.map(f=>f.feldId))];
   const schlaege = feldIdsFertig.map(id => getFeld(id))
-    .filter(fd => fd && fd.name)
+    .filter(fd => fd && fd.name && (fd.typ||'schlag')==='schlag')
     .sort((a,b)=> (a.name||'').localeCompare(b.name||'','de') || (a.fruchtart||'').localeCompare(b.fruchtart||'','de'));
   const sHead = ['Schlag','Fruchtart','Anbaubetrieb','Fläche_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
   const sAoa = [sHead];
@@ -361,7 +362,7 @@ export async function exportExcelAuswertung() {
   XLSX.utils.book_append_sheet(wb, wsS, 'Schlag-Erträge');
 
   // --- Je Kultur ein Blatt "Konsum <Kultur>" ---
-  const konsum = fertige.filter(f => !f.sorte);
+  const konsum = fertige.filter(f => !f.sorte && istErnteFuhre(f));
   const kulturen = [...new Set(konsum.map(f => f.fruchtart || 'Unbekannt'))].sort((a,b)=>a.localeCompare(b,'de'));
   const used = { 'Fuhren':1, 'Vermehrungen':1, 'Schlag-Erträge':1 };
   kulturen.forEach(fa => {

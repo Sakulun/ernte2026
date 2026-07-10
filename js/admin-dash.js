@@ -1,16 +1,17 @@
-import { state } from './state.js?v=31';
-import { getFeld, getUser, netto } from './helpers.js?v=31';
-import { getFruchtFarbe } from './frucht.js?v=31';
+import { state } from './state.js?v=32';
+import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=32';
+import { getFruchtFarbe } from './frucht.js?v=32';
 
 export function renderAdminDash() {
-  const fertig = state.fuhren.filter(f=>f.status==='fertig');
-  const offen  = state.fuhren.filter(f=>f.status==='offen');
+  // Nur echte Ernte-Fuhren – Umlagerungen/Zukauf würden die Erntemenge verfälschen
+  const fertig = state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f));
+  const offen  = state.fuhren.filter(f=>f.status==='offen' && istErnteFuhre(f));
   const totalNet = fertig.reduce((s,f)=>s+(netto(f)||0), 0);
   const gesamtHa = state.felder.reduce((s,f)=>s+f.flaeche, 0);
   const abgHa    = state.felder.filter(f=>f.status==='abgeerntet').reduce((s,f)=>s+f.flaeche, 0);
 
   const kulturen = {};
-  state.felder.forEach(f => {
+  state.felder.filter(f => (f.typ||'schlag')==='schlag').forEach(f => {
     if(!kulturen[f.fruchtart]) kulturen[f.fruchtart] = {ha_gesamt:0, ha_abg:0, ha_aktiv:0, kg:0, fuhren:0};
     const k = kulturen[f.fruchtart];
     k.ha_gesamt += f.flaeche;

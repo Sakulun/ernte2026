@@ -1,7 +1,7 @@
-import { state } from './state.js?v=31';
-import { db } from './db.js?v=31';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=31';
-import { getFruchtFarbe } from './frucht.js?v=31';
+import { state } from './state.js?v=32';
+import { db } from './db.js?v=32';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=32';
+import { getFruchtFarbe } from './frucht.js?v=32';
 
 let _editOpenId = null;
 

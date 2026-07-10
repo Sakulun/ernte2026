@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=31';
+import { SB_URL, SB_KEY } from './config.js?v=32';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -51,8 +51,18 @@ export const db = {
       .map(f => ({
         id: f.id, name: f.name, flaeche: parseFloat(f.flaeche),
         fruchtart: f.fruchtart, status: f.status, betrieb: f.betrieb||'',
-        bio: f.bio||false, flik: f.flik||'', nummer: f.nummer||''
+        bio: f.bio||false, flik: f.flik||'', nummer: f.nummer||'',
+        typ: f.typ||'schlag', kontaktId: f.kontakt_id||null
       }));
+  },
+  // Spezial-"Feld" für Zukauf von einem Lieferanten (typ 'lieferant')
+  async insertFeldLieferant(name, kontaktId) {
+    const { data, error } = await sb.from('felder').insert({
+      name, fruchtart: '', flaeche: 0, status: 'aktiv', betrieb: 'Zukauf',
+      typ: 'lieferant', kontakt_id: kontaktId
+    }).select().single();
+    if(error) throw error;
+    return data.id;
   },
   async updateFeldStatus(id, status) {
     const { error } = await sb.from('felder').update({status}).eq('id', id);
