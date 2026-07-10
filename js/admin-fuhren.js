@@ -1,9 +1,44 @@
-import { state } from './state.js?v=32';
-import { db } from './db.js?v=32';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=32';
-import { getFruchtFarbe } from './frucht.js?v=32';
+import { state } from './state.js?v=33';
+import { db } from './db.js?v=33';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=33';
+import { getFruchtFarbe } from './frucht.js?v=33';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=33';
 
 let _editOpenId = null;
+
+// Quelle/Ziel-Auswahl für Umlagerungs-Fuhren (nur im Admin-Bearbeiten-Formular).
+// Ziel = silo_id der Fuhre (Einlagerung), Quelle löst die automatische Ausbuchung aus.
+function lagerSelects(f) {
+  if(getFeld(f.feldId).typ !== 'umlagerung') return '';
+  const opts = (sel) => '<option value="">— wählen —</option>' + alleLagerOrte()
+    .map(o => `<option value="${escapeHtml(o.id)}" ${o.id===sel?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+  return `
+    <label style="font-size:11px;color:var(--text2)">Quell-Lager (wird ausgebucht)<select id="ef-quelle-${f.id}" class="input">${opts(f.quelleLagerId)}</select></label>
+    <label style="font-size:11px;color:var(--text2)">Ziel-Lager (wird eingelagert)<select id="ef-ziel-${f.id}" class="input">${opts(f.siloId)}</select></label>`;
+}
+
+// Hält die automatische Ausgangs-Buchung im Quell-Lager synchron zur Fuhre
+// (verknüpft über warenbewegungen.fuhre_id): anlegen, anpassen oder zurücknehmen.
+async function syncUmlagerungsAusbuchung(f) {
+  const n = netto(f) || 0;
+  const zielTxt = f.siloId ? lagerLabel(f.siloId) : '';
+  const notiz = 'Umlagerung ' + f.nr + (zielTxt ? ' → ' + zielTxt : '');
+  try {
+    const vorhanden = state.warenbewegungen.find(w => w.fuhre_id === f.id);
+    const passt = vorhanden && vorhanden.silo_von_id === f.quelleLagerId
+      && parseFloat(vorhanden.menge_kg) === n && vorhanden.notiz === notiz;
+    if(passt) return;
+    if(vorhanden) await db.deleteWarenbewegung(vorhanden.id);
+    if(f.quelleLagerId && n > 0) {
+      await db.insertWarenbewegung({
+        typ: 'ausgang', siloVonId: f.quelleLagerId, mengeKg: n,
+        notiz, fuhreId: f.id, erstelltVon: state.currentUser?.id || null
+      });
+      showToast('✓ ' + kg2t(n) + ' aus ' + lagerLabel(f.quelleLagerId) + ' ausgebucht');
+    }
+    state.warenbewegungen = await db.getWarenbewegungen();
+  } catch(e) { showToast('⚠ Ausbuchung: ' + e.message, 'error'); }
+}
 
 // Sorte/Partie-Auswahl (Konsum + Vermehrungssorten des Feldes) für die Bearbeiten-Formulare
 function sorteEditFeld(f) {
@@ -47,7 +82,9 @@ export function renderAdminFuhren() {
         <div><span style="font-size:11px;color:var(--text2)">Protein </span><span style="font-size:14px;font-weight:600">${f.protein??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">HL </span><span style="font-size:14px;font-weight:600">${f.hlGewicht??'–'}</span></div>
       </div>
-      ${f.siloId?`<div style="margin-top:6px;font-size:11px;color:var(--blue)">🏭 ${window.lagerLabel?window.lagerLabel(f.siloId):'Silo '+f.siloId}</div>`:''}
+      ${getFeld(f.feldId).typ==='umlagerung'
+        ? `<div style="margin-top:6px;font-size:11px;color:var(--blue)">🔄 ${f.quelleLagerId?lagerLabel(f.quelleLagerId):'<span style="color:var(--amber)">Quelle fehlt</span>'} → ${f.siloId?lagerLabel(f.siloId):'<span style="color:var(--amber)">Ziel fehlt</span>'}</div>`
+        : (f.siloId?`<div style="margin-top:6px;font-size:11px;color:var(--blue)">🏭 ${lagerLabel(f.siloId)}</div>`:'')}
       ${f.lat!=null&&window.standortText?`<div style="margin-top:4px;font-size:11px;color:var(--text2)">📍 ${window.standortText(f.lat,f.lon)}</div>`:''}
       ${showEdit ? `<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         ${!isVerified ? `
@@ -146,6 +183,7 @@ function renderFuhreEditForm(fId) {
       <label style="font-size:11px;color:var(--text2)">Feld<select id="ef-feld-${fId}" class="input">${feldOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Fruchtart<select id="ef-fa-${fId}" class="input">${sortenOpts}</select></label>
       ${sorteEditFeld(f)}
+      ${lagerSelects(f)}
       <label style="font-size:11px;color:var(--text2)">Drescher<select id="ef-dr-${fId}" class="input">${drOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Abfahrer<select id="ef-ab-${fId}" class="input">${abOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Vollgew. (kg)<input id="ef-voll-${fId}" class="input" type="number" value="${f.vollgewicht||''}"></label>
@@ -179,11 +217,17 @@ export async function saveFuhreEdit(fId) {
   };
   const sorteEl = document.getElementById('ef-sorte-'+fId);
   if(sorteEl) updates.sorte = sorteEl.value || null;
+  // Umlagerung: Quelle (Ausbuchung) + Ziel (Einlagerung) – nur im Admin-Formular vorhanden
+  const quelleEl = document.getElementById('ef-quelle-'+fId);
+  const zielEl = document.getElementById('ef-ziel-'+fId);
+  if(quelleEl) updates.quelleLagerId = quelleEl.value || null;
+  if(zielEl) updates.siloId = zielEl.value || null;
   Object.assign(f, updates, {fruchtart: updates.fruchtartKorr, feldId: updates.feldIdKorr});
   _editOpenId = null;
   renderAdminFuhren();
   try {
     await db.updateFuhre(fId, updates);
+    if(quelleEl) await syncUmlagerungsAusbuchung(f);
     showToast('✓ Gespeichert');
   } catch(e) { showToast('⚠ '+e.message, 'error'); }
 }
@@ -202,6 +246,12 @@ export async function deleteFuhre(fId) {
   renderAdminFuhren();
   try {
     await db.deleteFuhre(fId);
+    // Automatische Umlagerungs-Ausbuchung dieser Fuhre mit zurücknehmen
+    const wb = state.warenbewegungen.find(w => w.fuhre_id === fId);
+    if(wb) {
+      try { await db.deleteWarenbewegung(wb.id); state.warenbewegungen = state.warenbewegungen.filter(w => w.id !== wb.id); }
+      catch(e2) { console.warn('Ausbuchung nicht entfernt:', e2); }
+    }
     showToast('🗑 Fuhre '+f.nr+' gelöscht');
   } catch(e) {
     state.fuhren.splice(idx, 0, f); // Rollback bei Fehler
@@ -246,6 +296,7 @@ export function adminAbschliessen(fId) {
       <label style="font-size:11px;color:var(--text2)">Feld<select id="ef-feld-${fId}" class="input">${feldOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Fruchtart<select id="ef-fa-${fId}" class="input">${sortenOpts}</select></label>
       ${sorteEditFeld(f)}
+      ${lagerSelects(f)}
       <label style="font-size:11px;color:var(--text2)">Drescher<select id="ef-dr-${fId}" class="input">${drOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Abfahrer<select id="ef-ab-${fId}" class="input">${abOpts}</select></label>
       <label style="font-size:11px;color:var(--text2)">Vollgew. (kg) *<input id="ef-voll-${fId}" class="input" type="number" value="${f.vollgewicht||''}"></label>
@@ -284,11 +335,16 @@ export async function adminFuhreAbschliessenSpeichern(fId) {
   };
   const sorteElA = document.getElementById('ef-sorte-'+fId);
   if(sorteElA) updates.sorte = sorteElA.value || null;
+  const quelleElA = document.getElementById('ef-quelle-'+fId);
+  const zielElA = document.getElementById('ef-ziel-'+fId);
+  if(quelleElA) updates.quelleLagerId = quelleElA.value || null;
+  if(zielElA) updates.siloId = zielElA.value || null;
   Object.assign(f, updates, {status:'fertig', fruchtart: updates.fruchtartKorr, feldId: updates.feldIdKorr});
   _editOpenId = null;
   renderAdminFuhren();
   try {
     await db.updateFuhre(fId, updates);
+    if(quelleElA) await syncUmlagerungsAusbuchung(f);
     showToast('✓ Fuhre abgeschlossen');
   } catch(e) { showToast('⚠ '+e.message, 'error'); }
 }

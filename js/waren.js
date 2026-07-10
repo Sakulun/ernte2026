@@ -1,8 +1,8 @@
-import { state } from './state.js?v=32';
-import { db } from './db.js?v=32';
-import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=32';
-import { getSiloBestand, getSiloKultur } from './silo.js?v=32';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=32';
+import { state } from './state.js?v=33';
+import { db } from './db.js?v=33';
+import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=33';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=33';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=33';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -309,7 +309,7 @@ export function renderWarenausgang() {
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:12px;font-weight:700;letter-spacing:1px;color:'+farbe+';text-transform:uppercase">'
-      +pfeil+' '+(isAus?'Ausgang':'Eingang')+(w.silo_von_id?' · Silo '+w.silo_von_id:'')+(w.bio?' · <span style="color:var(--gold)">BIO</span>':'')+'</div>'
+      +pfeil+' '+(isAus?'Ausgang':'Eingang')+(w.silo_von_id?' · '+lagerLabel(w.silo_von_id):'')+(w.bio?' · <span style="color:var(--gold)">BIO</span>':'')+'</div>'
       +'<div style="font-size:13px;font-weight:600;color:var(--text);margin-top:2px">'+(art?escapeHtml(art.name):'–')+'</div>'
       +(kontr?'<div style="font-size:11px;color:var(--gold);margin-top:1px">Kontrakt '+escapeHtml(kontr.nummer)+'</div>':'')
       +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'

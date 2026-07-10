@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=32';
+import { SB_URL, SB_KEY } from './config.js?v=33';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -86,6 +86,7 @@ export const db = {
       sorte: f.sorte || null,
       lat: f.lat != null ? parseFloat(f.lat) : null,
       lon: f.lon != null ? parseFloat(f.lon) : null,
+      quelleLagerId: f.quelle_lager_id || null,
       zeit: f.zeit,
       verifiziert: f.verifiziert || false,
       verifiziertVon: f.verifiziert_von || null,
@@ -141,6 +142,7 @@ export const db = {
     if(updates.verifiziert !== undefined) map.verifiziert = updates.verifiziert;
     if(updates.verifiziertVon !== undefined) map.verifiziert_von = updates.verifiziertVon;
     if(updates.siloId !== undefined) map.silo_id = updates.siloId;
+    if(updates.quelleLagerId !== undefined) map.quelle_lager_id = updates.quelleLagerId;
     if(updates.feldIdKorr !== undefined) { map.feld_id_korr = updates.feldIdKorr; map.feld_id = updates.feldIdKorr; }
     if(updates.drescherId !== undefined) map.drescher_id_korr = updates.drescherId;
     if(updates.abfahrerId !== undefined) map.abfahrer_id_korr = updates.abfahrerId;
@@ -290,6 +292,7 @@ export const db = {
       notiz: w.notiz || null,
       bio: w.bio || false,
       kontrakt_id: w.kontraktId || null,
+      fuhre_id: w.fuhreId || null,
       erstellt_von: w.erstelltVon || null
     }).select().single();
     if(error) throw error;

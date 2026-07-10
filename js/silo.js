@@ -1,9 +1,9 @@
-import { state } from './state.js?v=32';
-import { db } from './db.js?v=32';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=32';
-import { getFruchtFarbe } from './frucht.js?v=32';
-import { feuchteZuHoch } from './quality.js?v=32';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=32';
+import { state } from './state.js?v=33';
+import { db } from './db.js?v=33';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=33';
+import { getFruchtFarbe } from './frucht.js?v=33';
+import { feuchteZuHoch } from './quality.js?v=33';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=33';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -22,6 +22,13 @@ const FLACHLAGER = {
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
   return FLACHLAGER[siloId] ? FLACHLAGER[siloId].label : 'Silo ' + siloId;
+}
+// Alle Lagerorte (Flachlager + Silos) für Auswahl-Dropdowns, z.B. Quelle/Ziel bei Umlagerungen
+export function alleLagerOrte() {
+  return [
+    ...Object.entries(FLACHLAGER).map(([k,l]) => ({ id: k, label: l.label })),
+    ...state.silos.slice().sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(s => ({ id: s.id, label: 'Silo ' + s.id }))
+  ];
 }
 
 // Koordinaten der Lagerstandorte (Ortsmitte genügt – die Standorte liegen
@@ -365,10 +372,15 @@ export function renderSiloManagement() {
   const lagerView = (lagerId) => {
     const lager = FLACHLAGER[lagerId];
     const lagerFuhren = state.fuhren.filter(f=>f.siloId===lagerId&&f.status==='fertig');
+    const zugangT = lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000;
+    const ausgangT = getSiloAusgang(lagerId)/1000;
+    const bestandStr = ausgangT > 0
+      ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${Math.max(0,zugangT-ausgangT).toFixed(1)} t Bestand</b>`
+      : `${zugangT.toFixed(1)} t`;
     return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
     <div style="width:100%;max-width:600px">
       <div style="background:var(--green-50);border:2px dashed var(--color-primary);border-radius:var(--radius-lg);min-height:200px;padding:16px;margin-bottom:16px">
-        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${(lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000).toFixed(1)} t</div>
+        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${bestandStr}</div>
         ${lagerFuhren.length ? lagerFuhren.map(f=>{
           const n=netto(f); const fr=getFruchtFarbe(f.fruchtart);
           return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
