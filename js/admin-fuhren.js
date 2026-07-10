@@ -1,8 +1,8 @@
-import { state } from './state.js?v=33';
-import { db } from './db.js?v=33';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=33';
-import { getFruchtFarbe } from './frucht.js?v=33';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=33';
+import { state } from './state.js?v=34';
+import { db } from './db.js?v=34';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=34';
+import { getFruchtFarbe } from './frucht.js?v=34';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=34';
 
 let _editOpenId = null;
 
@@ -81,6 +81,7 @@ export function renderAdminFuhren() {
         <div><span style="font-size:11px;color:var(--text2)">Feuchte </span><span style="font-size:14px;font-weight:600">${f.feuchte??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">Protein </span><span style="font-size:14px;font-weight:600">${f.protein??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">HL </span><span style="font-size:14px;font-weight:600">${f.hlGewicht??'–'}</span></div>
+        ${f.oelgehalt!=null?`<div><span style="font-size:11px;color:var(--text2)">Öl </span><span style="font-size:14px;font-weight:600">${f.oelgehalt}%</span></div>`:''}
       </div>
       ${getFeld(f.feldId).typ==='umlagerung'
         ? `<div style="margin-top:6px;font-size:11px;color:var(--blue)">🔄 ${f.quelleLagerId?lagerLabel(f.quelleLagerId):'<span style="color:var(--amber)">Quelle fehlt</span>'} → ${f.siloId?lagerLabel(f.siloId):'<span style="color:var(--amber)">Ziel fehlt</span>'}</div>`
@@ -192,6 +193,7 @@ function renderFuhreEditForm(fId) {
       ${(f.fruchtart||'').toLowerCase().includes('gerste') ? '' : `<label style="font-size:11px;color:var(--text2)">Fallzahl<input id="ef-fz-${fId}" class="input" type="number" value="${f.fallzahl||''}"></label>`}
       <label style="font-size:11px;color:var(--text2)">Protein %<input id="ef-prot-${fId}" class="input" type="number" step="0.1" value="${f.protein||''}"></label>
       <label style="font-size:11px;color:var(--text2)">HL-Gewicht<input id="ef-hl-${fId}" class="input" type="number" step="0.1" value="${f.hlGewicht||''}"></label>
+      <label style="font-size:11px;color:var(--text2)">Ölgehalt %<input id="ef-oel-${fId}" class="input" type="number" step="0.1" value="${f.oelgehalt||''}"></label>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
       <button class="btn btn-sm" style="background:var(--green);color:var(--text);border:none" onclick="saveFuhreEdit(${fId})">💾 Speichern</button>
@@ -214,6 +216,7 @@ export async function saveFuhreEdit(fId) {
     fallzahl: parseFloat(document.getElementById('ef-fz-'+fId)?.value)||null,
     protein: parseFloat(document.getElementById('ef-prot-'+fId).value)||null,
     hlGewicht: parseFloat(document.getElementById('ef-hl-'+fId).value)||null,
+    oelgehalt: parseFloat(document.getElementById('ef-oel-'+fId)?.value)||null,
   };
   const sorteEl = document.getElementById('ef-sorte-'+fId);
   if(sorteEl) updates.sorte = sorteEl.value || null;
@@ -305,6 +308,7 @@ export function adminAbschliessen(fId) {
       ${(f.fruchtart||'').toLowerCase().includes('gerste') ? '' : `<label style="font-size:11px;color:var(--text2)">Fallzahl<input id="ef-fz-${fId}" class="input" type="number" value="${f.fallzahl||''}"></label>`}
       <label style="font-size:11px;color:var(--text2)">Protein %<input id="ef-prot-${fId}" class="input" type="number" step="0.1" value="${f.protein||''}"></label>
       <label style="font-size:11px;color:var(--text2)">HL-Gewicht<input id="ef-hl-${fId}" class="input" type="number" step="0.1" value="${f.hlGewicht||''}"></label>
+      <label style="font-size:11px;color:var(--text2)">Ölgehalt %<input id="ef-oel-${fId}" class="input" type="number" step="0.1" value="${f.oelgehalt||''}"></label>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-sm" style="background:var(--blue);color:#fff;border:none" onclick="adminFuhreAbschliessenSpeichern(${fId})">✓ Abschließen & Speichern</button>
@@ -332,6 +336,7 @@ export async function adminFuhreAbschliessenSpeichern(fId) {
     fallzahl: parseFloat(document.getElementById('ef-fz-'+fId)?.value)||null,
     protein: parseFloat(document.getElementById('ef-prot-'+fId)?.value)||null,
     hlGewicht: parseFloat(document.getElementById('ef-hl-'+fId)?.value)||null,
+    oelgehalt: parseFloat(document.getElementById('ef-oel-'+fId)?.value)||null,
   };
   const sorteElA = document.getElementById('ef-sorte-'+fId);
   if(sorteElA) updates.sorte = sorteElA.value || null;

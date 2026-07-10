@@ -1,10 +1,10 @@
-import { state } from './state.js?v=33';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=33';
-import { getSiloFill, getSiloKultur } from './silo.js?v=33';
+import { state } from './state.js?v=34';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=34';
+import { getSiloFill, getSiloKultur } from './silo.js?v=34';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=33';
+} from './config.js?v=34';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -28,19 +28,20 @@ export function exportTagesbericht() {
   const kulturen = {};
   // Nur echte Schläge/Ernte-Fuhren – Umlagerung/Zukauf verfälschen die Erntebilanz
   state.felder.filter(f => (f.typ||'schlag')==='schlag').forEach(f=>{
-    if(!kulturen[f.fruchtart]) kulturen[f.fruchtart]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[]};
+    if(!kulturen[f.fruchtart]) kulturen[f.fruchtart]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[],oels:[]};
     kulturen[f.fruchtart].ha_gesamt+=f.flaeche;
     if(f.status==='abgeerntet') kulturen[f.fruchtart].ha_abg+=f.flaeche;
     if(f.status==='aktiv') kulturen[f.fruchtart].ha_aktiv+=f.flaeche;
   });
   fertig.filter(istErnteFuhre).forEach(f=>{
     const fa=f.fruchtart||'Unbekannt';
-    if(!kulturen[fa]) kulturen[fa]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[]};
+    if(!kulturen[fa]) kulturen[fa]={ha_gesamt:0,ha_abg:0,ha_aktiv:0,kg:0,fuhren:[],feuchten:[],proteine:[],hls:[],oels:[]};
     kulturen[fa].kg+=(netto(f)||0);
     kulturen[fa].fuhren.push(f);
     if(f.feuchte) kulturen[fa].feuchten.push(f.feuchte);
     if(f.protein) kulturen[fa].proteine.push(f.protein);
     if(f.hlGewicht) kulturen[fa].hls.push(f.hlGewicht);
+    if(f.oelgehalt) kulturen[fa].oels.push(f.oelgehalt);
   });
 
   const avg = arr => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : '–';
@@ -67,6 +68,7 @@ export function exportTagesbericht() {
         <td class="num">${avg(k.feuchten)}</td>
         <td class="num">${avg(k.proteine)}</td>
         <td class="num">${avg(k.hls)}</td>
+        <td class="num">${avg(k.oels)}</td>
         <td class="num">${pct.toFixed(0)}%</td>
       </tr>`;
     }).join('');
@@ -101,9 +103,10 @@ export function exportTagesbericht() {
       <td class="num">${f.feuchte??'–'}</td>
       <td class="num">${f.protein??'–'}</td>
       <td class="num">${f.hlGewicht??'–'}</td>
+      <td class="num">${f.oelgehalt??'–'}</td>
       <td>${f.siloId||'–'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="11" style="text-align:center;color:#888;padding:16px">Keine Fuhren heute</td></tr>';
+  }).join('') || '<tr><td colspan="12" style="text-align:center;color:#888;padding:16px">Keine Fuhren heute</td></tr>';
 
   const win = window.open('','_blank');
   win.document.write(`<!DOCTYPE html><html lang="de"><head>
@@ -163,7 +166,7 @@ export function exportTagesbericht() {
   <table>
     <thead><tr>
       <th>Kultur</th><th>ha gesamt</th><th>ha geerntet</th><th>ha offen</th>
-      <th>t gesamt</th><th>dt/ha</th><th>Ø Feuchte %</th><th>Ø Protein %</th><th>Ø HL</th><th>Fortschritt</th>
+      <th>t gesamt</th><th>dt/ha</th><th>Ø Feuchte %</th><th>Ø Protein %</th><th>Ø HL</th><th>Ø Öl %</th><th>Fortschritt</th>
     </tr></thead>
     <tbody>${kulturRows}</tbody>
   </table>
@@ -180,7 +183,7 @@ export function exportTagesbericht() {
   <table>
     <thead><tr>
       <th>Nr</th><th>Zeit</th><th>Schlag</th><th>Fruchtart</th><th>Drescher</th><th>Abfahrer</th>
-      <th>t netto</th><th>Feuchte</th><th>Protein</th><th>HL</th><th>Silo</th>
+      <th>t netto</th><th>Feuchte</th><th>Protein</th><th>HL</th><th>Öl</th><th>Silo</th>
     </tr></thead>
     <tbody>${heuteFuhrenRows}</tbody>
   </table>
@@ -198,13 +201,13 @@ export function exportTagesbericht() {
 const LS_LAST_EXPORT = 'ernte_lastFuhrenExport';
 
 function buildFuhrenCSV(fuhren) {
-  const h=['Nr','Datum','Uhrzeit','Betriebsteil','Schlag','Fruchtart','Sorte','Drescher','Abfahrer','Vollgew_kg','Leergew_kg','Netto_kg','Netto_t','Feuchte_%','Fallzahl','Protein_%','HL_Gew','Status','Verifiziert','Silo'];
+  const h=['Nr','Datum','Uhrzeit','Betriebsteil','Schlag','Fruchtart','Sorte','Drescher','Abfahrer','Vollgew_kg','Leergew_kg','Netto_kg','Netto_t','Feuchte_%','Fallzahl','Protein_%','HL_Gew','Oelgehalt_%','Status','Verifiziert','Silo'];
   const rows=fuhren.map(f=>{
     const d=new Date(f.zeit);const n=netto(f);
     return [f.nr,d.toLocaleDateString('de-DE'),d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
       getFeld(f.feldId).betrieb||'',getFeld(f.feldId).name||'',f.fruchtart||'',f.sorte||'',getUser(f.drescherId).name||'',getUser(f.abfahrerId).name||'',
       deNum(f.vollgewicht||''),deNum(f.leergewicht||''),deNum(n||''),deNum(n?(n/1000).toFixed(3):''),
-      deNum(f.feuchte||''),deNum(f.fallzahl||''),deNum(f.protein||''),deNum(f.hlGewicht||''),f.status,
+      deNum(f.feuchte||''),deNum(f.fallzahl||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.oelgehalt||''),f.status,
       f.verifiziert?'Ja':'Nein',f.siloId||''].join(';');
   });
   return '﻿'+[h.join(';'),...rows].join('\n');
@@ -399,15 +402,15 @@ export function exportSiloCSV() {
     const valid = arr.filter(f=>f[key]!=null);
     return valid.length ? (valid.reduce((s,f)=>s+(f[key]||0),0)/valid.length).toFixed(1) : '';
   };
-  const h=['Silo','Kapazitaet_t','Kultur','Befuellt_t','Auslastung_%','Fuhren','Ø_Feuchte_%','Ø_Protein_%','Ø_HL_Gew','Ø_Fallzahl'];
+  const h=['Silo','Kapazitaet_t','Kultur','Befuellt_t','Auslastung_%','Fuhren','Ø_Feuchte_%','Ø_Protein_%','Ø_HL_Gew','Ø_Fallzahl','Ø_Oelgehalt_%'];
   const siloRows = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(s=>{
     const fuhren = state.fuhren.filter(f=>f.siloId===s.id&&f.status==='fertig');
     const fillT = (getSiloFill(s.id)/1000).toFixed(2);
     const pct = (getSiloFill(s.id)/1000/s.kapazitaet_t*100).toFixed(1);
     return [s.id,deNum(s.kapazitaet_t),getSiloKultur(s.id)||'',deNum(fillT),deNum(pct),fuhren.length,
-      deNum(avg(fuhren,'feuchte')),deNum(avg(fuhren,'protein')),deNum(avg(fuhren,'hlGewicht')),deNum(avg(fuhren,'fallzahl'))].join(';');
+      deNum(avg(fuhren,'feuchte')),deNum(avg(fuhren,'protein')),deNum(avg(fuhren,'hlGewicht')),deNum(avg(fuhren,'fallzahl')),deNum(avg(fuhren,'oelgehalt'))].join(';');
   });
-  const lines = [h.join(';'), ...siloRows, '', 'FUHREN JE SILO','Nr;Datum;Schlag;Fruchtart;Netto_t;Feuchte;Protein;HL_Gew;Fallzahl;Silo'];
+  const lines = [h.join(';'), ...siloRows, '', 'FUHREN JE SILO','Nr;Datum;Schlag;Fruchtart;Netto_t;Feuchte;Protein;HL_Gew;Fallzahl;Oelgehalt;Silo'];
   state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).forEach(s=>{
     const fuhren = state.fuhren.filter(f=>f.siloId===s.id&&f.status==='fertig').sort((a,b)=>new Date(a.zeit)-new Date(b.zeit));
     if(!fuhren.length) return;
@@ -415,7 +418,7 @@ export function exportSiloCSV() {
     fuhren.forEach(f=>{
       const n=netto(f);
       lines.push([f.nr,new Date(f.zeit).toLocaleDateString('de-DE'),getFeld(f.feldId).name||'',
-        f.fruchtart||'',deNum(n?(n/1000).toFixed(3):''),deNum(f.feuchte||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.fallzahl||''),s.id].join(';'));
+        f.fruchtart||'',deNum(n?(n/1000).toFixed(3):''),deNum(f.feuchte||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.fallzahl||''),deNum(f.oelgehalt||''),s.id].join(';'));
     });
   });
   const a=document.createElement('a');
