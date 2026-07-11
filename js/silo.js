@@ -1,9 +1,9 @@
-import { state } from './state.js?v=34';
-import { db } from './db.js?v=34';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=34';
-import { getFruchtFarbe } from './frucht.js?v=34';
-import { feuchteZuHoch } from './quality.js?v=34';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=34';
+import { state } from './state.js?v=35';
+import { db } from './db.js?v=35';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=35';
+import { getFruchtFarbe } from './frucht.js?v=35';
+import { feuchteZuHoch } from './quality.js?v=35';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=35';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -17,7 +17,10 @@ const FLACHLAGER = {
   HALLE_ANARODE:     { toggle: 'Anarode',    titel: '📦 Halle Anarode',            label: 'Halle Anarode' },
   HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt',  titel: '📦 Halle Höhnstedt',          label: 'Halle Höhnstedt' },
   HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
-  HALLE_THONDORF:    { toggle: 'Thondorf',   titel: '📦 Halle Thondorf',           label: 'Halle Thondorf' },
+  // Halle Thondorf ist in zwei Teile unterteilt (kap_t = Kapazität in Tonnen).
+  // Der Schlüssel HALLE_THONDORF bleibt Teil 1, damit ggf. bestehende Zuordnungen gültig bleiben.
+  HALLE_THONDORF:    { toggle: 'Thondorf 1', titel: '📦 Halle Thondorf · Teil 1',  label: 'Halle Thondorf 1', kap_t: 4000 },
+  HALLE_THONDORF2:   { toggle: 'Thondorf 2', titel: '📦 Halle Thondorf · Teil 2',  label: 'Halle Thondorf 2', kap_t: 1500 },
 };
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
@@ -225,7 +228,7 @@ export function einlagernDialog() {
         <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Silo</label>
         <select id="einlagern-silo" class="form-control" style="font-size:13px">
           <option value="">— Lagerort wählen —</option>
-          ${Object.entries(FLACHLAGER).map(([k,l])=>`<option value="${k}">${l.titel}</option>`).join('')}
+          ${Object.entries(FLACHLAGER).map(([k,l])=>`<option value="${k}">${l.titel}${l.kap_t?' ('+l.kap_t.toLocaleString('de-DE')+' t)':''}</option>`).join('')}
           ${siloOptions}
         </select>
       </div>
@@ -374,13 +377,23 @@ export function renderSiloManagement() {
     const lagerFuhren = state.fuhren.filter(f=>f.siloId===lagerId&&f.status==='fertig');
     const zugangT = lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000;
     const ausgangT = getSiloAusgang(lagerId)/1000;
+    const bestandT = Math.max(0, zugangT - ausgangT);
     const bestandStr = ausgangT > 0
-      ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${Math.max(0,zugangT-ausgangT).toFixed(1)} t Bestand</b>`
+      ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${bestandT.toFixed(1)} t Bestand</b>`
       : `${zugangT.toFixed(1)} t`;
+    const kapHtml = lager.kap_t ? (() => {
+      const pct = Math.min(100, bestandT / lager.kap_t * 100);
+      const farbe = pct > 85 ? 'var(--color-warning)' : 'var(--color-primary)';
+      return `<div style="margin:-4px 0 12px">
+        <div style="font-size:var(--text-sm);color:var(--color-text-muted);margin-bottom:4px">Kapazität ${lager.kap_t.toLocaleString('de-DE')} t · belegt ${bestandT.toFixed(1)} t (${pct.toFixed(0)} %)</div>
+        <div style="background:var(--neutral-200);border:1px solid var(--color-border);border-radius:6px;height:12px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${farbe};transition:width .3s"></div></div>
+      </div>`;
+    })() : '';
     return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
     <div style="width:100%;max-width:600px">
       <div style="background:var(--green-50);border:2px dashed var(--color-primary);border-radius:var(--radius-lg);min-height:200px;padding:16px;margin-bottom:16px">
         <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${bestandStr}</div>
+        ${kapHtml}
         ${lagerFuhren.length ? lagerFuhren.map(f=>{
           const n=netto(f); const fr=getFruchtFarbe(f.fruchtart);
           return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
