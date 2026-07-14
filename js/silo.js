@@ -1,9 +1,9 @@
-import { state } from './state.js?v=37';
-import { db } from './db.js?v=37';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=37';
-import { getFruchtFarbe } from './frucht.js?v=37';
-import { feuchteZuHoch } from './quality.js?v=37';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=37';
+import { state } from './state.js?v=38';
+import { db } from './db.js?v=38';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=38';
+import { getFruchtFarbe } from './frucht.js?v=38';
+import { feuchteZuHoch } from './quality.js?v=38';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=38';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -25,6 +25,14 @@ const FLACHLAGER = {
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
   return FLACHLAGER[siloId] ? FLACHLAGER[siloId].label : 'Silo ' + siloId;
+}
+// Herkunft einer Fuhre: eigener Betrieb (Landgut, Viehmast …) oder externer Zukauf-Lieferant.
+// Erleichtert die Zuordnung im Silomanagement.
+export function fuhreHerkunft(f) {
+  const feld = getFeld(f.feldId);
+  if((feld.typ||'schlag') === 'lieferant') return '🚚 ' + (feld.name || 'Zukauf');
+  if((feld.typ||'schlag') === 'umlagerung') return '🔄 Umlagerung';
+  return feld.betrieb || '';
 }
 // Alle Lagerorte (Flachlager + Silos) für Auswahl-Dropdowns, z.B. Quelle/Ziel bei Umlagerungen
 export function alleLagerOrte() {
@@ -205,9 +213,10 @@ export function einlagernDialog() {
       const pct = Math.min(100, (getSiloBestand(s.id)/1000/s.kapazitaet_t)*100).toFixed(0);
       const bioStatus = getSiloBioStatus(s.id);
       const kompatibel = checkSiloKompatibel(s.id, selFuhren);
-      const disabled = !kompatibel.ok;
       const label = `Silo ${s.id} · ${s.kapazitaet_t}t · ${kultur||'leer'} · ${bestandT}t (${pct}%)${bioStatus&&bioStatus!=='leer'?' · '+bioStatus.toUpperCase():''}`;
-      return `<option value="${s.id}" ${disabled?'disabled':''}>${label}${disabled?' — '+kompatibel.reason:''}</option>`;
+      // Nicht mehr sperren – nur warnen. Der Bediener entscheidet (gleiche Produkte
+      // können unterschiedlich benannt sein, z.B. "Bio Weizen" vs. "Winterweichweizen").
+      return `<option value="${s.id}">${kompatibel.ok?'':'⚠ '}${label}${kompatibel.ok?'':' — '+kompatibel.reason}</option>`;
     }).join('');
 
   document.getElementById('silo-einlagern-modal')?.remove();
@@ -273,8 +282,8 @@ export async function einlagernSpeichern() {
   if(!FLACHLAGER[siloId]) {
     const kompatibel = checkSiloKompatibel(siloId, fuhren);
     if(!kompatibel.ok) {
-      showToast('⛔ ' + kompatibel.reason, 'error');
-      return;
+      // Weiche Warnung statt harter Sperre – der Bediener bestätigt bewusst.
+      if(!confirm(`⚠ ${kompatibel.reason}.\n\nFuhren trotzdem in Silo ${siloId} einlagern?`)) return;
     }
   }
 
@@ -538,6 +547,7 @@ export function renderSiloManagement() {
             <span style="font-size:14px;font-weight:700;color:var(--text)">${f.fruchtart}${sorteBadge(f)}</span>
             <span style="font-size:13px;color:${verColor}">${verIcon}</span>
           </div>
+          <div style="font-size:11px;color:var(--text2);margin-bottom:2px">${escapeHtml(fuhreHerkunft(f))}</div>
           <div style="font-size:15px;font-weight:800;color:var(--gold);margin-bottom:2px">${nettoStr}</div>
           <div style="display:flex;justify-content:space-between;align-items:center">
             <span style="font-size:12px;color:var(--text3)">${f.feuchte!=null?f.feuchte+'%F':''}${f.feuchte!=null&&f.protein!=null?' · ':''}${f.protein!=null?f.protein+'%P':''}</span>
@@ -671,7 +681,7 @@ function renderSiloDetail(siloId) {
       +'<button onclick="removeFuhreFromSilo('+f.id+')" title="Aus Silo entfernen" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:14px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x2715;</button>'
       +'</div>'
       +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+'</div>'
-      +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+escapeHtml(fuhreHerkunft(f))+' · '+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
       +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+oelStr+'</div>'
       +'</div></div>';
   };
