@@ -1,9 +1,9 @@
-import { state } from './state.js?v=36';
-import { db } from './db.js?v=36';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=36';
-import { isBioFeld } from './bio.js?v=36';
-import { getQualitaetsfelder } from './quality.js?v=36';
-import { parseGewicht } from './abfahrer.js?v=36';
+import { state } from './state.js?v=37';
+import { db } from './db.js?v=37';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=37';
+import { isBioFeld } from './bio.js?v=37';
+import { getQualitaetsfelder } from './quality.js?v=37';
+import { parseGewicht } from './abfahrer.js?v=37';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -164,15 +164,20 @@ export function weFeldWahl() {
     return;
   }
   const feld = getFeld(feldId);
-  // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau)
+  // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau).
+  // Bei konfigurierten Zukauf-Lieferanten nur deren hinterlegte Fruchtarten.
   if((feld.typ || 'schlag') !== 'schlag') {
-    const arten = [...new Set(state.felder.filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart).map(x => x.fruchtart))]
-      .sort((a,b) => a.localeCompare(b,'de'));
+    const arten = (feld.zukaufFruchtarten && feld.zukaufFruchtarten.length)
+      ? feld.zukaufFruchtarten
+      : [...new Set(state.felder.filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart).map(x => x.fruchtart))]
+          .sort((a,b) => a.localeCompare(b,'de'));
     el.innerHTML = `<select id="we-fruchtart-select" onchange="weFruchtartWahl()" style="width:100%;border:none;background:none;font:inherit;color:inherit;padding:0">
       <option value="">— Fruchtart wählen —</option>${arten.map(a=>`<option>${escapeHtml(a)}</option>`).join('')}
     </select>`;
     el.style.color = 'var(--gold2)';
     if(sorteGroup) { sorteGroup.style.display = 'none'; if(sorteSelect) sorteSelect.value = ''; }
+    // Standard-Abfahrer voreinstellen (falls konfiguriert und Abfahrer wählbar)
+    if(feld.zukaufAbfahrerId) { const abf = document.getElementById('we-abf'); if(abf) abf.value = String(feld.zukaufAbfahrerId); }
     renderQualGrid();
     return;
   }

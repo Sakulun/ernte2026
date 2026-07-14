@@ -1,10 +1,10 @@
-import { state } from './state.js?v=36';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=36';
-import { getSiloFill, getSiloKultur } from './silo.js?v=36';
+import { state } from './state.js?v=37';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=37';
+import { getSiloFill, getSiloKultur } from './silo.js?v=37';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=36';
+} from './config.js?v=37';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").

@@ -1,6 +1,6 @@
-import { state } from './state.js?v=36';
-import { db } from './db.js?v=36';
-import { showToast, escapeHtml } from './helpers.js?v=36';
+import { state } from './state.js?v=37';
+import { db } from './db.js?v=37';
+import { showToast, escapeHtml } from './helpers.js?v=37';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -15,6 +15,12 @@ export function renderKontakte() {
            style="background:${zukaufAktiv?'var(--green)':'none'};border:1px solid ${zukaufAktiv?'var(--green)':'var(--border2)'};color:${zukaufAktiv?'#fff':'var(--text2)'}"
            onclick="lieferantFuhrenToggle(${k.id})">🌾 Fuhren: ${zukaufAktiv?'AKTIV':'aus'}</button>`
       : '';
+    const konfigBtn = zukaufAktiv
+      ? `<button class="btn btn-sm btn-outline" title="Zukauf-Einstellungen: Fruchtarten & Standard-Abfahrer" onclick="zukaufKonfigDialog(${k.id})">⚙</button>`
+      : '';
+    const konfigInfo = zukaufAktiv && (zukaufFeld.zukaufFruchtarten?.length || zukaufFeld.zukaufAbfahrerId)
+      ? `<div style="font-size:11px;color:var(--text3);margin-top:3px">Zukauf: ${(zukaufFeld.zukaufFruchtarten||[]).map(escapeHtml).join(', ')||'alle Fruchtarten'}${zukaufFeld.zukaufAbfahrerId?' · Fahrer '+escapeHtml(state.users.find(u=>u.id===zukaufFeld.zukaufAbfahrerId)?.name||'?'):''}</div>`
+      : '';
     return `
     <div class="card" style="margin-bottom:6px;opacity:${k.aktiv?1:0.5}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
@@ -24,9 +30,10 @@ export function renderKontakte() {
           ${k.adresse?`<div style="font-size:11px;color:var(--text3)">${escapeHtml(k.adresse)}</div>`:''}
           ${k.email||k.telefon?`<div style="font-size:11px;color:var(--text3)">${[k.email,k.telefon].filter(Boolean).join(' · ')}</div>`:''}
           ${k.iban?`<div style="font-size:10px;color:var(--text3);font-family:monospace">${escapeHtml(k.iban)}</div>`:''}
+          ${konfigInfo}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
-          ${zukaufBtn}
+          ${zukaufBtn}${konfigBtn}
           <button class="btn btn-sm btn-outline" onclick="kontaktEditDialog(${k.id})">✏</button>
           <button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:${k.aktiv?'var(--red)':'var(--green)'}" onclick="kontaktToggleAktiv(${k.id})">${k.aktiv?'✕':'✓'}</button>
         </div>
@@ -122,6 +129,55 @@ export async function lieferantFuhrenToggle(kontaktId) {
       feld.status = neu;
       showToast(neu === 'aktiv' ? '✓ Zukauf-Quelle aktiviert' : 'Zukauf-Quelle deaktiviert');
     }
+    renderKontakte();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
+// Zukauf-Einstellungen eines aktivierten Lieferanten: welche Fruchtarten er bringt
+// (leer = alle) + welcher Abfahrer in der Erfassung voreingestellt wird.
+export function zukaufKonfigDialog(kontaktId) {
+  const feld = state.felder.find(f => f.typ === 'lieferant' && f.kontaktId === kontaktId);
+  if(!feld) return;
+  const k = state.kontakte.find(x => x.id === kontaktId);
+  const abfOpts = state.users.filter(u => u.role === 'abfahrer')
+    .map(u => `<option value="${u.id}" ${u.id===feld.zukaufAbfahrerId?'selected':''}>${escapeHtml(u.name)}</option>`).join('');
+  const m = document.createElement('div');
+  m.id = 'zukauf-konfig-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px;overflow-y:auto';
+  m.innerHTML = `
+    <div style="background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:24px;width:100%;max-width:420px;box-shadow:var(--shadow)">
+      <div style="font-family:var(--serif);font-size:16px;font-weight:700;color:var(--text);margin-bottom:4px">🌾 Zukauf-Einstellungen</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:18px">${escapeHtml(k?.name||feld.name)}</div>
+      <div class="form-group">
+        <label>Fruchtarten (eine pro Zeile)</label>
+        <textarea id="zk-fruchtarten" rows="4" placeholder="z.B.\nBio Weizen\nBio Hafer" style="width:100%;resize:vertical">${(feld.zukaufFruchtarten||[]).map(escapeHtml).join('\n')}</textarea>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">Leer = alle Fruchtarten wählbar</div>
+      </div>
+      <div class="form-group">
+        <label>Standard-Abfahrer (voreingestellt)</label>
+        <select id="zk-abfahrer"><option value="">— keiner —</option>${abfOpts}</select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="zukaufKonfigSpeichern(${feld.id})">Speichern</button>
+        <button class="btn btn-outline" onclick="document.getElementById('zukauf-konfig-modal').remove()">Abbrechen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+export async function zukaufKonfigSpeichern(feldId) {
+  const feld = state.felder.find(f => f.id === feldId);
+  if(!feld) return;
+  const fruchtarten = (document.getElementById('zk-fruchtarten')?.value || '')
+    .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  const abfVal = document.getElementById('zk-abfahrer')?.value;
+  const abfahrerId = abfVal ? parseInt(abfVal) : null;
+  try {
+    await db.updateFeldZukauf(feldId, { fruchtarten, abfahrerId });
+    feld.zukaufFruchtarten = fruchtarten;
+    feld.zukaufAbfahrerId = abfahrerId;
+    document.getElementById('zukauf-konfig-modal')?.remove();
+    showToast('✓ Zukauf-Einstellungen gespeichert');
     renderKontakte();
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }

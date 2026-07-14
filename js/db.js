@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=36';
+import { SB_URL, SB_KEY } from './config.js?v=37';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -52,7 +52,9 @@ export const db = {
         id: f.id, name: f.name, flaeche: parseFloat(f.flaeche),
         fruchtart: f.fruchtart, status: f.status, betrieb: f.betrieb||'',
         bio: f.bio||false, flik: f.flik||'', nummer: f.nummer||'',
-        typ: f.typ||'schlag', kontaktId: f.kontakt_id||null
+        typ: f.typ||'schlag', kontaktId: f.kontakt_id||null,
+        zukaufFruchtarten: Array.isArray(f.zukauf_fruchtarten) ? f.zukauf_fruchtarten : [],
+        zukaufAbfahrerId: f.zukauf_abfahrer_id||null
       }));
   },
   // Spezial-"Feld" für Zukauf von einem Lieferanten (typ 'lieferant')
@@ -66,6 +68,13 @@ export const db = {
   },
   async updateFeldStatus(id, status) {
     const { error } = await sb.from('felder').update({status}).eq('id', id);
+    if(error) throw error;
+  },
+  // Zukauf-Konfig eines Lieferanten-Felds: erlaubte Fruchtarten + Standard-Abfahrer
+  async updateFeldZukauf(id, { fruchtarten, abfahrerId }) {
+    const { error } = await sb.from('felder')
+      .update({ zukauf_fruchtarten: fruchtarten || [], zukauf_abfahrer_id: abfahrerId || null })
+      .eq('id', id);
     if(error) throw error;
   },
   async getFuhren() {
