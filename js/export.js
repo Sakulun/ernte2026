@@ -1,10 +1,10 @@
-import { state } from './state.js?v=38';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=38';
-import { getSiloFill, getSiloKultur } from './silo.js?v=38';
+import { state } from './state.js?v=39';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=39';
+import { getSiloFill, getSiloKultur } from './silo.js?v=39';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=38';
+} from './config.js?v=39';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -220,6 +220,44 @@ function downloadCSV(text, filename) {
 }
 
 const sortFuhren = arr => arr.slice().sort((a,b)=>new Date(a.zeit)-new Date(b.zeit));
+
+// Herkunft einer Fuhre: Zukauf-Lieferant (Feldname) oder eigener Betrieb.
+const herkunftFuhre = f => {
+  const feld = getFeld(f.feldId);
+  if((feld.typ||'schlag') === 'lieferant') return feld.name || 'Zukauf';
+  if((feld.typ||'schlag') === 'umlagerung') return 'Umlagerung';
+  return feld.betrieb || '';
+};
+
+// Export einer beliebigen (z.B. gefilterten) Fuhren-Liste als CSV bzw. Excel.
+export function exportFuhrenCSV(fuhren, dateiname) {
+  downloadCSV(buildFuhrenCSV(sortFuhren(fuhren)), dateiname || 'Ernte2026_Fuhren.csv');
+}
+
+export async function exportFuhrenExcel(fuhren, dateiname) {
+  try { await ensureXLSX(); } catch(e) { showToast('Excel-Bibliothek konnte nicht geladen werden.', 'error'); return; }
+  const XLSX = window.XLSX;
+  const rows = sortFuhren(fuhren);
+  const head = ['Nr','Datum','Uhrzeit','Lieferant/Betrieb','Schlag','Fruchtart','Art','Sorte','Abfahrer',
+                'Vollgew_kg','Leergew_kg','Netto_t','Feuchte_%','Protein_%','HL_Gew','Ölgehalt_%','Status','Silo'];
+  const aoa = [head];
+  rows.forEach(f => {
+    const feld = getFeld(f.feldId); const n = netto(f) || 0;
+    aoa.push([
+      f.nr, new Date(f.zeit).toLocaleDateString('de-DE'), new Date(f.zeit).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
+      herkunftFuhre(f), feld.name||'', f.fruchtart||'', f.sorte?'Vermehrung':'Konsum', f.sorte||'', getUser(f.abfahrerId).name||'',
+      f.vollgewicht||null, f.leergewicht||null, n? Math.round(n/10)/100 : null,
+      f.feuchte??null, f.protein??null, f.hlGewicht??null, f.oelgehalt??null, f.status, f.siloId||''
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = head.map((h,i)=>({wch: i===3?20:(i===4?18:(i===8?14:11))}));
+  fmtCols(ws, ['J','K','L','M','N','O','P'], 2, aoa.length);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Fuhren');
+  XLSX.writeFile(wb, dateiname || 'Ernte2026_Fuhren.xlsx');
+  showToast('✓ Excel exportiert');
+}
 
 // Kompletter Export aller Fuhren (setzt den Inkrement-Zeiger NICHT zurück)
 export function exportCSV() {

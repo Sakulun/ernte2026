@@ -1,10 +1,63 @@
-import { state } from './state.js?v=38';
-import { db } from './db.js?v=38';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=38';
-import { getFruchtFarbe } from './frucht.js?v=38';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=38';
+import { state } from './state.js?v=39';
+import { db } from './db.js?v=39';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=39';
+import { getFruchtFarbe } from './frucht.js?v=39';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=39';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=39';
 
 let _editOpenId = null;
+// Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
+let _fFilterHerkunft = '';
+let _fFilterDatum = '';
+
+// Herkunft einer Fuhre: eigener Betrieb (Landgut, Viehmast …) oder Zukauf-Lieferant.
+function herkunftVonFuhre(f) {
+  const feld = getFeld(f.feldId);
+  if((feld.typ||'schlag') === 'lieferant') return feld.name || 'Zukauf';
+  if((feld.typ||'schlag') === 'umlagerung') return 'Umlagerung';
+  return feld.betrieb || '(ohne Betrieb)';
+}
+function fuhreImFilter(f) {
+  if(_fFilterHerkunft && herkunftVonFuhre(f) !== _fFilterHerkunft) return false;
+  if(_fFilterDatum) {
+    const d = new Date(f.zeit);
+    const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    if(iso !== _fFilterDatum) return false;
+  }
+  return true;
+}
+// Vom Filter erfasste, abgeschlossene Fuhren (für den Export)
+function gefilterteFertige() {
+  return state.fuhren.filter(f => f.status==='fertig' && fuhreImFilter(f))
+    .sort((a,b)=>new Date(a.zeit)-new Date(b.zeit));
+}
+export function setFuhrenFilter(feld, wert) {
+  if(feld === 'herkunft') _fFilterHerkunft = wert;
+  else if(feld === 'datum') _fFilterDatum = wert;
+  renderAdminFuhren();
+}
+export function fuhrenFilterZuruecksetzen() {
+  _fFilterHerkunft = ''; _fFilterDatum = '';
+  renderAdminFuhren();
+}
+function filterDateiname() {
+  const teile = ['Fuhren'];
+  if(_fFilterHerkunft) teile.push(_fFilterHerkunft.replace(/[^\wäöüÄÖÜß -]/g,'').trim().replace(/\s+/g,'_'));
+  if(_fFilterDatum) teile.push(_fFilterDatum);
+  if(teile.length === 1) teile.push('gefiltert');
+  return 'Ernte2026_' + teile.join('_');
+}
+export function exportGefilterteFuhrenCSV() {
+  const f = gefilterteFertige();
+  if(!f.length) { showToast('Keine Fuhren im Filter', 'error'); return; }
+  exportFuhrenCSV(f, filterDateiname() + '.csv');
+  showToast(`✓ ${f.length} Fuhre${f.length>1?'n':''} als CSV exportiert`);
+}
+export function exportGefilterteFuhrenExcel() {
+  const f = gefilterteFertige();
+  if(!f.length) { showToast('Keine Fuhren im Filter', 'error'); return; }
+  exportFuhrenExcel(f, filterDateiname() + '.xlsx');
+}
 
 // Quelle/Ziel-Auswahl für Umlagerungs-Fuhren (nur im Admin-Bearbeiten-Formular).
 // Ziel = silo_id der Fuhre (Einlagerung), Quelle löst die automatische Ausbuchung aus.
@@ -51,10 +104,14 @@ function sorteEditFeld(f) {
 }
 
 export function renderAdminFuhren() {
-  const fertig = state.fuhren.filter(f=>f.status==='fertig').sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
-  const offen = state.fuhren.filter(f=>f.status==='offen');
+  const fertig = state.fuhren.filter(f=>f.status==='fertig'&&fuhreImFilter(f)).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+  const offen = state.fuhren.filter(f=>f.status==='offen'&&fuhreImFilter(f));
   const pending = fertig.filter(f=>!f.verifiziert);
   const verified = fertig.filter(f=>f.verifiziert);
+  const filterAktiv = !!(_fFilterHerkunft || _fFilterDatum);
+  // Herkünfte für die Auswahl (alle Fuhren, alphabetisch)
+  const herkuenfte = [...new Set(state.fuhren.map(herkunftVonFuhre))].sort((a,b)=>a.localeCompare(b,'de'));
+  const herkunftOpts = herkuenfte.map(h=>`<option value="${escapeHtml(h)}" ${h===_fFilterHerkunft?'selected':''}>${escapeHtml(h)}</option>`).join('');
 
   const fuhreRow = (f, showEdit=true) => {
     const feld = getFeld(f.feldId);
@@ -144,6 +201,25 @@ export function renderAdminFuhren() {
         <button class="btn btn-outline btn-sm" onclick="exportTagesbericht()">📄 Tagesbericht</button>
       </div>
     </div>
+
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:14px">
+      <span style="font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase">🔎 Filter</span>
+      <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Lieferant/Betrieb
+        <select class="input" style="width:auto;padding:5px 8px;font-size:13px" onchange="setFuhrenFilter('herkunft', this.value)">
+          <option value="">Alle</option>${herkunftOpts}
+        </select>
+      </label>
+      <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Tag
+        <input type="date" class="input" style="width:auto;padding:4px 6px;font-size:13px" value="${_fFilterDatum}" onchange="setFuhrenFilter('datum', this.value)">
+      </label>
+      ${filterAktiv ? `<button class="btn btn-sm btn-outline" onclick="fuhrenFilterZuruecksetzen()">✕ Filter zurücksetzen</button>` : ''}
+      <div style="flex:1"></div>
+      <span style="font-size:12px;color:var(--text2)">${fertig.length} abgeschlossen im Filter</span>
+      <button class="btn btn-sm btn-outline" onclick="exportGefilterteFuhrenCSV()">⬇ CSV (Filter)</button>
+      <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="exportGefilterteFuhrenExcel()">📊 Excel (Filter)</button>
+    </div>
+
+    ${filterAktiv && !fertig.length && !offen.length ? '<div class="empty-state">Keine Fuhren für diesen Filter.</div>' : ''}
     ${pending.length ? `<div class="section-label" style="color:var(--text)">⚠ Zu bestätigen (${pending.length})</div>${pending.map(f=>fuhreRow(f,true)).join('')}` : ''}
     ${verified.length ? `<div class="section-label" style="margin-top:8px">✓ Bestätigt (${verified.length})</div>${verified.map(f=>fuhreRow(f,true)).join('')}` : ''}
     ${offen.length ? `<div class="section-label" style="margin-top:8px;color:var(--amber)">⚠ Offene Fuhren (${offen.length})</div>${offen.map(offenRow).join('')}` : ''}`;

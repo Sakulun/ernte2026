@@ -1,6 +1,6 @@
-import { state } from './state.js?v=38';
-import { db } from './db.js?v=38';
-import { showToast, roleLabel, hashPW } from './helpers.js?v=38';
+import { state } from './state.js?v=39';
+import { db } from './db.js?v=39';
+import { showToast, roleLabel, hashPW } from './helpers.js?v=39';
 
 let nutzerEditId = null;
 
