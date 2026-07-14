@@ -1,9 +1,9 @@
-import { state } from './state.js?v=35';
-import { db } from './db.js?v=35';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=35';
-import { getFruchtFarbe } from './frucht.js?v=35';
-import { feuchteZuHoch } from './quality.js?v=35';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=35';
+import { state } from './state.js?v=36';
+import { db } from './db.js?v=36';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=36';
+import { getFruchtFarbe } from './frucht.js?v=36';
+import { feuchteZuHoch } from './quality.js?v=36';
+import { isBioFuhre, getSiloBioStatus } from './bio.js?v=36';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -314,9 +314,98 @@ export async function einlagernSpeichern() {
   renderSiloManagement();
 }
 
+// ── Reinigen: Rohware aus einem A-Silo über den Reiniger in ein leeres Silo ──
+// Die Fuhren wandern ins Ziel-Silo (Sorte/Qualität bleiben erhalten), der
+// Reinigungsverlust (Roh − gereinigt) wird als Ausgang gebucht. Das Quell-Silo
+// ist danach leer und steht für andere Sorten zur Verfügung.
+export function reinigenDialog(quelleId) {
+  const rohT = getSiloBestand(quelleId) / 1000;
+  if(rohT <= 0) { showToast('Silo ist leer', 'error'); return; }
+  const kultur = getSiloKultur(quelleId) || '–';
+  // Ziel = leeres Silo (A oder Innen), außer dem Quell-Silo
+  const ziele = state.silos
+    .filter(s => s.id !== quelleId && getSiloBestand(s.id) <= 0)
+    .sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const zielOpts = ziele.map(s => `<option value="${s.id}">Silo ${s.id} · ${s.kapazitaet_t} t</option>`).join('');
+
+  document.getElementById('silo-reinigen-modal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'silo-reinigen-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--color-surface);border-radius:var(--radius-xl);padding:var(--space-6);width:100%;max-width:460px;box-shadow:var(--shadow-lg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-family:var(--font-display);font-size:var(--text-xl);color:var(--color-text)">🌀 Reinigen · Silo ${quelleId}</div>
+        <button onclick="document.getElementById('silo-reinigen-modal').remove()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div style="background:var(--green-50);border:1px solid var(--green-200);border-radius:var(--radius-md);padding:14px;margin-bottom:16px">
+        <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">Rohware: ${rohT.toFixed(2)} t · ${escapeHtml(kultur)}</div>
+        <div style="font-size:var(--text-base);color:var(--color-text-muted)">Differenz (Roh − gereinigt) wird als Ausputz ausgebucht</div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Silo (leer)</label>
+        <select id="reinigen-ziel" class="form-control" style="font-size:13px">
+          <option value="">— Silo wählen —</option>${zielOpts}
+        </select>
+        ${ziele.length ? '' : '<div style="font-size:11px;color:var(--amber);margin-top:4px">Kein leeres Silo verfügbar</div>'}
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Gereinigte Menge (t)</label>
+        <input type="number" id="reinigen-menge" class="form-control" min="0.001" step="0.001" value="${rohT.toFixed(3)}" style="font-size:15px;font-weight:700">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="reinigenSpeichern('${quelleId}')">🌀 Reinigen</button>
+        <button class="btn btn-outline" onclick="document.getElementById('silo-reinigen-modal').remove()">Abbrechen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+export async function reinigenSpeichern(quelleId) {
+  const zielId = document.getElementById('reinigen-ziel')?.value;
+  const gereinigtT = parseFloat(document.getElementById('reinigen-menge')?.value);
+  if(!zielId) { showToast('Bitte Ziel-Silo wählen', 'error'); return; }
+  if(isNaN(gereinigtT) || gereinigtT <= 0) { showToast('Bitte gereinigte Menge angeben', 'error'); return; }
+  const rohKg = getSiloBestand(quelleId);
+  const gereinigtKg = Math.round(gereinigtT * 1000);
+  if(gereinigtKg > rohKg + 0.5) { showToast('Gereinigte Menge größer als Rohware ('+(rohKg/1000).toFixed(2)+' t)', 'error'); return; }
+
+  const kultur = getSiloKultur(quelleId);
+  const fuhren = state.fuhren.filter(f => f.siloId === quelleId && f.status === 'fertig');
+  document.getElementById('silo-reinigen-modal')?.remove();
+
+  try {
+    // 1) Fuhren ins Ziel-Silo verschieben (Sorte/Qualität wandern mit)
+    for(const f of fuhren) { f.siloId = zielId; await db.updateFuhre(f.id, {siloId: zielId}); }
+    // 2) Silo-Kulturen aktualisieren: Ziel bekommt die Kultur, Quelle wird frei
+    const zielSilo = state.silos.find(s=>s.id===zielId);
+    const quellSilo = state.silos.find(s=>s.id===quelleId);
+    if(zielSilo && kultur) { zielSilo.fruchtart = kultur; try { await db.updateSilo(zielId, {fruchtart: kultur}); } catch(e){} }
+    if(quellSilo) { quellSilo.fruchtart = null; try { await db.updateSilo(quelleId, {fruchtart: null}); } catch(e){} }
+    // 3) Reinigungsverlust (Ausputz) als Ausgang aus dem Ziel-Silo buchen
+    const verlustKg = Math.max(0, rohKg - gereinigtKg);
+    if(verlustKg >= 1) {
+      const wb = await db.insertWarenbewegung({
+        typ: 'ausgang', siloVonId: zielId, mengeKg: verlustKg,
+        notiz: 'Reinigungsverlust/Ausputz · Reinigung Silo ' + quelleId + ' → ' + zielId,
+        erstelltVon: state.currentUser?.id || null
+      });
+      if(wb) state.warenbewegungen.unshift(wb);
+    }
+    showToast(`🌀 ${(gereinigtKg/1000).toFixed(2)} t gereinigt → Silo ${zielId} · Silo ${quelleId} ist frei`);
+  } catch(e) {
+    showToast('⚠ Reinigen fehlgeschlagen: ' + e.message, 'error');
+    try { state.fuhren = await db.getFuhren(); state.warenbewegungen = await db.getWarenbewegungen(); } catch(_) {}
+  }
+  _activeSiloId = null;
+  renderSiloManagement();
+}
+
 export function renderSiloManagement() {
-  const bigSilos = state.silos.filter(s=>s.kapazitaet_t>=1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
-  const smallSilos = state.silos.filter(s=>s.kapazitaet_t<1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const istInnen = s => /^I\d+$/i.test(s.id);
+  const bigSilos = state.silos.filter(s=>!istInnen(s)&&s.kapazitaet_t>=1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const smallSilos = state.silos.filter(s=>!istInnen(s)&&s.kapazitaet_t<1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const innenSilos = state.silos.filter(istInnen).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
   const unassigned = state.fuhren.filter(f=>f.status==='fertig'&&!f.siloId).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
   const totalFertig = state.fuhren.filter(f=>f.status==='fertig').length;
   const totalAssigned = state.fuhren.filter(f=>f.status==='fertig'&&f.siloId).length;
@@ -328,7 +417,9 @@ export function renderSiloManagement() {
   });
 
   const sc = (s) => {
-    const fillKg = getSiloFill(s.id);
+    // Bestand (Zugang − Ausgänge/Reinigung) statt Brutto-Zugang, damit z.B. ein
+    // gereinigtes oder verkauftes Silo auch optisch leer(er) wird.
+    const fillKg = getSiloBestand(s.id);
     const fillT = fillKg/1000;
     const pct = Math.min(100,(fillT/s.kapazitaet_t)*100);
     const overfull = fillT > s.kapazitaet_t;
@@ -424,6 +515,7 @@ export function renderSiloManagement() {
   const colW = 140;
   const col = (arr) => `<div style="display:flex;flex-direction:column;gap:0;width:${colW}px;align-items:center">${arr.map(sc).join('')}</div>`;
   const aGrid = `<div style="display:flex;gap:8px;justify-content:center;padding:8px;align-items:flex-start">${col(smallSilos.slice(0,7))}${col(smallSilos.slice(7,14))}${col(smallSilos.slice(14,21))}</div>`;
+  const iGrid = `<div style="display:flex;gap:8px;justify-content:center;padding:8px;align-items:flex-start">${col(innenSilos.slice(0,6))}${col(innenSilos.slice(6,12))}${col(innenSilos.slice(12,17))}</div>`;
 
   const fi = (f) => {
     const n = netto(f);
@@ -461,7 +553,7 @@ export function renderSiloManagement() {
   if(!el) return;
   const bg = (v) => view===v ? 'var(--gold)' : 'transparent';
   const cl = (v) => view===v ? '#1a1400' : 'var(--text3)';
-  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : (FLACHLAGER[view]?.label || '');
+  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : view==='I' ? '17 × 150 t · Innensilos' : (FLACHLAGER[view]?.label || '');
   const emptyMsg = totalFertig ? '✓ Alle zugeordnet' : 'Keine fertigen Fuhren';
   const queueHtml = unassigned.length ? unassigned.map(fi).join('') : `<div style="text-align:center;padding:20px 8px;color:var(--text2);font-size:12px">${emptyMsg}</div>`;
   const allChecked = unassigned.length > 0 && _selectedFuhren.size === unassigned.length;
@@ -480,6 +572,7 @@ export function renderSiloManagement() {
           <div style="display:flex;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px;flex-wrap:wrap">
             <button onclick="setSiloView('B')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('B')};color:${cl('B')}">B</button>
             <button onclick="setSiloView('A')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('A')};color:${cl('A')}">A</button>
+            <button onclick="setSiloView('I')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('I')};color:${cl('I')}">I</button>
             ${Object.entries(FLACHLAGER).map(([k,l]) =>
               `<button onclick="setSiloView('${k}')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg(k)};color:${cl(k)}">${l.toggle}</button>`
             ).join('')}
@@ -507,7 +600,7 @@ export function renderSiloManagement() {
           </div>
         </div>
         <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
-          ${view==='B' ? bList : view==='A' ? aGrid : lagerView(view)}
+          ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : lagerView(view)}
         </div>
         <div id="silo-detail-panel" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
           <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);font-size:16px;color:var(--color-text-subtle);font-weight:600">← Silo anklicken</div>
@@ -551,7 +644,7 @@ function renderSiloDetail(siloId) {
     const valid = assignedFuhren.filter(f=>f[key]!=null);
     return valid.length ? (valid.reduce((s,f)=>s+(f[key]||0),0)/valid.length).toFixed(1) : null;
   };
-  const avgFeuchte=avg('feuchte'), avgProtein=avg('protein'), avgHL=avg('hlGewicht'), avgFallzahl=avg('fallzahl');
+  const avgFeuchte=avg('feuchte'), avgProtein=avg('protein'), avgHL=avg('hlGewicht'), avgFallzahl=avg('fallzahl'), avgOel=avg('oelgehalt');
   const barColor = pct>100?'#b03030':pct>85?'#b07820':'#6b8f4e';
 
   const fuhreRow = (f) => {
@@ -568,6 +661,7 @@ function renderSiloDetail(siloId) {
     const feuchteStr = f.feuchte!=null ? '<span style="color:'+feuchteColor+';font-weight:'+feuchteWeight+'">'+f.feuchte+'%F'+(feuchteWarn?' &#9888;':'')+'</span>' : '';
     const proteinStr = f.protein!=null ? ' <span style="color:var(--text3)">· '+f.protein+'%P</span>' : '';
     const hlStr = f.hlGewicht!=null ? ' <span style="color:var(--text3)">· HL '+f.hlGewicht+'</span>' : '';
+    const oelStr = f.oelgehalt!=null ? ' <span style="color:var(--text3)">· Öl '+f.oelgehalt+'%</span>' : '';
     return '<div style="display:flex;border-radius:8px;overflow:hidden;margin-bottom:8px;background:'+bgColor+';border:1px solid '+borderColor+'">'
       +'<div style="width:5px;flex-shrink:0;background:'+stripColor+'"></div>'
       +'<div style="padding:10px 12px;flex:1;min-width:0">'
@@ -578,7 +672,7 @@ function renderSiloDetail(siloId) {
       +'</div>'
       +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+'</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
-      +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+'</div>'
+      +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+oelStr+'</div>'
       +'</div></div>';
   };
 
@@ -602,7 +696,9 @@ function renderSiloDetail(siloId) {
         <div style="font-size:16px;font-weight:700;color:#fff">${fillT.toFixed(1)} t</div>
       </div>
     </div>
-    ${bestandKg > 0 ? `<div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;text-align:center">Auslagerungen → Warenwirtschaft › Warenbewegungen</div>` : ''}
+    ${bestandKg > 0 ? `
+    <button class="btn btn-full" style="background:var(--blue);color:#fff;border:none;margin-bottom:10px" onclick="reinigenDialog('${siloId}')">🌀 Reinigen → anderes Silo</button>
+    <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;text-align:center">Auslagerungen → Warenwirtschaft › Warenbewegungen</div>` : ''}
     <div style="font-size:12px;color:var(--text3);margin-bottom:4px;text-align:right">${pct.toFixed(0)}% belegt</div>
     ${avgFeuchte ? `
     <div style="background:var(--green-50);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;border:1px solid var(--green-200)">
@@ -612,6 +708,7 @@ function renderSiloDetail(siloId) {
         <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Protein</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgProtein}<span style="font-size:13px;color:var(--text2)">%</span></div></div>
         <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">HL-Gewicht</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgHL}</div></div>
         ${avgFallzahl?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Fallzahl</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgFallzahl}</div></div>`:''}
+        ${avgOel?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Ölgehalt</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgOel}<span style="font-size:13px;color:var(--text2)">%</span></div></div>`:''}
       </div>
     </div>` : ''}
     <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">

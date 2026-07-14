@@ -1,8 +1,8 @@
-import { state } from './state.js?v=35';
-import { db } from './db.js?v=35';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=35';
-import { getFruchtFarbe } from './frucht.js?v=35';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=35';
+import { state } from './state.js?v=36';
+import { db } from './db.js?v=36';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=36';
+import { getFruchtFarbe } from './frucht.js?v=36';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=36';
 
 let _editOpenId = null;
 
