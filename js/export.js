@@ -1,10 +1,10 @@
-import { state } from './state.js?v=41';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=41';
-import { getSiloFill, getSiloKultur } from './silo.js?v=41';
+import { state } from './state.js?v=42';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=42';
+import { getSiloFill, getSiloKultur } from './silo.js?v=42';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=41';
+} from './config.js?v=42';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -201,13 +201,13 @@ export function exportTagesbericht() {
 const LS_LAST_EXPORT = 'ernte_lastFuhrenExport';
 
 function buildFuhrenCSV(fuhren) {
-  const h=['Nr','Datum','Uhrzeit','Betriebsteil','Schlag','Fruchtart','Sorte','Drescher','Abfahrer','Vollgew_kg','Leergew_kg','Netto_kg','Netto_t','Feuchte_%','Fallzahl','Protein_%','HL_Gew','Oelgehalt_%','Status','Verifiziert','Silo'];
+  const h=['Nr','Datum','Uhrzeit','Betriebsteil','Schlag','Fruchtart','Sorte','Drescher','Abfahrer','Vollgew_kg','Leergew_kg','Netto_kg','Netto_t','Feuchte_%','Fallzahl','Protein_%','HL_Gew','Gluten_%','Oelgehalt_%','Status','Verifiziert','Silo'];
   const rows=fuhren.map(f=>{
     const d=new Date(f.zeit);const n=netto(f);
     return [f.nr,d.toLocaleDateString('de-DE'),d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
       getFeld(f.feldId).betrieb||'',getFeld(f.feldId).name||'',f.fruchtart||'',f.sorte||'',getUser(f.drescherId).name||'',getUser(f.abfahrerId).name||'',
       deNum(f.vollgewicht||''),deNum(f.leergewicht||''),deNum(n||''),deNum(n?(n/1000).toFixed(3):''),
-      deNum(f.feuchte||''),deNum(f.fallzahl||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.oelgehalt||''),f.status,
+      deNum(f.feuchte||''),deNum(f.fallzahl||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.gluten||''),deNum(f.oelgehalt||''),f.status,
       f.verifiziert?'Ja':'Nein',f.siloId||''].join(';');
   });
   return '﻿'+[h.join(';'),...rows].join('\n');
@@ -239,7 +239,7 @@ export async function exportFuhrenExcel(fuhren, dateiname) {
   const XLSX = window.XLSX;
   const rows = sortFuhren(fuhren);
   const head = ['Nr','Datum','Uhrzeit','Lieferant/Betrieb','Schlag','Fruchtart','Art','Sorte','Abfahrer',
-                'Vollgew_kg','Leergew_kg','Netto_t','Feuchte_%','Protein_%','HL_Gew','Ölgehalt_%','Status','Silo'];
+                'Vollgew_kg','Leergew_kg','Netto_t','Feuchte_%','Protein_%','HL_Gew','Gluten_%','Ölgehalt_%','Status','Silo'];
   const aoa = [head];
   rows.forEach(f => {
     const feld = getFeld(f.feldId); const n = netto(f) || 0;
@@ -247,12 +247,12 @@ export async function exportFuhrenExcel(fuhren, dateiname) {
       f.nr, new Date(f.zeit).toLocaleDateString('de-DE'), new Date(f.zeit).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
       herkunftFuhre(f), feld.name||'', f.fruchtart||'', f.sorte?'Vermehrung':'Konsum', f.sorte||'', getUser(f.abfahrerId).name||'',
       f.vollgewicht||null, f.leergewicht||null, n? Math.round(n/10)/100 : null,
-      f.feuchte??null, f.protein??null, f.hlGewicht??null, f.oelgehalt??null, f.status, f.siloId||''
+      f.feuchte??null, f.protein??null, f.hlGewicht??null, f.gluten??null, f.oelgehalt??null, f.status, f.siloId||''
     ]);
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = head.map((h,i)=>({wch: i===3?20:(i===4?18:(i===8?14:11))}));
-  fmtCols(ws, ['J','K','L','M','N','O','P'], 2, aoa.length);
+  fmtCols(ws, ['J','K','L','M','N','O','P','Q'], 2, aoa.length);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Fuhren');
   XLSX.writeFile(wb, dateiname || 'Ernte2026_Fuhren.xlsx');
@@ -332,9 +332,10 @@ export async function exportExcelAuswertung() {
   // --- Blatt "Fuhren" (Basis) ---
   // Spalten: A Nr B Datum C Uhrzeit D Anbaubetrieb E Schlag F Fruchtart G Art
   //          H Sorte I Abfahrer J Voll K Leer L Netto_t
-  //          M Feuchte N Protein O HL P Ölgehalt Q Status R Silo
+  //          M Feuchte N Protein O HL P Gluten Q Ölgehalt R Status S Silo
+  // (Gluten NACH HL eingefügt – die SUMIF/AVERAGEIF-Formeln referenzieren nur H,L,M,N,O.)
   const head = ['Nr','Datum','Uhrzeit','Anbaubetrieb','Schlag','Fruchtart','Art','Sorte','Abfahrer',
-                'Vollgew_kg','Leergew_kg','Netto_t','Feuchte_%','Protein_%','HL_Gew','Ölgehalt_%','Status','Silo'];
+                'Vollgew_kg','Leergew_kg','Netto_t','Feuchte_%','Protein_%','HL_Gew','Gluten_%','Ölgehalt_%','Status','Silo'];
   const aoa = [head];
   fertige.forEach(f => {
     const feld = getFeld(f.feldId); const n = netto(f) || 0;
@@ -342,14 +343,14 @@ export async function exportExcelAuswertung() {
       f.nr, new Date(f.zeit).toLocaleDateString('de-DE'), new Date(f.zeit).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
       feld.betrieb||'', feld.name||'', f.fruchtart||'', fuhrenArt(f), f.sorte||'', getUser(f.abfahrerId).name||'',
       f.vollgewicht||null, f.leergewicht||null, n? Math.round(n/10)/100 : null,
-      f.feuchte??null, f.protein??null, f.hlGewicht??null, f.oelgehalt??null, f.status, f.siloId||''
+      f.feuchte??null, f.protein??null, f.hlGewicht??null, f.gluten??null, f.oelgehalt??null, f.status, f.siloId||''
     ]);
   });
   const wsF = XLSX.utils.aoa_to_sheet(aoa);
   wsF['!cols'] = head.map((h,i)=>({wch: i===4?18:(i===3?22:(i===8?14:11))}));
   const N = aoa.length; // letzte Datenzeile in Excel
-  // Gewichte (J,K), Netto_t (L), Qualitäten (M–P) auf 2 Nachkommastellen
-  fmtCols(wsF, ['J','K','L','M','N','O','P'], 2, N);
+  // Gewichte (J,K), Netto_t (L), Qualitäten (M–Q) auf 2 Nachkommastellen
+  fmtCols(wsF, ['J','K','L','M','N','O','P','Q'], 2, N);
   XLSX.utils.book_append_sheet(wb, wsF, 'Fuhren');
 
   // --- Blatt "Vermehrungen" (je Sorte, Formeln auf 'Fuhren') ---
@@ -440,15 +441,15 @@ export function exportSiloCSV() {
     const valid = arr.filter(f=>f[key]!=null);
     return valid.length ? (valid.reduce((s,f)=>s+(f[key]||0),0)/valid.length).toFixed(1) : '';
   };
-  const h=['Silo','Kapazitaet_t','Kultur','Befuellt_t','Auslastung_%','Fuhren','Ø_Feuchte_%','Ø_Protein_%','Ø_HL_Gew','Ø_Fallzahl','Ø_Oelgehalt_%'];
+  const h=['Silo','Kapazitaet_t','Kultur','Befuellt_t','Auslastung_%','Fuhren','Ø_Feuchte_%','Ø_Protein_%','Ø_HL_Gew','Ø_Gluten_%','Ø_Fallzahl','Ø_Oelgehalt_%'];
   const siloRows = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).map(s=>{
     const fuhren = state.fuhren.filter(f=>f.siloId===s.id&&f.status==='fertig');
     const fillT = (getSiloFill(s.id)/1000).toFixed(2);
     const pct = (getSiloFill(s.id)/1000/s.kapazitaet_t*100).toFixed(1);
     return [s.id,deNum(s.kapazitaet_t),getSiloKultur(s.id)||'',deNum(fillT),deNum(pct),fuhren.length,
-      deNum(avg(fuhren,'feuchte')),deNum(avg(fuhren,'protein')),deNum(avg(fuhren,'hlGewicht')),deNum(avg(fuhren,'fallzahl')),deNum(avg(fuhren,'oelgehalt'))].join(';');
+      deNum(avg(fuhren,'feuchte')),deNum(avg(fuhren,'protein')),deNum(avg(fuhren,'hlGewicht')),deNum(avg(fuhren,'gluten')),deNum(avg(fuhren,'fallzahl')),deNum(avg(fuhren,'oelgehalt'))].join(';');
   });
-  const lines = [h.join(';'), ...siloRows, '', 'FUHREN JE SILO','Nr;Datum;Schlag;Fruchtart;Netto_t;Feuchte;Protein;HL_Gew;Fallzahl;Oelgehalt;Silo'];
+  const lines = [h.join(';'), ...siloRows, '', 'FUHREN JE SILO','Nr;Datum;Schlag;Fruchtart;Netto_t;Feuchte;Protein;HL_Gew;Gluten;Fallzahl;Oelgehalt;Silo'];
   state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true})).forEach(s=>{
     const fuhren = state.fuhren.filter(f=>f.siloId===s.id&&f.status==='fertig').sort((a,b)=>new Date(a.zeit)-new Date(b.zeit));
     if(!fuhren.length) return;
@@ -456,7 +457,7 @@ export function exportSiloCSV() {
     fuhren.forEach(f=>{
       const n=netto(f);
       lines.push([f.nr,new Date(f.zeit).toLocaleDateString('de-DE'),getFeld(f.feldId).name||'',
-        f.fruchtart||'',deNum(n?(n/1000).toFixed(3):''),deNum(f.feuchte||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.fallzahl||''),deNum(f.oelgehalt||''),s.id].join(';'));
+        f.fruchtart||'',deNum(n?(n/1000).toFixed(3):''),deNum(f.feuchte||''),deNum(f.protein||''),deNum(f.hlGewicht||''),deNum(f.gluten||''),deNum(f.fallzahl||''),deNum(f.oelgehalt||''),s.id].join(';'));
     });
   });
   const a=document.createElement('a');

@@ -1,10 +1,10 @@
-import { state } from './state.js?v=41';
-import { db } from './db.js?v=41';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=41';
-import { getFruchtFarbe } from './frucht.js?v=41';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=41';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=41';
-import { isBioFuhre, bioBadge } from './bio.js?v=41';
+import { state } from './state.js?v=42';
+import { db } from './db.js?v=42';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=42';
+import { getFruchtFarbe } from './frucht.js?v=42';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=42';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=42';
+import { isBioFuhre, bioBadge } from './bio.js?v=42';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
@@ -140,6 +140,7 @@ export function renderAdminFuhren() {
         <div><span style="font-size:11px;color:var(--text2)">Feuchte </span><span style="font-size:14px;font-weight:600">${f.feuchte??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">Protein </span><span style="font-size:14px;font-weight:600">${f.protein??'–'}%</span></div>
         <div><span style="font-size:11px;color:var(--text2)">HL </span><span style="font-size:14px;font-weight:600">${f.hlGewicht??'–'}</span></div>
+        ${f.gluten!=null?`<div><span style="font-size:11px;color:var(--text2)">Gluten </span><span style="font-size:14px;font-weight:600">${f.gluten}%</span></div>`:''}
         ${f.oelgehalt!=null?`<div><span style="font-size:11px;color:var(--text2)">Öl </span><span style="font-size:14px;font-weight:600">${f.oelgehalt}%</span></div>`:''}
       </div>
       ${getFeld(f.feldId).typ==='umlagerung'
@@ -272,6 +273,7 @@ function renderFuhreEditForm(fId) {
       ${(f.fruchtart||'').toLowerCase().includes('gerste') ? '' : `<label style="font-size:11px;color:var(--text2)">Fallzahl<input id="ef-fz-${fId}" class="input" type="number" value="${f.fallzahl||''}"></label>`}
       <label style="font-size:11px;color:var(--text2)">Protein %<input id="ef-prot-${fId}" class="input" type="number" step="0.1" value="${f.protein||''}"></label>
       <label style="font-size:11px;color:var(--text2)">HL-Gewicht<input id="ef-hl-${fId}" class="input" type="number" step="0.1" value="${f.hlGewicht||''}"></label>
+      <label style="font-size:11px;color:var(--text2)">Gluten %<input id="ef-gluten-${fId}" class="input" type="number" step="0.1" value="${f.gluten||''}"></label>
       <label style="font-size:11px;color:var(--text2)">Ölgehalt %<input id="ef-oel-${fId}" class="input" type="number" step="0.1" value="${f.oelgehalt||''}"></label>
     </div>
     <div style="display:flex;gap:8px;margin-top:10px">
@@ -295,6 +297,7 @@ export async function saveFuhreEdit(fId) {
     fallzahl: parseFloat(document.getElementById('ef-fz-'+fId)?.value)||null,
     protein: parseFloat(document.getElementById('ef-prot-'+fId).value)||null,
     hlGewicht: parseFloat(document.getElementById('ef-hl-'+fId).value)||null,
+    gluten: parseFloat(document.getElementById('ef-gluten-'+fId)?.value)||null,
     oelgehalt: parseFloat(document.getElementById('ef-oel-'+fId)?.value)||null,
   };
   const sorteEl = document.getElementById('ef-sorte-'+fId);
@@ -387,6 +390,7 @@ export function adminAbschliessen(fId) {
       ${(f.fruchtart||'').toLowerCase().includes('gerste') ? '' : `<label style="font-size:11px;color:var(--text2)">Fallzahl<input id="ef-fz-${fId}" class="input" type="number" value="${f.fallzahl||''}"></label>`}
       <label style="font-size:11px;color:var(--text2)">Protein %<input id="ef-prot-${fId}" class="input" type="number" step="0.1" value="${f.protein||''}"></label>
       <label style="font-size:11px;color:var(--text2)">HL-Gewicht<input id="ef-hl-${fId}" class="input" type="number" step="0.1" value="${f.hlGewicht||''}"></label>
+      <label style="font-size:11px;color:var(--text2)">Gluten %<input id="ef-gluten-${fId}" class="input" type="number" step="0.1" value="${f.gluten||''}"></label>
       <label style="font-size:11px;color:var(--text2)">Ölgehalt %<input id="ef-oel-${fId}" class="input" type="number" step="0.1" value="${f.oelgehalt||''}"></label>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -415,6 +419,7 @@ export async function adminFuhreAbschliessenSpeichern(fId) {
     fallzahl: parseFloat(document.getElementById('ef-fz-'+fId)?.value)||null,
     protein: parseFloat(document.getElementById('ef-prot-'+fId)?.value)||null,
     hlGewicht: parseFloat(document.getElementById('ef-hl-'+fId)?.value)||null,
+    gluten: parseFloat(document.getElementById('ef-gluten-'+fId)?.value)||null,
     oelgehalt: parseFloat(document.getElementById('ef-oel-'+fId)?.value)||null,
   };
   const sorteElA = document.getElementById('ef-sorte-'+fId);

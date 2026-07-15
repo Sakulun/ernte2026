@@ -1,6 +1,6 @@
-import { state } from './state.js?v=41';
-import { sb } from './db.js?v=41';
-import { showToast } from './helpers.js?v=41';
+import { state } from './state.js?v=42';
+import { sb } from './db.js?v=42';
+import { showToast } from './helpers.js?v=42';
 
 export async function adminSendNachricht(text, empfaenger='alle') {
   try {

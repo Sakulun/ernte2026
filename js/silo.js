@@ -1,9 +1,9 @@
-import { state } from './state.js?v=41';
-import { db } from './db.js?v=41';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=41';
-import { getFruchtFarbe } from './frucht.js?v=41';
-import { feuchteZuHoch } from './quality.js?v=41';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=41';
+import { state } from './state.js?v=42';
+import { db } from './db.js?v=42';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=42';
+import { getFruchtFarbe } from './frucht.js?v=42';
+import { feuchteZuHoch } from './quality.js?v=42';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=42';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -657,7 +657,7 @@ function renderSiloDetail(siloId) {
     const valid = assignedFuhren.filter(f=>f[key]!=null);
     return valid.length ? (valid.reduce((s,f)=>s+(f[key]||0),0)/valid.length).toFixed(1) : null;
   };
-  const avgFeuchte=avg('feuchte'), avgProtein=avg('protein'), avgHL=avg('hlGewicht'), avgFallzahl=avg('fallzahl'), avgOel=avg('oelgehalt');
+  const avgFeuchte=avg('feuchte'), avgProtein=avg('protein'), avgHL=avg('hlGewicht'), avgFallzahl=avg('fallzahl'), avgOel=avg('oelgehalt'), avgGluten=avg('gluten');
   const barColor = pct>100?'#b03030':pct>85?'#b07820':'#6b8f4e';
 
   const fuhreRow = (f) => {
@@ -674,6 +674,7 @@ function renderSiloDetail(siloId) {
     const feuchteStr = f.feuchte!=null ? '<span style="color:'+feuchteColor+';font-weight:'+feuchteWeight+'">'+f.feuchte+'%F'+(feuchteWarn?' &#9888;':'')+'</span>' : '';
     const proteinStr = f.protein!=null ? ' <span style="color:var(--text3)">· '+f.protein+'%P</span>' : '';
     const hlStr = f.hlGewicht!=null ? ' <span style="color:var(--text3)">· HL '+f.hlGewicht+'</span>' : '';
+    const glutenStr = f.gluten!=null ? ' <span style="color:var(--text3)">· Gluten '+f.gluten+'%</span>' : '';
     const oelStr = f.oelgehalt!=null ? ' <span style="color:var(--text3)">· Öl '+f.oelgehalt+'%</span>' : '';
     return '<div style="display:flex;border-radius:8px;overflow:hidden;margin-bottom:8px;background:'+bgColor+';border:1px solid '+borderColor+'">'
       +'<div style="width:5px;flex-shrink:0;background:'+stripColor+'"></div>'
@@ -685,7 +686,7 @@ function renderSiloDetail(siloId) {
       +'</div>'
       +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+(isBioFuhre(f)?bioBadge(true):'')+'</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+escapeHtml(fuhreHerkunft(f))+' · '+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
-      +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+oelStr+'</div>'
+      +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+glutenStr+oelStr+'</div>'
       +'</div></div>';
   };
 
@@ -720,6 +721,7 @@ function renderSiloDetail(siloId) {
         <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Feuchte</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgFeuchte}<span style="font-size:13px;color:var(--text2)">%</span></div></div>
         <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Protein</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgProtein}<span style="font-size:13px;color:var(--text2)">%</span></div></div>
         <div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">HL-Gewicht</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgHL}</div></div>
+        ${avgGluten?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Gluten</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgGluten}<span style="font-size:13px;color:var(--text2)">%</span></div></div>`:''}
         ${avgFallzahl?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Fallzahl</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgFallzahl}</div></div>`:''}
         ${avgOel?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Ölgehalt</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgOel}<span style="font-size:13px;color:var(--text2)">%</span></div></div>`:''}
       </div>
