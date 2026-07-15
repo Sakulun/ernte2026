@@ -1,5 +1,5 @@
-import { state } from './state.js?v=39';
-import { getFeld } from './helpers.js?v=39';
+import { state } from './state.js?v=40';
+import { getFeld } from './helpers.js?v=40';
 
 // Fallback-Liste der Bio-Betriebe (nur relevant für Altdaten ohne pro-Feld-Bio-Flag).
 // Maßgeblich ist das bio-Feld in der felder-Tabelle (aus der Öko-Spalte der Flächenübersicht).
@@ -32,6 +32,7 @@ export function getSiloBioStatus(siloId) {
 }
 
 export function bioBadge(inline=false) {
-  if(inline) return '<span style="display:inline-block;background:var(--color-success-wash);color:var(--text);font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:0.5px;vertical-align:middle;margin-left:4px">BIO</span>';
-  return '<span style="display:inline-block;background:var(--color-success-wash);color:var(--text);font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;letter-spacing:1px">🌿 BIO</span>';
+  // Kräftig grün hinterlegt (weiße Schrift) für deutliche Kennzeichnung.
+  if(inline) return '<span style="display:inline-block;background:var(--color-success);color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;vertical-align:middle;margin-left:4px">🌿 BIO</span>';
+  return '<span style="display:inline-block;background:var(--color-success);color:#fff;font-size:11px;font-weight:800;padding:2px 8px;border-radius:6px;letter-spacing:1px">🌿 BIO</span>';
 }

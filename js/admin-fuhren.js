@@ -1,9 +1,10 @@
-import { state } from './state.js?v=39';
-import { db } from './db.js?v=39';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=39';
-import { getFruchtFarbe } from './frucht.js?v=39';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=39';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=39';
+import { state } from './state.js?v=40';
+import { db } from './db.js?v=40';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=40';
+import { getFruchtFarbe } from './frucht.js?v=40';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=40';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=40';
+import { isBioFuhre, bioBadge } from './bio.js?v=40';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
@@ -117,12 +118,13 @@ export function renderAdminFuhren() {
     const feld = getFeld(f.feldId);
     const n = netto(f);
     const isVerified = f.verifiziert;
+    const bio = isBioFuhre(f);
     const fr = getFruchtFarbe(f.fruchtart);
-    return `<div class="card" style="margin-bottom:10px;border-color:${isVerified?'var(--green)':'var(--border)'};border-left:4px solid ${fr.dot}">
+    return `<div class="card" style="margin-bottom:10px;border-color:${bio?'var(--color-success)':isVerified?'var(--green)':'var(--border)'};border-left:4px solid ${bio?'var(--color-success)':fr.dot};${bio?'background:var(--color-success-wash)':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="min-width:0">
-          <div style="font-size:12px;font-weight:600;color:var(--text)">${f.nr} · ${fmtDate(f.zeit)} ${fmtTime(f.zeit)}</div>
-          <div style="font-size:11px;margin-top:2px;display:flex;align-items:center;gap:5px">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${f.nr} · ${fmtDate(f.zeit)} ${fmtTime(f.zeit)}${bio?bioBadge(true):''}</div>
+          <div style="font-size:11px;margin-top:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
             <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${fr.dot};flex-shrink:0"></span>
             <span style="color:${fr.dot};font-weight:600">${f.fruchtart}</span>
             <span style="color:var(--text3)">· ${feld.name||'?'}</span>${sorteBadge(f)}
@@ -161,12 +163,13 @@ export function renderAdminFuhren() {
   const offenRow = (f) => {
     const feld = getFeld(f.feldId);
     const _fr = getFruchtFarbe(f.fruchtart);
-    return `<div class="card" style="margin-bottom:10px;border-color:var(--amber);border-left:4px solid ${_fr.dot}">
+    const bio = isBioFuhre(f);
+    return `<div class="card" style="margin-bottom:10px;border-color:var(--amber);border-left:4px solid ${bio?'var(--color-success)':_fr.dot}${bio?';background:var(--color-success-wash)':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="min-width:0">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;flex-wrap:wrap">
             <span class="badge badge-offen">OFFEN</span>
-            <span style="font-size:12px;font-weight:600;color:var(--text)">${f.nr} · ${fmtDate(f.zeit)} ${fmtTime(f.zeit)}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--text)">${f.nr} · ${fmtDate(f.zeit)} ${fmtTime(f.zeit)}</span>${bio?bioBadge(true):''}
           </div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">${feld.name||'?'} · ${f.fruchtart}${sorteBadge(f)}</div>
           <div style="font-size:11px;color:var(--text2)">${getUser(f.drescherId).name} → ${getUser(f.abfahrerId).name}</div>

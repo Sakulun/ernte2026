@@ -1,9 +1,9 @@
-import { state } from './state.js?v=39';
-import { db } from './db.js?v=39';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=39';
-import { getFruchtFarbe } from './frucht.js?v=39';
-import { feuchteZuHoch } from './quality.js?v=39';
-import { isBioFuhre, getSiloBioStatus } from './bio.js?v=39';
+import { state } from './state.js?v=40';
+import { db } from './db.js?v=40';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=40';
+import { getFruchtFarbe } from './frucht.js?v=40';
+import { feuchteZuHoch } from './quality.js?v=40';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=40';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -543,8 +543,8 @@ export function renderSiloManagement() {
         <input type="checkbox" ${selected?'checked':''} onclick="event.stopPropagation();toggleFuhreSelection(${f.id})"
           style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px">
-            <span style="font-size:14px;font-weight:700;color:var(--text)">${f.fruchtart}${sorteBadge(f)}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;flex-wrap:wrap">
+            <span style="font-size:14px;font-weight:700;color:var(--text)">${f.fruchtart}${sorteBadge(f)}${isBioFuhre(f)?bioBadge(true):''}</span>
             <span style="font-size:13px;color:${verColor}">${verIcon}</span>
           </div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:2px">${escapeHtml(fuhreHerkunft(f))}</div>
@@ -680,7 +680,7 @@ function renderSiloDetail(siloId) {
       +warnBadge
       +'<button onclick="removeFuhreFromSilo('+f.id+')" title="Aus Silo entfernen" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:14px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x2715;</button>'
       +'</div>'
-      +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+'</div>'
+      +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+(isBioFuhre(f)?bioBadge(true):'')+'</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+escapeHtml(fuhreHerkunft(f))+' · '+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
       +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+oelStr+'</div>'
       +'</div></div>';
