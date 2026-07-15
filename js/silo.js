@@ -1,9 +1,9 @@
-import { state } from './state.js?v=40';
-import { db } from './db.js?v=40';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=40';
-import { getFruchtFarbe } from './frucht.js?v=40';
-import { feuchteZuHoch } from './quality.js?v=40';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=40';
+import { state } from './state.js?v=41';
+import { db } from './db.js?v=41';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=41';
+import { getFruchtFarbe } from './frucht.js?v=41';
+import { feuchteZuHoch } from './quality.js?v=41';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=41';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -15,7 +15,10 @@ const _selectedFuhren = new Set();
 const FLACHLAGER = {
   HOF:               { toggle: 'Hof',        titel: '🏗 Hofplatz · Zwischenlager', label: 'Hofplatz' },
   HALLE_ANARODE:     { toggle: 'Anarode',    titel: '📦 Halle Anarode',            label: 'Halle Anarode' },
-  HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt',  titel: '📦 Halle Höhnstedt',          label: 'Halle Höhnstedt' },
+  // Halle Höhnstedt in zwei Teile unterteilt (beide 2.000 t). Teil 1 = Gerste
+  // (bestehende Zuordnungen bleiben unter dem alten Schlüssel gültig), Teil 2 = andere Kulturen.
+  HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt 1', titel: '📦 Halle Höhnstedt · Teil 1 (Gerste)', label: 'Halle Höhnstedt 1', kap_t: 2000 },
+  HALLE_HOEHNSTEDT2: { toggle: 'Höhnstedt 2', titel: '📦 Halle Höhnstedt · Teil 2',           label: 'Halle Höhnstedt 2', kap_t: 2000 },
   HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
   // Halle Thondorf ist in zwei Teile unterteilt (kap_t = Kapazität in Tonnen).
   // Der Schlüssel HALLE_THONDORF bleibt Teil 1, damit ggf. bestehende Zuordnungen gültig bleiben.
