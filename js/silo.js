@@ -1,9 +1,9 @@
-import { state } from './state.js?v=43';
-import { db } from './db.js?v=43';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=43';
-import { getFruchtFarbe } from './frucht.js?v=43';
-import { feuchteZuHoch } from './quality.js?v=43';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=43';
+import { state } from './state.js?v=44';
+import { db } from './db.js?v=44';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=44';
+import { getFruchtFarbe } from './frucht.js?v=44';
+import { feuchteZuHoch } from './quality.js?v=44';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=44';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -37,6 +37,34 @@ export function fuhreHerkunft(f) {
   if((feld.typ||'schlag') === 'umlagerung') return '🔄 Umlagerung';
   return feld.betrieb || '';
 }
+// Standort (Ort) je Flachlager – die Silos A/B/I stehen alle am Hof Beesenstedt.
+const LAGER_ORT = {
+  HOF:               'Beesenstedt',
+  HALLE_ANARODE:     'Anarode',
+  HALLE_HOEHNSTEDT:  'Höhnstedt',
+  HALLE_HOEHNSTEDT2: 'Höhnstedt',
+  HALLE_LAUCHSTAEDT: 'Bad Lauchstädt',
+  HALLE_THONDORF:    'Thondorf',
+  HALLE_THONDORF2:   'Thondorf',
+};
+export function lagerOrtVon(id) {
+  return FLACHLAGER[id] ? (LAGER_ORT[id] || 'Sonstige') : 'Beesenstedt';
+}
+// Alle Lagerstätten nach Ort gruppiert (für die Lagerübersicht).
+// Beesenstedt zuerst (Hof + alle Silos), danach die Außenlager alphabetisch.
+export function lagerGruppen() {
+  const orte = {};
+  const add = (ort, o) => { (orte[ort] = orte[ort] || []).push(o); };
+  Object.entries(FLACHLAGER).forEach(([k,l]) =>
+    add(LAGER_ORT[k] || 'Sonstige', { id:k, label:l.label, kapT:l.kap_t || null, typ:'flach' }));
+  state.silos.slice()
+    .sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
+    .forEach(s => add('Beesenstedt', { id:s.id, label:'Silo '+s.id, kapT:parseFloat(s.kapazitaet_t)||null, typ:'silo' }));
+  return Object.keys(orte)
+    .sort((a,b) => a==='Beesenstedt' ? -1 : b==='Beesenstedt' ? 1 : a.localeCompare(b,'de'))
+    .map(ort => ({ ort, lager: orte[ort] }));
+}
+
 // Alle Lagerorte (Flachlager + Silos) für Auswahl-Dropdowns, z.B. Quelle/Ziel bei Umlagerungen
 export function alleLagerOrte() {
   return [

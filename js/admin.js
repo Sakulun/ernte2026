@@ -1,4 +1,4 @@
-import { state } from './state.js?v=43';
+import { state } from './state.js?v=44';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -46,6 +46,9 @@ export function renderAdmin() {
             <span class="sidebar-icon">👥</span><span class="sidebar-label">Nutzer</span>
           </button>
           <div class="sidebar-section">Lager</div>
+          <button class="sidebar-btn ${adminTab==='lager'?'active':''}" onclick="setAdminTab('lager')">
+            <span class="sidebar-icon">📦</span><span class="sidebar-label">Lagerübersicht</span>
+          </button>
           <button class="sidebar-btn ${adminTab==='silos'?'active':''}" onclick="setAdminTab('silos')">
             <span class="sidebar-icon">🏭</span><span class="sidebar-label">Silomanagement</span>
           </button>
@@ -91,6 +94,7 @@ export function renderAdmin() {
   else if(adminTab==='warenausgang' && window.renderWarenausgang) window.renderWarenausgang();
   else if(adminTab==='kontrakte' && window.renderKontrakte) window.renderKontrakte();
   else if(adminTab==='kontakte' && window.renderKontakte) window.renderKontakte();
+  else if(adminTab==='lager' && window.renderAdminLager) window.renderAdminLager();
   else if(adminTab==='artikel' && window.renderArtikel) window.renderArtikel();
   else if(adminTab==='erntejahr' && window.renderNeuesErntejahr) window.renderNeuesErntejahr();
   else if(adminTab==='waage' && window.renderWaageErfassungInto) window.renderWaageErfassungInto(document.getElementById('admintab'));

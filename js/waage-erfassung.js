@@ -1,9 +1,9 @@
-import { state } from './state.js?v=43';
-import { db } from './db.js?v=43';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=43';
-import { isBioFeld } from './bio.js?v=43';
-import { getQualitaetsfelder } from './quality.js?v=43';
-import { parseGewicht } from './abfahrer.js?v=43';
+import { state } from './state.js?v=44';
+import { db } from './db.js?v=44';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=44';
+import { isBioFeld } from './bio.js?v=44';
+import { getQualitaetsfelder } from './quality.js?v=44';
+import { parseGewicht } from './abfahrer.js?v=44';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
