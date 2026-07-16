@@ -1,6 +1,6 @@
-import { state } from './state.js?v=44';
-import { db } from './db.js?v=44';
-import { showToast, escapeHtml } from './helpers.js?v=44';
+import { state } from './state.js?v=45';
+import { db } from './db.js?v=45';
+import { showToast, escapeHtml } from './helpers.js?v=45';
 
 export function getKontraktGeliefertKg(kontraktId) {
   const ausKg = state.warenbewegungen

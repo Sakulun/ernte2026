@@ -1,6 +1,7 @@
-import { state } from './state.js?v=44';
-import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=44';
-import { getFruchtFarbe } from './frucht.js?v=44';
+import { state } from './state.js?v=45';
+import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=45';
+import { getFruchtFarbe } from './frucht.js?v=45';
+import { fahrerRankingCard } from './admin-fahrer.js?v=45';
 
 export function renderAdminDash() {
   // Nur echte Ernte-Fuhren – Umlagerungen/Zukauf würden die Erntemenge verfälschen
@@ -91,5 +92,6 @@ export function renderAdminDash() {
       </div>
       ${kulturRows || '<div style="color:var(--text2);font-size:12px">Noch keine Daten</div>'}
     </div>
+    ${fahrerRankingCard()}
     <div class="card"><div class="card-header"><div class="card-title">Live-Status</div><button class="btn btn-sm btn-outline" onclick="renderAdmin()">&#8635; Refresh</button></div>${liveHtml}</div>`;
 }
