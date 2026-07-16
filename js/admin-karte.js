@@ -1,6 +1,6 @@
-import { state } from './state.js?v=42';
-import { db } from './db.js?v=42';
-import { getUser, netto } from './helpers.js?v=42';
+import { state } from './state.js?v=43';
+import { db } from './db.js?v=43';
+import { getUser, netto } from './helpers.js?v=43';
 
 let _mapInstance = null;
 let _gpsWatcher = null;
@@ -45,6 +45,8 @@ function getFeldInfo(feldId) {
 export function schlagColor(status) {
   if(status === 'aktiv') return {color:'#b07820', fillColor:'#b07820', fillOpacity:0.35, weight:2};
   if(status === 'abgeerntet') return {color:'#6b8f4e', fillColor:'#6b8f4e', fillOpacity:0.35, weight:2};
+  // Pausiert: wie aktiv (Ernte begonnen), aber gestrichelt + blasser
+  if(status === 'pausiert') return {color:'#b07820', fillColor:'#b07820', fillOpacity:0.15, weight:2, dashArray:'6,5'};
   return {color:'#8a8a8a', fillColor:'#6a6a6a', fillOpacity:0.45, weight:1.5};
 }
 

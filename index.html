@@ -363,6 +363,7 @@ body {
 .badge-fertig     { background: var(--status-fertig-bg);  color: var(--status-fertig-fg); }
 .badge-inaktiv    { background: var(--status-inaktiv-bg); color: var(--status-inaktiv-fg); }
 .badge-abgeerntet { background: var(--status-aktiv-bg);   color: var(--status-aktiv-fg); }
+.badge-pausiert   { background: var(--status-offen-bg);   color: var(--status-offen-fg); }
 .badge-verifiziert{ background: var(--status-fertig-bg);  color: var(--status-fertig-fg); }
 .badge-pending    { background: var(--status-offen-bg);   color: var(--status-offen-fg); }
 
@@ -405,6 +406,7 @@ input::placeholder { color: var(--color-text-subtle); }
   display: flex; align-items: center; gap: var(--space-3);
 }
 .schlag-item.aktiv { border-left: 3px solid var(--color-primary); }
+.schlag-item.pausiert { border-left: 3px solid var(--color-warning); }
 .schlag-item.abgeerntet { opacity: .6; }
 .schlag-info { flex: 1; min-width: 0; }
 .schlag-name { font-size: var(--text-md); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -707,7 +709,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=42"></script>
+<script type="module" src="js/app.js?v=43"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

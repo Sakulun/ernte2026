@@ -1,5 +1,5 @@
-import { state } from './state.js?v=42';
-import { db, sb } from './db.js?v=42';
+import { state } from './state.js?v=43';
+import { db, sb } from './db.js?v=43';
 
 let _erntejahrStep = 0;
 
