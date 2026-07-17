@@ -1,7 +1,7 @@
-import { state } from './state.js?v=46';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=46';
-import { getFruchtFarbe } from './frucht.js?v=46';
-import { getQualitaetsfelder } from './quality.js?v=46';
+import { state } from './state.js?v=48';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=48';
+import { getFruchtFarbe } from './frucht.js?v=48';
+import { getQualitaetsfelder } from './quality.js?v=48';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};
@@ -52,7 +52,7 @@ export function renderAdminFortschritt() {
     k.ha_gesamt += f.flaeche;
     if(f.status==='aktiv') k.ha_aktiv += f.flaeche;
     if(f.status==='abgeerntet') k.ha_abgeerntet += f.flaeche;
-    if(!k.schlaege[f.id]) k.schlaege[f.id] = { id:f.id, name:f.name, flaeche:f.flaeche, status:f.status, kg:0, fuhren:0 };
+    if(!k.schlaege[f.id]) k.schlaege[f.id] = { id:f.id, name:f.name, flaeche:f.flaeche, status:f.status, kg:0, fuhren:0, letzte:0 };
   });
 
   state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f)).forEach(f => {
@@ -63,8 +63,12 @@ export function renderAdminFortschritt() {
     k.kg_geerntet += kg;
     k.fuhren++;
     if(k.schlaege[f.feldId]) {
-      k.schlaege[f.feldId].kg += kg;
-      k.schlaege[f.feldId].fuhren++;
+      const s = k.schlaege[f.feldId];
+      s.kg += kg;
+      s.fuhren++;
+      // Fertigstellung = letzte Fuhre des Schlags (kein eigenes Datum in der DB)
+      const t = new Date(f.zeit).getTime();
+      if(!isNaN(t) && t > s.letzte) s.letzte = t;
     }
   });
 
@@ -87,11 +91,7 @@ export function renderAdminFortschritt() {
 
     const schlagRows = Object.values(k.schlaege)
       .filter(s => s.kg > 0)
-      .sort((a,b) => {
-        const dtA = a.flaeche>0 ? a.kg/100/a.flaeche : 0;
-        const dtB = b.flaeche>0 ? b.kg/100/b.flaeche : 0;
-        return dtB - dtA;
-      });
+      .sort((a,b) => a.letzte - b.letzte || a.name.localeCompare(b.name,'de'));
 
     const schlagDetail = schlagRows.length ? `
       <div id="detail-${faKey}" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;display:${isOpen?'block':'none'}">
@@ -102,7 +102,7 @@ export function renderAdminFortschritt() {
           const dt = s.flaeche>0 ? (s.kg/100/s.flaeche) : 0;
           const sOpen = schlagExpanded[s.id] || false;
           return `<div class="fs-row" onclick="toggleFortschrittSchlag(${s.id})">
-            <span class="fs-name">${sOpen?'▲':'▼'} ${escapeHtml(s.name)}</span>
+            <span class="fs-name">${sOpen?'▲':'▼'} ${escapeHtml(s.name)}${s.letzte?` <span class="fs-datum">${fmtDate(s.letzte)}</span>`:''}</span>
             <span class="fs-flaeche">${s.flaeche.toFixed(1)} ha</span>
             <span class="fs-ertrag">${dt.toFixed(1)} dt/ha</span>
             <span class="fs-gesamt">${(s.kg/1000).toFixed(1)} t</span>

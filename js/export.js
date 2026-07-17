@@ -1,10 +1,10 @@
-import { state } from './state.js?v=46';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=46';
-import { getSiloFill, getSiloKultur } from './silo.js?v=46';
+import { state } from './state.js?v=48';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=48';
+import { getSiloFill, getSiloKultur } from './silo.js?v=48';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=46';
+} from './config.js?v=48';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -403,13 +403,26 @@ export async function exportExcelAuswertung() {
   // Spalten: A Schlag B Fruchtart C Anbaubetrieb D Fertig_am E Fläche_ha
   //          F Gesamt_t G Ertrag_dt_ha H Ø_Feuchte I Ø_Protein J Ø_HL
   const feldIdsFertig = [...new Set(fertige.map(f=>f.feldId))];
+  // Abgeerntete Schläge ohne eigene Fuhren gehören mit in den Export: bei einer
+  // Mischfuhre wird die Menge auf einen Schlag gebucht, die übrigen bleiben ohne
+  // Fuhre, sind aber fertig. Sie stehen mit 0 t und ohne Fertig_am in der Liste.
+  const ohneFuhren = state.felder
+    .filter(fd => fd.status === 'abgeerntet' && !feldIdsFertig.includes(fd.id))
+    .map(fd => fd.id);
   const fertigFeld = {};
   feldIdsFertig.forEach(id => { fertigFeld[id] = letzteFuhre(f => f.feldId === id); });
-  const schlaege = feldIdsFertig.map(id => getFeld(id))
+  const schlaege = [...feldIdsFertig, ...ohneFuhren].map(id => getFeld(id))
     .filter(fd => fd && fd.name && (fd.typ||'schlag')==='schlag')
-    .sort((a,b)=> (fertigFeld[a.id]?.getTime()||0) - (fertigFeld[b.id]?.getTime()||0)
-               || (a.name||'').localeCompare(b.name||'','de')
-               || (a.fruchtart||'').localeCompare(b.fruchtart||'','de'));
+    .sort((a,b)=> {
+      const da = fertigFeld[a.id]?.getTime() ?? null;
+      const db = fertigFeld[b.id]?.getTime() ?? null;
+      // Schläge ohne Datum ans Ende, statt sie mit 0 nach vorn zu ziehen
+      if(da === null || db === null) {
+        if(da !== db) return da === null ? 1 : -1;
+      } else if(da !== db) return da - db;
+      return (a.name||'').localeCompare(b.name||'','de')
+          || (a.fruchtart||'').localeCompare(b.fruchtart||'','de');
+    });
   const sHead = ['Schlag','Fruchtart','Anbaubetrieb','Fertig_am','Fläche_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
   const sAoa = [sHead];
   schlaege.forEach(fd => {
