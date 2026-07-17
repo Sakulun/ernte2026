@@ -1,9 +1,9 @@
-import { state } from './state.js?v=48';
-import { db } from './db.js?v=48';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=48';
-import { isBioFeld } from './bio.js?v=48';
-import { getQualitaetsfelder } from './quality.js?v=48';
-import { parseGewicht } from './abfahrer.js?v=48';
+import { state } from './state.js?v=49';
+import { db } from './db.js?v=49';
+import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=49';
+import { isBioFeld } from './bio.js?v=49';
+import { getQualitaetsfelder } from './quality.js?v=49';
+import { parseGewicht } from './abfahrer.js?v=49';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -419,15 +419,17 @@ function renderHaengerzugWahl(editId = null) {
   </div>`;
 }
 
-export function openHaengerzugWahl() { renderHaengerzugWahl(); }
+// Zielfeld der Auswahl – die Waage nutzt den Picker aus mehreren Masken heraus
+let _hzTarget = WID;
+export function openHaengerzugWahl(targetWid) { _hzTarget = targetWid || WID; renderHaengerzugWahl(); }
 export function closeHaengerzugWahl() { document.getElementById('we-hz-overlay')?.remove(); }
 
 export function waehleHaengerzug(id) {
   const h = (state.haengerzuege || []).find(x => x.id === id);
-  const inp = document.getElementById('leer-' + WID);
+  const inp = document.getElementById('leer-' + _hzTarget);
   if(h && inp) {
     inp.value = h.leergewicht_kg.toLocaleString('de-DE');
-    if(window.updNetto) window.updNetto(WID);
+    if(window.updNetto) window.updNetto(_hzTarget);
     showToast(`🚛 ${h.name} · ${h.leergewicht_kg.toLocaleString('de-DE')} kg übernommen`);
   }
   closeHaengerzugWahl();

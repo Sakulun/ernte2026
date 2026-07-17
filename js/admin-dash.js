@@ -1,7 +1,7 @@
-import { state } from './state.js?v=48';
-import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=48';
-import { getFruchtFarbe } from './frucht.js?v=48';
-import { fahrerRankingCard } from './admin-fahrer.js?v=48';
+import { state } from './state.js?v=49';
+import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=49';
+import { getFruchtFarbe } from './frucht.js?v=49';
+import { fahrerRankingCard } from './admin-fahrer.js?v=49';
 
 export function renderAdminDash() {
   // Nur echte Ernte-Fuhren – Umlagerungen/Zukauf würden die Erntemenge verfälschen

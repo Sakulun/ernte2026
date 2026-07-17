@@ -1,4 +1,4 @@
-import { state } from './state.js?v=48';
+import { state } from './state.js?v=49';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -19,6 +19,9 @@ export function renderAdmin() {
             <span style="font-size:18px">${sidebarCollapsed?'☰':'✕'}</span>
             <span class="sidebar-label" style="font-family:var(--font-display);color:var(--color-text-on-brand)">Ernte 2026</span>
           </button>
+          <button class="sidebar-btn ${adminTab==='waage'?'active':''}" onclick="setAdminTab('waage')">
+            <span class="sidebar-icon">⚖</span><span class="sidebar-label">Waage</span>
+          </button>
           <div class="sidebar-section">Übersicht</div>
           <button class="sidebar-btn ${adminTab==='dashboard'?'active':''}" onclick="setAdminTab('dashboard')">
             <span class="sidebar-icon">📊</span><span class="sidebar-label">Dashboard</span>
@@ -38,9 +41,6 @@ export function renderAdmin() {
           </button>
           <button class="sidebar-btn ${adminTab==='fuhren'?'active':''}" onclick="setAdminTab('fuhren')">
             <span class="sidebar-icon">🚛</span><span class="sidebar-label">Fuhren</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='waage'?'active':''}" onclick="setAdminTab('waage')">
-            <span class="sidebar-icon">⚖</span><span class="sidebar-label">Fuhre erfassen</span>
           </button>
           <button class="sidebar-btn ${adminTab==='nutzer'?'active':''}" onclick="setAdminTab('nutzer')">
             <span class="sidebar-icon">👥</span><span class="sidebar-label">Nutzer</span>
@@ -97,7 +97,7 @@ export function renderAdmin() {
   else if(adminTab==='lager' && window.renderAdminLager) window.renderAdminLager();
   else if(adminTab==='artikel' && window.renderArtikel) window.renderArtikel();
   else if(adminTab==='erntejahr' && window.renderNeuesErntejahr) window.renderNeuesErntejahr();
-  else if(adminTab==='waage' && window.renderWaageErfassungInto) window.renderWaageErfassungInto(document.getElementById('admintab'));
+  else if(adminTab==='waage' && window.renderWaageTab) window.renderWaageTab(document.getElementById('admintab'));
   else if(adminTab==='silos') {
     document.getElementById('admintab').innerHTML = '';
     if(window.showSiloOverlay) window.showSiloOverlay();

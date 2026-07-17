@@ -1,7 +1,7 @@
-import { state } from './state.js?v=48';
-import { getUser, netto, escapeHtml } from './helpers.js?v=48';
-import { getFruchtFarbe } from './frucht.js?v=48';
-import { fuhreKm, abladeStelle } from './geo.js?v=48';
+import { state } from './state.js?v=49';
+import { getUser, netto, escapeHtml } from './helpers.js?v=49';
+import { getFruchtFarbe } from './frucht.js?v=49';
+import { fuhreKm, abladeStelle } from './geo.js?v=49';
 
 // Fahrer-Ranking: Tonnen je Produkt, Gesamtmenge und genäherte Fahrkilometer.
 
