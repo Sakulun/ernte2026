@@ -1,9 +1,9 @@
-import { state } from './state.js?v=45';
-import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=45';
-import { getFruchtFarbe } from './frucht.js?v=45';
-import { getSiloBioStatus, bioBadge } from './bio.js?v=45';
-import { feuchteZuHoch } from './quality.js?v=45';
-import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=45';
+import { state } from './state.js?v=46';
+import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=46';
+import { getFruchtFarbe } from './frucht.js?v=46';
+import { getSiloBioStatus, bioBadge } from './bio.js?v=46';
+import { feuchteZuHoch } from './quality.js?v=46';
+import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=46';
 
 // Lagerübersicht: alle Lagerstätten nach Orten getrennt. Je Lager zunächst nur
 // Produkt, Ø-Qualität und Herkunft (Schläge) – Klick klappt die Einzelfuhren auf.
@@ -146,10 +146,10 @@ export function renderAdminLager() {
   };
 
   document.getElementById('admintab').innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px">
-      <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--gold)">${(gesamtKg/1000).toFixed(1)}</div><div class="stat-label">t im Lager</div></div>
-      <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--text)">${belegte}</div><div class="stat-label">belegte Lager</div></div>
-      <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--text)">${gruppen.length}</div><div class="stat-label">Standorte</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:18px">
+      <div class="stat-box"><div class="stat-val" style="color:var(--gold)">${(gesamtKg/1000).toFixed(1)}</div><div class="stat-label">t im Lager</div></div>
+      <div class="stat-box"><div class="stat-val" style="color:var(--text)">${belegte}</div><div class="stat-label">belegte Lager</div></div>
+      <div class="stat-box"><div class="stat-val" style="color:var(--text)">${gruppen.length}</div><div class="stat-label">Standorte</div></div>
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Klick auf ein Lager zeigt die einzelnen Fuhren.</div>
     ${gruppen.map(ortBlock).join('')}`;

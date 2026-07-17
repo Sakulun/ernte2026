@@ -1,7 +1,7 @@
-import { state } from './state.js?v=45';
-import { db } from './db.js?v=45';
-import { getFeld, getUser, netto, kg2t, fmtTime, fmtDate, abfahrerIstFrei, showToast, escapeHtml, sorteBadge } from './helpers.js?v=45';
-import { isBioFeld } from './bio.js?v=45';
+import { state } from './state.js?v=46';
+import { db } from './db.js?v=46';
+import { getFeld, getUser, netto, kg2t, fmtTime, fmtDate, abfahrerIstFrei, showToast, escapeHtml, sorteBadge } from './helpers.js?v=46';
+import { isBioFeld } from './bio.js?v=46';
 
 export let dTab = 'meine';
 let _drescherMap = null;

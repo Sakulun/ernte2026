@@ -1,10 +1,10 @@
-import { state } from './state.js?v=45';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=45';
-import { getSiloFill, getSiloKultur } from './silo.js?v=45';
+import { state } from './state.js?v=46';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=46';
+import { getSiloFill, getSiloKultur } from './silo.js?v=46';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=45';
+} from './config.js?v=46';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -353,54 +353,80 @@ export async function exportExcelAuswertung() {
   fmtCols(wsF, ['J','K','L','M','N','O','P','Q'], 2, N);
   XLSX.utils.book_append_sheet(wb, wsF, 'Fuhren');
 
+  // Fertigstellung = Zeitpunkt der letzten Fuhre. Weder 'felder' noch
+  // 'vermehrungen' führen ein eigenes Abschlussdatum.
+  const letzteFuhre = (filter) => {
+    const zeiten = fertige.filter(filter).map(f => new Date(f.zeit).getTime()).filter(t => !isNaN(t));
+    return zeiten.length ? new Date(Math.max(...zeiten)) : null;
+  };
+  const datumZelle = (ws, adr, d) => {
+    if(!d) return;
+    ws[adr] = { t:'d', v:d, z:'DD.MM.YYYY' };
+  };
+
   // --- Blatt "Vermehrungen" (je Sorte, Formeln auf 'Fuhren') ---
   // Mengen aus Netto_t (Fuhren Spalte L), Kriterium Sorte (Fuhren Spalte H).
-  const sorten = [...new Set(fertige.filter(f=>f.sorte).map(f=>f.sorte))].sort((a,b)=>a.localeCompare(b,'de'));
+  // Spalten: A Sorte B Fruchtart C Anbaubetrieb D Fertig_am E Größe_ha
+  //          F Gesamt_t G Ertrag_dt_ha H Ø_Feuchte I Ø_Protein J Ø_HL
+  const fertigSorte = {};
+  [...new Set(fertige.filter(f=>f.sorte).map(f=>f.sorte))].forEach(s => {
+    fertigSorte[s] = letzteFuhre(f => f.sorte === s);
+  });
+  const sorten = Object.keys(fertigSorte)
+    .sort((a,b) => (fertigSorte[a]?.getTime()||0) - (fertigSorte[b]?.getTime()||0) || a.localeCompare(b,'de'));
   const flaecheBySorte = {};
   state.vermehrungen.forEach(v => { flaecheBySorte[v.sorte] = (flaecheBySorte[v.sorte]||0) + (parseFloat(v.flaeche)||0); });
-  const vHead = ['Sorte','Fruchtart','Anbaubetrieb','Größe_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
+  const vHead = ['Sorte','Fruchtart','Anbaubetrieb','Fertig_am','Größe_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
   const vAoa = [vHead];
   sorten.forEach(s => {
     const bsp = fertige.find(f => f.sorte === s);
     const feld = bsp ? getFeld(bsp.feldId) : {};
-    vAoa.push([s, bsp?.fruchtart||'', feld.betrieb||'', Math.round((flaecheBySorte[s]||0)*100)/100, null,null,null,null,null]);
+    vAoa.push([s, bsp?.fruchtart||'', feld.betrieb||'', null, Math.round((flaecheBySorte[s]||0)*100)/100, null,null,null,null,null]);
   });
-  const wsV = XLSX.utils.aoa_to_sheet(vAoa);
+  const wsV = XLSX.utils.aoa_to_sheet(vAoa, {cellDates:true});
   for(let i=0;i<sorten.length;i++){
     const r = i+2;
-    wsV['E'+r] = { t:'n', z:'0.00', f:`SUMIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$L$2:$L$${N})` };          // Gesamt_t
-    wsV['F'+r] = { t:'n', z:'0.00', f:`IFERROR(E${r}*10/D${r},"")` };                                       // dt/ha = t*10/ha
-    wsV['G'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$M$2:$M$${N}),"")` };
-    wsV['H'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$N$2:$N$${N}),"")` };
-    wsV['I'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$O$2:$O$${N}),"")` };
+    datumZelle(wsV, 'D'+r, fertigSorte[sorten[i]]);
+    wsV['F'+r] = { t:'n', z:'0.00', f:`SUMIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$L$2:$L$${N})` };          // Gesamt_t
+    wsV['G'+r] = { t:'n', z:'0.00', f:`IFERROR(F${r}*10/E${r},"")` };                                      // dt/ha = t*10/ha
+    wsV['H'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$M$2:$M$${N}),"")` };
+    wsV['I'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$N$2:$N$${N}),"")` };
+    wsV['J'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIF(Fuhren!$H$2:$H$${N},$A${r},Fuhren!$O$2:$O$${N}),"")` };
   }
-  fmtCols(wsV, ['D','E','F','G','H','I'], 2, sorten.length+1);
-  wsV['!cols'] = [{wch:18},{wch:18},{wch:22},{wch:10},{wch:10},{wch:12},{wch:11},{wch:11},{wch:8}];
+  fmtCols(wsV, ['E','F','G','H','I','J'], 2, sorten.length+1);
+  wsV['!cols'] = [{wch:18},{wch:18},{wch:22},{wch:12},{wch:10},{wch:10},{wch:12},{wch:11},{wch:11},{wch:8}];
   XLSX.utils.book_append_sheet(wb, wsV, 'Vermehrungen');
 
   // --- Blatt "Schlag-Erträge" (Gesamtertrag je Frucht & Schlag = Vermehrung + Konsum) ---
   // Summiert ALLE Fuhren eines Schlags je Fruchtart (Kriterium Schlag E + Fruchtart F),
   // unabhängig davon ob Konsum oder Vermehrung.
+  // Spalten: A Schlag B Fruchtart C Anbaubetrieb D Fertig_am E Fläche_ha
+  //          F Gesamt_t G Ertrag_dt_ha H Ø_Feuchte I Ø_Protein J Ø_HL
   const feldIdsFertig = [...new Set(fertige.map(f=>f.feldId))];
+  const fertigFeld = {};
+  feldIdsFertig.forEach(id => { fertigFeld[id] = letzteFuhre(f => f.feldId === id); });
   const schlaege = feldIdsFertig.map(id => getFeld(id))
     .filter(fd => fd && fd.name && (fd.typ||'schlag')==='schlag')
-    .sort((a,b)=> (a.name||'').localeCompare(b.name||'','de') || (a.fruchtart||'').localeCompare(b.fruchtart||'','de'));
-  const sHead = ['Schlag','Fruchtart','Anbaubetrieb','Fläche_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
+    .sort((a,b)=> (fertigFeld[a.id]?.getTime()||0) - (fertigFeld[b.id]?.getTime()||0)
+               || (a.name||'').localeCompare(b.name||'','de')
+               || (a.fruchtart||'').localeCompare(b.fruchtart||'','de'));
+  const sHead = ['Schlag','Fruchtart','Anbaubetrieb','Fertig_am','Fläche_ha','Gesamt_t','Ertrag_dt_ha','Ø_Feuchte_%','Ø_Protein_%','Ø_HL'];
   const sAoa = [sHead];
   schlaege.forEach(fd => {
-    sAoa.push([fd.name||'', fd.fruchtart||'', fd.betrieb||'', Math.round((fd.flaeche||0)*100)/100, null,null,null,null,null]);
+    sAoa.push([fd.name||'', fd.fruchtart||'', fd.betrieb||'', null, Math.round((fd.flaeche||0)*100)/100, null,null,null,null,null]);
   });
-  const wsS = XLSX.utils.aoa_to_sheet(sAoa);
+  const wsS = XLSX.utils.aoa_to_sheet(sAoa, {cellDates:true});
   for(let i=0;i<schlaege.length;i++){
     const r = i+2;
-    wsS['E'+r] = { t:'n', z:'0.00', f:`SUMIFS(Fuhren!$L$2:$L$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r})` };
-    wsS['F'+r] = { t:'n', z:'0.00', f:`IFERROR(E${r}*10/D${r},"")` };
-    wsS['G'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$M$2:$M$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
-    wsS['H'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$N$2:$N$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
-    wsS['I'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$O$2:$O$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
+    datumZelle(wsS, 'D'+r, fertigFeld[schlaege[i].id]);
+    wsS['F'+r] = { t:'n', z:'0.00', f:`SUMIFS(Fuhren!$L$2:$L$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r})` };
+    wsS['G'+r] = { t:'n', z:'0.00', f:`IFERROR(F${r}*10/E${r},"")` };
+    wsS['H'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$M$2:$M$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
+    wsS['I'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$N$2:$N$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
+    wsS['J'+r] = { t:'n', z:'0.00', f:`IFERROR(AVERAGEIFS(Fuhren!$O$2:$O$${N},Fuhren!$E$2:$E$${N},$A${r},Fuhren!$F$2:$F$${N},$B${r}),"")` };
   }
-  fmtCols(wsS, ['D','E','F','G','H','I'], 2, schlaege.length+1);
-  wsS['!cols'] = [{wch:18},{wch:18},{wch:22},{wch:10},{wch:10},{wch:12},{wch:11},{wch:11},{wch:8}];
+  fmtCols(wsS, ['E','F','G','H','I','J'], 2, schlaege.length+1);
+  wsS['!cols'] = [{wch:18},{wch:18},{wch:22},{wch:12},{wch:10},{wch:10},{wch:12},{wch:11},{wch:11},{wch:8}];
   XLSX.utils.book_append_sheet(wb, wsS, 'Schlag-Erträge');
 
   // --- Je Kultur ein Blatt "Konsum <Kultur>" ---

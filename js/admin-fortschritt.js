@@ -1,7 +1,7 @@
-import { state } from './state.js?v=45';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=45';
-import { getFruchtFarbe } from './frucht.js?v=45';
-import { getQualitaetsfelder } from './quality.js?v=45';
+import { state } from './state.js?v=46';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=46';
+import { getFruchtFarbe } from './frucht.js?v=46';
+import { getQualitaetsfelder } from './quality.js?v=46';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};
@@ -95,17 +95,17 @@ export function renderAdminFortschritt() {
 
     const schlagDetail = schlagRows.length ? `
       <div id="detail-${faKey}" style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px;display:${isOpen?'block':'none'}">
-        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:6px;display:grid;grid-template-columns:1fr 56px 80px 70px;gap:8px;padding:0 4px">
-          <span>Schlag</span><span style="text-align:right">Fläche</span><span style="text-align:right">Ertrag</span><span style="text-align:right">Gesamt</span>
+        <div class="fs-head">
+          <span>Schlag</span><span>Fläche</span><span>Ertrag</span><span>Gesamt</span>
         </div>
         ${schlagRows.map(s => {
           const dt = s.flaeche>0 ? (s.kg/100/s.flaeche) : 0;
           const sOpen = schlagExpanded[s.id] || false;
-          return `<div style="display:grid;grid-template-columns:1fr 56px 80px 70px;gap:8px;align-items:baseline;padding:7px 4px;border-top:1px solid var(--border);cursor:pointer" onclick="toggleFortschrittSchlag(${s.id})">
-            <span style="font-size:14px;font-weight:600;color:var(--text)">${sOpen?'▲':'▼'} ${s.name}</span>
-            <span style="font-size:13px;color:var(--text2);text-align:right">${s.flaeche.toFixed(1)} ha</span>
-            <span style="font-size:15px;font-weight:700;color:var(--gold);text-align:right">${dt.toFixed(1)} dt/ha</span>
-            <span style="font-size:13px;color:var(--text2);text-align:right">${(s.kg/1000).toFixed(1)} t</span>
+          return `<div class="fs-row" onclick="toggleFortschrittSchlag(${s.id})">
+            <span class="fs-name">${sOpen?'▲':'▼'} ${escapeHtml(s.name)}</span>
+            <span class="fs-flaeche">${s.flaeche.toFixed(1)} ha</span>
+            <span class="fs-ertrag">${dt.toFixed(1)} dt/ha</span>
+            <span class="fs-gesamt">${(s.kg/1000).toFixed(1)} t</span>
           </div>${sOpen ? schlagFuhrenDetail(s.id, fa) : ''}`;
         }).join('')}
       </div>` : '';
@@ -165,11 +165,11 @@ export function renderAdminFortschritt() {
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--gold);border-radius:2px;margin-right:4px"></span>In Arbeit</span>
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:2px;margin-right:4px"></span>Noch offen</span>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
-        <div class="stat-box"><div class="stat-val" style="font-size:18px">${(gesamtT/1000).toFixed(1)}</div><div class="stat-label">t gesamt</div></div>
-        <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--text)">${abgerntetHa.toFixed(0)}</div><div class="stat-label">ha fertig</div></div>
-        <div class="stat-box"><div class="stat-val" style="font-size:18px;color:var(--text2)">${(gesamtHa-abgerntetHa-aktivHa).toFixed(0)}</div><div class="stat-label">ha offen</div></div>
-        <div class="stat-box"><div class="stat-val" style="font-size:18px;color:var(--blue)">${gesamtDtHa}</div><div class="stat-label">Ø dt/ha</div></div>
+      <div class="stats-grid" style="margin-bottom:0">
+        <div class="stat-box"><div class="stat-val">${(gesamtT/1000).toFixed(1)}</div><div class="stat-label">t gesamt</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:var(--text)">${abgerntetHa.toFixed(0)}</div><div class="stat-label">ha fertig</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:var(--text2)">${(gesamtHa-abgerntetHa-aktivHa).toFixed(0)}</div><div class="stat-label">ha offen</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:var(--blue)">${gesamtDtHa}</div><div class="stat-label">Ø dt/ha</div></div>
       </div>
     </div>
     <div class="section-label" style="margin-top:4px">Nach Kultur — anklicken für Schlag-Details</div>
