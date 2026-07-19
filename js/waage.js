@@ -1,10 +1,10 @@
-import { state } from './state.js?v=55';
-import { db } from './db.js?v=55';
-import { showToast, escapeHtml, kg2t } from './helpers.js?v=55';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel } from './silo.js?v=55';
-import { parseGewicht } from './abfahrer.js?v=55';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=55';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=55';
+import { state } from './state.js?v=56';
+import { db } from './db.js?v=56';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=56';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel } from './silo.js?v=56';
+import { parseGewicht } from './abfahrer.js?v=56';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=56';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=56';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -252,7 +252,7 @@ export function waAusgangKundeWahl() {
   // das Feld auf dem Beleg leer. Deshalb hier früh darauf hinweisen.
   const kunde = state.kontakte.find(c => c.id === kundeId);
   if(warn) {
-    const fehlt = kunde && !String(kunde.adresse || '').trim();
+    const fehlt = kunde && !kontaktAnschrift(kunde).vorhanden;
     warn.style.display = fehlt ? 'block' : 'none';
     if(fehlt) warn.innerHTML = `&#9888; Für <b>${escapeHtml(kunde.name)}</b> ist keine Anschrift hinterlegt –
       sie bleibt auf dem Lieferschein leer. Unter „Kunden/Lieferanten“ ergänzen.`;

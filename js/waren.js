@@ -1,8 +1,8 @@
-import { state } from './state.js?v=55';
-import { db } from './db.js?v=55';
-import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=55';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=55';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=55';
+import { state } from './state.js?v=56';
+import { db } from './db.js?v=56';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=56';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=56';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=56';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -387,7 +387,7 @@ export function lieferungKontraktWahl() {
   const kaeuferEl = document.getElementById('l-kaeufer');
   if(kaeuferEl && kt && !kaeuferEl.value) kaeuferEl.value = kt.name;
   const adrEl = document.getElementById('l-adresse');
-  if(adrEl && kt?.adresse && !adrEl.value) adrEl.value = kt.adresse;
+  if(adrEl && kt && !adrEl.value) adrEl.value = kontaktAnschriftZeile(kt);
   const fruchtEl = document.getElementById('l-fruchtart');
   if(fruchtEl && k.fruchtart_text) fruchtEl.value = k.fruchtart_text;
   if(k.bio) document.getElementById('l-bio').checked = true;

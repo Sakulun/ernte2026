@@ -1,6 +1,6 @@
-import { state } from './state.js?v=55';
-import { db } from './db.js?v=55';
-import { showToast, escapeHtml } from './helpers.js?v=55';
+import { state } from './state.js?v=56';
+import { db } from './db.js?v=56';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=56';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -27,7 +27,7 @@ export function renderKontakte() {
         <div style="flex:1">
           <div style="font-weight:600;color:var(--text)">${escapeHtml(k.name)}</div>
           <div style="font-size:10px;color:var(--gold);letter-spacing:1px;text-transform:uppercase">${k.typ==='beides'?'Kunde & Lieferant':k.typ==='lieferant'?'Lieferant':'Kunde'}</div>
-          ${k.adresse?`<div style="font-size:11px;color:var(--text3)">${escapeHtml(k.adresse)}</div>`:''}
+          ${kontaktAnschriftZeile(k)?`<div style="font-size:11px;color:var(--text3)">${escapeHtml(kontaktAnschriftZeile(k))}</div>`:''}
           ${k.email||k.telefon?`<div style="font-size:11px;color:var(--text3)">${[k.email,k.telefon].filter(Boolean).join(' · ')}</div>`:''}
           ${k.iban?`<div style="font-size:10px;color:var(--text3);font-family:monospace">${escapeHtml(k.iban)}</div>`:''}
           ${konfigInfo}
@@ -70,7 +70,11 @@ export function kontaktNeuDialog(id) {
           <option value="beides"${k?.typ==='beides'?' selected':''}>Kunde & Lieferant</option>
         </select>
       </div>
-      <div class="form-group"><label>Adresse</label><input type="text" id="kt-adresse" value="${k?escapeHtml(k.adresse||''):''}" placeholder="Straße, PLZ Ort"></div>
+      <div class="form-group"><label>Straße und Hausnummer</label><input type="text" id="kt-strasse" value="${k?escapeHtml(k.strasse||k.adresse||''):''}" placeholder="z.B. Klötzerstraße 28-32"></div>
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:10px">
+        <div class="form-group"><label>PLZ</label><input type="text" id="kt-plz" inputmode="numeric" value="${k?escapeHtml(k.plz||''):''}" placeholder="01587"></div>
+        <div class="form-group"><label>Ort</label><input type="text" id="kt-ort" value="${k?escapeHtml(k.ort||''):''}" placeholder="Riesa"></div>
+      </div>
       <div class="form-group"><label>Telefon</label><input type="text" id="kt-telefon" value="${k?escapeHtml(k.telefon||''):''}" placeholder="+49 345 ..."></div>
       <div class="form-group"><label>E-Mail</label><input type="email" id="kt-email" value="${k?escapeHtml(k.email||''):''}" placeholder="name@firma.de"></div>
       <div class="form-group"><label>IBAN</label><input type="text" id="kt-iban" value="${k?escapeHtml(k.iban||''):''}" placeholder="DE12 3456 7890 1234 5678 90"></div>
@@ -89,7 +93,9 @@ export async function kontaktSpeichern(id) {
   if(!name) { showToast('⚠ Name erforderlich','error'); return; }
   const data = {
     name, typ:document.getElementById('kt-typ').value,
-    adresse:document.getElementById('kt-adresse').value.trim()||null,
+    strasse:document.getElementById('kt-strasse').value.trim()||null,
+    plz:document.getElementById('kt-plz').value.trim()||null,
+    ort:document.getElementById('kt-ort').value.trim()||null,
     telefon:document.getElementById('kt-telefon').value.trim()||null,
     email:document.getElementById('kt-email').value.trim()||null,
     iban:document.getElementById('kt-iban').value.trim()||null,

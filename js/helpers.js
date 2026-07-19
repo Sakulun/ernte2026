@@ -1,4 +1,4 @@
-import { state } from './state.js?v=55';
+import { state } from './state.js?v=56';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
@@ -44,6 +44,22 @@ export function roleLabel(r) {
 
 export function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Anschrift eines Kontakts. Wird getrennt geführt (strasse/plz/ort); ältere
+// Datensätze mit einzeiligem Feld 'adresse' fallen darauf zurück.
+export function kontaktAnschrift(k) {
+  if(!k) return { strasse:'', plzOrt:'', vorhanden:false };
+  const strasse = String(k.strasse||'').trim();
+  const plzOrt  = [String(k.plz||'').trim(), String(k.ort||'').trim()].filter(Boolean).join(' ');
+  if(strasse || plzOrt) return { strasse, plzOrt, vorhanden:true };
+  const alt = String(k.adresse||'').trim();
+  return { strasse: alt, plzOrt:'', vorhanden: !!alt };
+}
+// Einzeilige Schreibweise, z.B. "Klötzerstraße 28-32, 01587 Riesa"
+export function kontaktAnschriftZeile(k) {
+  const a = kontaktAnschrift(k);
+  return [a.strasse, a.plzOrt].filter(Boolean).join(', ');
 }
 
 // Badge für Vermehrungssorte einer Fuhre (Z-Saatgut). Leer, wenn Konsum.

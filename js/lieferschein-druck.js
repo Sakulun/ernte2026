@@ -1,6 +1,6 @@
-import { state } from './state.js?v=55';
-import { escapeHtml, showToast } from './helpers.js?v=55';
-import { renderLieferschein } from './lieferschein.js?v=55';
+import { state } from './state.js?v=56';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=56';
+import { renderLieferschein } from './lieferschein.js?v=56';
 
 // Lieferschein zu einer Warenbewegung (Warenausgang) erzeugen und drucken.
 // Die Vorlage (js/lieferschein.js) bleibt unverändert – hier wird nur das
@@ -25,16 +25,6 @@ function dtText(iso) {
   return d.toLocaleDateString('de-DE', DATUM_OPT) + ' ' + d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
 }
 
-// Der Kontakt führt die Anschrift als einen Textblock. Für den Lieferschein
-// wird zeilenweise aufgeteilt: letzte Zeile = Land, davor PLZ/Ort, davor Straße.
-function anschriftAufteilen(adresse) {
-  const z = String(adresse || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-  if(!z.length) return { strasse:'', plzOrt:'', land:'' };
-  if(z.length === 1) return { strasse:z[0], plzOrt:'', land:'' };
-  if(z.length === 2) return { strasse:z[0], plzOrt:z[1], land:'' };
-  return { strasse: z.slice(0, -2).join(', '), plzOrt: z[z.length-2], land: z[z.length-1] };
-}
-
 function kontaktZuBewegung(w) {
   const k = state.kontrakte.find(x => x.id === w.kontrakt_id);
   if(k) {
@@ -48,7 +38,7 @@ export function lieferscheinDaten(w, override = {}) {
   const kontrakt = state.kontrakte.find(x => x.id === w.kontrakt_id);
   const kontakt  = kontaktZuBewegung(w);
   const artikel  = state.artikel.find(a => a.id === w.artikel_id);
-  const adr = anschriftAufteilen(kontakt?.adresse);
+  const adr = kontaktAnschrift(kontakt);
   const netto = Number(w.menge_kg) || 0;
   const voll  = w.vollgewicht != null ? Number(w.vollgewicht) : null;
   const leer  = w.leergewicht != null ? Number(w.leergewicht) : null;
@@ -60,7 +50,7 @@ export function lieferscheinDaten(w, override = {}) {
     empf_zusatz:  '',
     empf_strasse: adr.strasse,
     empf_plz_ort: adr.plzOrt,
-    empf_land:    adr.land,
+    empf_land:    '',
     artikel:  artikel?.name || kontrakt?.fruchtart_text || '',
     kontrakt: kontrakt?.nummer || '',
     herkunft: HERKUNFT_STANDARD,
