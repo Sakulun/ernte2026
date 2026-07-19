@@ -1,9 +1,9 @@
-import { state } from './state.js?v=49';
-import { db } from './db.js?v=49';
-import { showToast, escapeHtml, kg2t } from './helpers.js?v=49';
-import { getSiloBestand, getSiloKultur, lagerGruppen } from './silo.js?v=49';
-import { parseGewicht } from './abfahrer.js?v=49';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=49';
+import { state } from './state.js?v=51';
+import { db } from './db.js?v=51';
+import { showToast, escapeHtml, kg2t } from './helpers.js?v=51';
+import { getSiloBestand, getSiloKultur, lagerGruppen } from './silo.js?v=51';
+import { parseGewicht } from './abfahrer.js?v=51';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=51';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -131,6 +131,17 @@ function ausgangFormHTML() {
       </div>
     </div>
     <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
+    <div class="section-label">Transport <span style="font-size:10px;color:var(--text2);font-weight:400">– für den Lieferschein</span></div>
+    <div class="gewicht-grid">
+      <div class="form-group">
+        <label>Spedition</label>
+        <input type="text" id="wa-spedition" placeholder="z.B. Spedition Müller GmbH">
+      </div>
+      <div class="form-group">
+        <label>Kennzeichen</label>
+        <input type="text" id="wa-kennzeichen" placeholder="z.B. SK-NU 412">
+      </div>
+    </div>
     <div class="form-group">
       <label>Beleg-Nr.</label>
       <input type="text" id="wa-beleg" placeholder="z.B. LS-2026-001">
@@ -215,7 +226,9 @@ export function waAusgangBuchen() {
   const k = state.kontrakte.find(x => x.id === kId);
   const bestKg = getSiloBestand(lagerId);
   zeigeAusgangBestaetigung({ kunde, k, lagerId, artikelId, v, l, netto, bestKg,
-    belegNr: document.getElementById('wa-beleg')?.value.trim() || '' });
+    belegNr:     document.getElementById('wa-beleg')?.value.trim() || '',
+    spedition:   document.getElementById('wa-spedition')?.value.trim() || '',
+    kennzeichen: document.getElementById('wa-kennzeichen')?.value.trim() || '' });
 }
 
 function zeigeAusgangBestaetigung(d) {
@@ -262,8 +275,10 @@ async function ausgangSpeichern(d) {
   if(btn) { btn.disabled = true; btn.textContent = 'Bucht…'; }
   const bewegung = {
     typ: 'ausgang', artikelId: d.artikelId, siloVonId: d.lagerId, mengeKg: d.netto,
+    vollgewicht: d.v, leergewicht: d.l,
     empfaenger: d.kunde?.name || '', belegNr: d.belegNr, bio: !!d.k?.bio,
-    kontraktId: d.k?.id || null, notiz: '', erstelltVon: state.currentUser?.id || null
+    kontraktId: d.k?.id || null, notiz: '', erstelltVon: state.currentUser?.id || null,
+    spedition: d.spedition, kennzeichen: d.kennzeichen
   };
   try {
     const saved = await db.insertWarenbewegung(bewegung);
@@ -272,8 +287,16 @@ async function ausgangSpeichern(d) {
     showToast(`✓ Warenausgang gebucht · ${kg2t(d.netto)} · ${d.kunde?.name || ''}`);
     if(_container) renderWaageTab(_container);
     if(window.renderSiloManagement) window.renderSiloManagement();
+    // Lieferschein direkt anbieten – an der Waage wird er sofort gebraucht
+    if(window.lieferscheinDialog) window.lieferscheinDialog(saved.id);
   } catch(e) {
     if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Buchen'; }
-    showToast('⚠ Fehler: ' + e.message, 'error');
+    // warenbewegungen.silo_von_id verweist per Fremdschlüssel auf die Tabelle
+    // silos; die Flachlager (Hofplatz, Hallen) stehen dort nicht. Bis das
+    // geklärt ist, wenigstens verständlich melden statt roher DB-Meldung.
+    const fk = /foreign key|violates/i.test(e.message || '');
+    showToast(fk
+      ? '⚠ Aus diesem Lager kann noch nicht ausgebucht werden (nur Silozellen). Bitte Lukas Bescheid geben.'
+      : '⚠ Fehler: ' + e.message, 'error');
   }
 }

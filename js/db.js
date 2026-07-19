@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=49';
+import { SB_URL, SB_KEY } from './config.js?v=51';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -302,6 +302,12 @@ export const db = {
       bio: w.bio || false,
       kontrakt_id: w.kontraktId || null,
       fuhre_id: w.fuhreId || null,
+      // Lieferschein-Nr. vergibt der Server (Trigger), daher hier nicht senden
+      vollgewicht: w.vollgewicht ?? null,
+      leergewicht: w.leergewicht ?? null,
+      spedition: w.spedition || null,
+      kennzeichen: w.kennzeichen || null,
+      sonstige_angaben: w.sonstigeAngaben || null,
       erstellt_von: w.erstelltVon || null
     }).select().single();
     if(error) throw error;

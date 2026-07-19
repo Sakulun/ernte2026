@@ -1,8 +1,8 @@
-import { state } from './state.js?v=49';
-import { db } from './db.js?v=49';
-import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=49';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=49';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=49';
+import { state } from './state.js?v=51';
+import { db } from './db.js?v=51';
+import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=51';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=51';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=51';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -319,7 +319,11 @@ export function renderWarenausgang() {
       +'<div style="text-align:right;flex-shrink:0">'
       +'<div style="font-size:16px;font-weight:700;color:'+farbe+'">'+mT+' t</div>'
       +'<div style="font-size:10px;color:var(--text3)">'+datum+'</div>'
-      +'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red);margin-top:4px;padding:3px 8px" onclick="deleteWarenbewegung('+w.id+')">✕</button>'
+      +(w.lieferschein_nr?'<div style="font-size:10px;color:var(--text3)">LS '+escapeHtml(w.lieferschein_nr)+'</div>':'')
+      +'<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">'
+      +(isAus?'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:3px 8px" title="Lieferschein drucken" onclick="lieferscheinDialog('+w.id+')">🖨</button>':'')
+      +'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red);padding:3px 8px" onclick="deleteWarenbewegung('+w.id+')">✕</button>'
+      +'</div>'
       +'</div></div></div>';
   };
 
