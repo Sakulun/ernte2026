@@ -1,9 +1,9 @@
-import { state } from './state.js?v=51';
-import { db } from './db.js?v=51';
-import { showToast, escapeHtml, kg2t } from './helpers.js?v=51';
-import { getSiloBestand, getSiloKultur, lagerGruppen } from './silo.js?v=51';
-import { parseGewicht } from './abfahrer.js?v=51';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=51';
+import { state } from './state.js?v=52';
+import { db } from './db.js?v=52';
+import { showToast, escapeHtml, kg2t } from './helpers.js?v=52';
+import { getSiloBestand, getSiloKultur, lagerGruppen } from './silo.js?v=52';
+import { parseGewicht } from './abfahrer.js?v=52';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=52';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -291,12 +291,6 @@ async function ausgangSpeichern(d) {
     if(window.lieferscheinDialog) window.lieferscheinDialog(saved.id);
   } catch(e) {
     if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Buchen'; }
-    // warenbewegungen.silo_von_id verweist per Fremdschlüssel auf die Tabelle
-    // silos; die Flachlager (Hofplatz, Hallen) stehen dort nicht. Bis das
-    // geklärt ist, wenigstens verständlich melden statt roher DB-Meldung.
-    const fk = /foreign key|violates/i.test(e.message || '');
-    showToast(fk
-      ? '⚠ Aus diesem Lager kann noch nicht ausgebucht werden (nur Silozellen). Bitte Lukas Bescheid geben.'
-      : '⚠ Fehler: ' + e.message, 'error');
+    showToast('⚠ Fehler: ' + e.message, 'error');
   }
 }
