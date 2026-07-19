@@ -1,23 +1,23 @@
-import { state } from './state.js?v=54';
-import { db } from './db.js?v=54';
-import { showToast, escapeHtml, kg2t } from './helpers.js?v=54';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel } from './silo.js?v=54';
-import { parseGewicht } from './abfahrer.js?v=54';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=54';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=54';
+import { state } from './state.js?v=55';
+import { db } from './db.js?v=55';
+import { showToast, escapeHtml, kg2t } from './helpers.js?v=55';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel } from './silo.js?v=55';
+import { parseGewicht } from './abfahrer.js?v=55';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=55';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=55';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
 //  • Wareneingang → bisherige Fuhren-Erfassung (Schlag/Sorte/Abfahrer + Gewichte)
 //  • Warenausgang → zweistufig, weil zwischen den Wiegungen beladen wird:
-//      1. Leerwiegung: Auftrag + Tara erfassen → Fahrzeug in den Umlauf
-//      2. Umlauf: beladenes Fahrzeug wählen, Vollgewicht wiegen →
-//         bucht den Ausgang und druckt den Lieferschein in einem Schritt.
+//      1. Leerwiegung: Auftrag + Tara erfassen → zwischenspeichern
+//      2. Umlauf: Fahrzeug wählen → dieselbe Maske, alle Werte weiter
+//         änderbar, zusätzlich das Vollgewicht → bucht und druckt in einem Schritt.
 
-const LEER_WID = 'wa-leer';   // Feld-Suffix der Leerwiegung
-let _modus = null;            // null | 'eingang' | 'ausgang'
-let _ausgangView = 'neu';     // 'neu' = Leerwiegung, 'umlauf' = wartende Fahrzeuge
-let _offenesFahrzeug = null;  // umlauf.id, dessen Vollwiegung offen ist
+const WID = 'wa';            // Feld-Suffix (voll-wa / leer-wa)
+let _modus = null;           // null | 'eingang' | 'ausgang'
+let _ausgangView = 'neu';    // 'neu' = Leerwiegung, 'umlauf' = wartende Fahrzeuge
+let _offenesFahrzeug = null; // umlauf.id, dessen Vollwiegung gerade offen ist
 let _container = null;
 
 export function setWaageModus(m) {
@@ -93,8 +93,15 @@ function renderAusgang(body) {
     </div>
     <div id="wa-view"></div>`;
   const view = document.getElementById('wa-view');
-  if(_ausgangView === 'umlauf') { view.innerHTML = umlaufListeHTML(); }
-  else { view.innerHTML = `<div class="card">${leerwiegungHTML()}</div>`; waAusgangKundeWahl(); }
+  const offen = _offenesFahrzeug != null ? wartende().find(u => u.id === _offenesFahrzeug) : null;
+
+  if(_ausgangView === 'umlauf' && !offen) {
+    view.innerHTML = umlaufListeHTML();
+  } else {
+    // Gleiche Maske für beide Schritte – bei der Vollwiegung vorbelegt.
+    view.innerHTML = `<div class="card">${formHTML(offen)}</div>`;
+    vorbelegen(offen);
+  }
 }
 
 function lagerOptionen() {
@@ -109,20 +116,28 @@ function lagerOptionen() {
   }).join('');
 }
 
-// ── Schritt 1: Leerwiegung ───────────────────────────────────────────────────
-function leerwiegungHTML() {
+// Eine Maske für beide Schritte. u = Umlauf-Eintrag bei der Vollwiegung, sonst null.
+// Bei der Vollwiegung bleiben alle Felder änderbar – korrigiert wird gebucht.
+function formHTML(u) {
+  const voll = !!u;
   const kunden = state.kontakte.filter(k => k.aktiv)
     .sort((a,b) => a.name.localeCompare(b.name,'de'))
     .map(k => `<option value="${k.id}">${escapeHtml(k.name)}</option>`).join('');
   const artOpts = state.artikel.filter(a => a.aktiv)
     .map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${escapeHtml(a.einheit)})</option>`).join('');
-  const waageWidget = window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(LEER_WID, 'leer') : '';
+  const widget = f => window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(WID, f) : '';
+
+  const kopf = voll
+    ? `<div class="card-title">↑ Vollwiegung · 🚚 ${escapeHtml(u.kennzeichen)}</div>
+       <div class="card-sub">Werte prüfen, Vollgewicht wiegen, abschließen</div>`
+    : `<div class="card-title">↑ Warenausgang · Leerwiegung</div>
+       <div class="card-sub">Auftrag erfassen und leeres Fahrzeug wiegen</div>`;
 
   return `
-    <div class="card-header"><div>
-      <div class="card-title">↑ Warenausgang · Leerwiegung</div>
-      <div class="card-sub">Auftrag erfassen und leeres Fahrzeug wiegen</div>
-    </div></div>
+    <div class="card-header"><div>${kopf}</div>
+      ${voll ? `<button onclick="setAusgangView('umlauf')" title="Zurück zur Liste"
+        style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-muted)">✕</button>` : ''}
+    </div>
     <div class="form-group">
       <label>Kunde *</label>
       <select id="wa-kunde" onchange="waAusgangKundeWahl()">
@@ -132,7 +147,7 @@ function leerwiegungHTML() {
     <div id="wa-adresse-warn" style="display:none" class="alert alert-warn"></div>
     <div class="form-group">
       <label>Kontrakt *</label>
-      <select id="wa-kontrakt" onchange="waAusgangKontraktWahl()" disabled>
+      <select id="wa-kontrakt" onchange="waAusgangKontraktWahl()" ${voll?'':'disabled'}>
         <option value="">— zuerst Kunde wählen —</option>
       </select>
     </div>
@@ -159,22 +174,71 @@ function leerwiegungHTML() {
         <input type="text" id="wa-spedition" placeholder="z.B. Spedition Müller GmbH">
       </div>
     </div>
-    <div class="section-label">Leergewicht (Tara)</div>
-    ${waageWidget}
-    <div class="form-group">
-      <label>Leergewicht (kg) *</label>
-      <div style="display:flex;gap:6px">
-        <input type="text" inputmode="numeric" id="leer-${LEER_WID}" placeholder="12.600"
-          style="font-size:20px;font-weight:700;letter-spacing:0.5px;flex:1;min-width:0" oninput="fmtGewicht(this)">
-        <button type="button" onclick="openHaengerzugWahl('${LEER_WID}')" title="Hängerzug wählen – Leergewicht übernehmen"
-          style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>
+    <div class="section-label">Gewichte</div>
+    ${widget(voll ? 'beide' : 'leer')}
+    <div class="${voll ? 'gewicht-grid' : ''}">
+      ${voll ? `<div class="form-group">
+        <label>Vollgewicht (kg) *</label>
+        <input type="text" inputmode="numeric" id="voll-${WID}" placeholder="40.000"
+          style="font-size:20px;font-weight:700;letter-spacing:0.5px" oninput="fmtGewicht(this);waNetto()">
+      </div>` : ''}
+      <div class="form-group">
+        <label>Leergewicht (kg) *</label>
+        <div style="display:flex;gap:6px">
+          <input type="text" inputmode="numeric" id="leer-${WID}" placeholder="12.600"
+            style="font-size:20px;font-weight:700;letter-spacing:0.5px;flex:1;min-width:0"
+            oninput="fmtGewicht(this);waNetto()">
+          <button type="button" onclick="openHaengerzugWahl('${WID}')" title="Hängerzug wählen – Leergewicht übernehmen"
+            style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>
+        </div>
       </div>
     </div>
+    ${voll ? `<div class="netto-display"><div class="netto-label">Netto</div>
+      <div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div>
+      <div class="netto-unit">kg</div></div>` : ''}
     <div class="section-label">Sonstige Angaben <span style="font-size:10px;color:var(--text2);font-weight:400">– erscheint auf dem Lieferschein</span></div>
     <div class="form-group">
       <textarea id="wa-sonstiges" rows="2" style="width:100%" placeholder="Freitext, z.B. Probe gezogen"></textarea>
     </div>
-    <button class="btn btn-amber btn-full" id="wa-btn" onclick="waInUmlauf()">&#128666; Fahrzeug in den Umlauf schicken</button>`;
+    ${voll
+      ? `<div style="display:flex;gap:8px">
+           <button class="btn btn-outline" style="flex-shrink:0" onclick="waUmlaufStornieren(${u.id})" title="Fahrzeug aus dem Umlauf nehmen">✕</button>
+           <button class="btn btn-green btn-full" id="wa-btn" onclick="waAbschliessen(${u.id})">&#10003; Abschließen &amp; drucken</button>
+         </div>`
+      : `<button class="btn btn-amber btn-full" id="wa-btn" onclick="waZwischenspeichern()">&#128190; Zwischenspeichern</button>`}`;
+}
+
+// Vorbelegung der Selects erst nach dem Rendern – die Optionen müssen stehen.
+function vorbelegen(u) {
+  if(!u) { waAusgangKundeWahl(); return; }
+  const set = (id, v) => { const el = document.getElementById(id); if(el && v != null) el.value = String(v); };
+  set('wa-kunde', u.kontakt_id);
+  waAusgangKundeWahl();                       // baut die Kontrakt-Optionen
+  set('wa-kontrakt', u.kontrakt_id);
+  waAusgangKontraktWahl();                    // setzt u.a. den Artikel aus dem Kontrakt
+  set('wa-lager', u.silo_von_id);
+  waAusgangLagerWahl();
+  set('wa-artikel', u.artikel_id);            // nach Lager/Kontrakt, damit die Wahl gewinnt
+  set('wa-kennzeichen', u.kennzeichen);
+  set('wa-spedition', u.spedition || '');
+  set('leer-'+WID, Number(u.leergewicht).toLocaleString('de-DE'));
+  const t = document.getElementById('wa-sonstiges');
+  if(t) t.value = u.sonstige_angaben || '';
+  waNetto();
+}
+
+export function waNetto() {
+  const el = document.getElementById('netto-'+WID);
+  if(!el) return;
+  const voll = parseGewicht(document.getElementById('voll-'+WID)?.value);
+  const leer = parseGewicht(document.getElementById('leer-'+WID)?.value);
+  if(voll && leer && voll > leer) {
+    el.textContent = (voll-leer).toLocaleString('de-DE');
+    el.style.color = 'var(--green2)';
+  } else {
+    el.textContent = '—';
+    el.style.color = 'var(--text3)';
+  }
 }
 
 export function waAusgangKundeWahl() {
@@ -243,122 +307,96 @@ export function waAusgangLagerWahl() {
   }
 }
 
-export async function waInUmlauf() {
-  const kundeId   = parseInt(document.getElementById('wa-kunde')?.value);
-  const kontraktId= parseInt(document.getElementById('wa-kontrakt')?.value);
-  const lagerId   = document.getElementById('wa-lager')?.value;
-  const artikelId = parseInt(document.getElementById('wa-artikel')?.value);
-  const kennz     = document.getElementById('wa-kennzeichen')?.value.trim().toUpperCase();
-  const leer      = parseGewicht(document.getElementById('leer-'+LEER_WID)?.value);
+// Liest die Maske aus – identisch für beide Schritte.
+function formLesen(mitVoll) {
+  const d = {
+    kundeId:    parseInt(document.getElementById('wa-kunde')?.value),
+    kontraktId: parseInt(document.getElementById('wa-kontrakt')?.value),
+    lagerId:    document.getElementById('wa-lager')?.value,
+    artikelId:  parseInt(document.getElementById('wa-artikel')?.value),
+    kennzeichen:document.getElementById('wa-kennzeichen')?.value.trim().toUpperCase(),
+    spedition:  document.getElementById('wa-spedition')?.value.trim() || '',
+    sonstiges:  document.getElementById('wa-sonstiges')?.value.trim() || '',
+    leer:       parseGewicht(document.getElementById('leer-'+WID)?.value),
+    voll:       mitVoll ? parseGewicht(document.getElementById('voll-'+WID)?.value) : null,
+  };
+  if(!d.kundeId)    return { fehler:'Bitte Kunde wählen.' };
+  if(!d.kontraktId) return { fehler:'Bitte Kontrakt wählen.' };
+  if(!d.lagerId)    return { fehler:'Bitte Lager wählen.' };
+  if(!d.artikelId)  return { fehler:'Bitte Artikel wählen.' };
+  if(!d.kennzeichen)return { fehler:'Bitte Kennzeichen eingeben.' };
+  if(!d.leer || d.leer <= 0) return { fehler:'Bitte gültiges Leergewicht eingeben.' };
+  if(mitVoll && (!d.voll || d.voll <= d.leer))
+    return { fehler:'Bitte gültiges Vollgewicht eingeben (größer als das Leergewicht).' };
+  return d;
+}
 
-  if(!kundeId)    { alert('Bitte Kunde wählen.'); return; }
-  if(!kontraktId) { alert('Bitte Kontrakt wählen.'); return; }
-  if(!lagerId)    { alert('Bitte Lager wählen.'); return; }
-  if(!artikelId)  { alert('Bitte Artikel wählen.'); return; }
-  if(!kennz)      { alert('Bitte Kennzeichen eingeben.'); return; }
-  if(!leer || leer <= 0) { alert('Bitte gültiges Leergewicht eingeben.'); return; }
-
+// ── Schritt 1: zwischenspeichern ─────────────────────────────────────────────
+export async function waZwischenspeichern() {
+  const d = formLesen(false);
+  if(d.fehler) { alert(d.fehler); return; }
   const btn = document.getElementById('wa-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Wird gespeichert…'; }
   try {
     const saved = await db.insertUmlauf({
-      kennzeichen: kennz,
-      spedition: document.getElementById('wa-spedition')?.value.trim() || '',
-      leergewicht: leer,
-      kontaktId: kundeId, kontraktId, siloVonId: lagerId, artikelId,
-      sonstigeAngaben: document.getElementById('wa-sonstiges')?.value.trim() || '',
+      kennzeichen: d.kennzeichen, spedition: d.spedition, leergewicht: d.leer,
+      kontaktId: d.kundeId, kontraktId: d.kontraktId, siloVonId: d.lagerId,
+      artikelId: d.artikelId, sonstigeAngaben: d.sonstiges,
       erstelltVon: state.currentUser?.id || null
     });
     state.umlauf = state.umlauf || [];
     state.umlauf.push(saved);
-    showToast(`🚚 ${kennz} im Umlauf · Tara ${leer.toLocaleString('de-DE')} kg`);
+    showToast(`💾 ${d.kennzeichen} zwischengespeichert · Tara ${d.leer.toLocaleString('de-DE')} kg`);
     _ausgangView = 'umlauf';
+    _offenesFahrzeug = null;
     if(_container) renderWaageTab(_container);
   } catch(e) {
-    if(btn) { btn.disabled = false; btn.innerHTML = '&#128666; Fahrzeug in den Umlauf schicken'; }
+    if(btn) { btn.disabled = false; btn.innerHTML = '&#128190; Zwischenspeichern'; }
     showToast('⚠ Fehler: ' + e.message, 'error');
   }
 }
 
-// ── Schritt 2: Umlauf – beladenes Fahrzeug abschließen ───────────────────────
+// ── Schritt 2: Liste der wartenden Fahrzeuge ─────────────────────────────────
 function umlaufListeHTML() {
   const liste = wartende();
   if(!liste.length) {
     return `<div class="card" style="text-align:center;padding:26px 18px">
       <div style="font-size:28px;margin-bottom:6px">🚚</div>
-      <div style="font-size:14px;font-weight:700;color:var(--color-text);margin-bottom:4px">Kein Fahrzeug im Umlauf</div>
+      <div style="font-size:14px;font-weight:700;color:var(--color-text);margin-bottom:4px">Kein Fahrzeug zwischengespeichert</div>
       <div style="font-size:12px;color:var(--color-text-muted)">Fahrzeuge erscheinen hier, sobald sie leer verwogen wurden.</div>
     </div>`;
   }
   return liste.map(u => {
-    const kunde  = state.kontakte.find(c => c.id === u.kontakt_id);
-    const kontr  = state.kontrakte.find(k => k.id === u.kontrakt_id);
-    const art    = state.artikel.find(a => a.id === u.artikel_id);
-    const offen  = _offenesFahrzeug === u.id;
-    const seit   = new Date(u.erstwiegung);
-    const zeit   = isNaN(seit) ? '' : seit.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-    const wid    = 'umlauf-' + u.id;
+    const kunde = state.kontakte.find(c => c.id === u.kontakt_id);
+    const kontr = state.kontrakte.find(k => k.id === u.kontrakt_id);
+    const art   = state.artikel.find(a => a.id === u.artikel_id);
+    const seit  = new Date(u.erstwiegung);
+    const zeit  = isNaN(seit) ? '' : seit.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
     return `<div class="card" style="margin-bottom:8px;padding:0;overflow:hidden;border-left:4px solid var(--amber)">
-      <div onclick="waUmlaufOeffnen(${u.id})" style="cursor:pointer;padding:12px 14px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-          <div style="min-width:0;flex:1">
-            <div style="font-size:15px;font-weight:700;color:var(--color-text)">
-              ${offen ? '▾' : '▸'} 🚚 ${escapeHtml(u.kennzeichen)}
-            </div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px">
-              ${escapeHtml(kunde?.name || '–')}${kontr ? ' · Kontrakt ' + escapeHtml(kontr.nummer) : ''}
-            </div>
-            <div style="font-size:11px;color:var(--text3);margin-top:1px">
-              ${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}
-            </div>
+      <div onclick="waUmlaufOeffnen(${u.id})" style="cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:15px;font-weight:700;color:var(--color-text)">🚚 ${escapeHtml(u.kennzeichen)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">
+            ${escapeHtml(kunde?.name || '–')}${kontr ? ' · Kontrakt ' + escapeHtml(kontr.nummer) : ''}
           </div>
-          <div style="text-align:right;flex-shrink:0">
-            <div style="font-size:15px;font-weight:700;color:var(--gold)">${Number(u.leergewicht).toLocaleString('de-DE')} kg</div>
-            <div style="font-size:10px;color:var(--text3)">Tara · seit ${zeit}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:1px">
+            ${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}
           </div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:15px;font-weight:700;color:var(--gold)">${Number(u.leergewicht).toLocaleString('de-DE')} kg</div>
+          <div style="font-size:10px;color:var(--text3)">Tara · seit ${zeit}</div>
+          <div style="font-size:11px;color:var(--amber);margin-top:3px">Vollwiegung ›</div>
         </div>
       </div>
-      ${offen ? `<div style="padding:0 14px 14px;border-top:1px solid var(--color-border)">
-        <div class="section-label" style="margin-top:10px">Vollgewicht nach Beladung</div>
-        ${window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(wid, 'voll') : ''}
-        <div class="form-group">
-          <label>Vollgewicht (kg) *</label>
-          <input type="text" inputmode="numeric" id="voll-${wid}" placeholder="40.000"
-            style="font-size:20px;font-weight:700;letter-spacing:0.5px"
-            oninput="fmtGewicht(this);waUmlaufNetto(${u.id})">
-        </div>
-        <div class="netto-display"><div class="netto-label">Netto</div>
-          <div class="netto-val" id="netto-${wid}" style="font-size:26px">—</div>
-          <div class="netto-unit">kg</div></div>
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <button class="btn btn-outline" style="flex-shrink:0" onclick="waUmlaufStornieren(${u.id})" title="Fahrzeug aus dem Umlauf nehmen">✕</button>
-          <button class="btn btn-green btn-full" onclick="waUmlaufAbschliessen(${u.id})">&#10003; Abschließen &amp; drucken</button>
-        </div>
-      </div>` : ''}
     </div>`;
   }).join('');
 }
 
 export function waUmlaufOeffnen(id) {
-  _offenesFahrzeug = (_offenesFahrzeug === id) ? null : id;
+  _offenesFahrzeug = id;
+  _ausgangView = 'umlauf';
   if(_container) renderWaageTab(_container);
-}
-
-export function waUmlaufNetto(id) {
-  const u = wartende().find(x => x.id === id);
-  if(!u) return;
-  const wid = 'umlauf-' + id;
-  const voll = parseGewicht(document.getElementById('voll-'+wid)?.value);
-  const el = document.getElementById('netto-'+wid);
-  if(!el) return;
-  const netto = voll - Number(u.leergewicht);
-  if(voll && netto > 0) {
-    el.textContent = netto.toLocaleString('de-DE');
-    el.style.color = 'var(--green2)';
-  } else {
-    el.textContent = '—';
-    el.style.color = 'var(--text3)';
-  }
 }
 
 export async function waUmlaufStornieren(id) {
@@ -375,45 +413,46 @@ export async function waUmlaufStornieren(id) {
 }
 
 // Bucht den Warenausgang und druckt den Lieferschein in einem Schritt.
-export async function waUmlaufAbschliessen(id) {
+// Es gelten die Werte aus der Maske – auch wenn sie beim Vollwiegen geändert wurden.
+export async function waAbschliessen(id) {
   const u = wartende().find(x => x.id === id);
   if(!u) return;
-  const wid = 'umlauf-' + id;
-  const voll = parseGewicht(document.getElementById('voll-'+wid)?.value);
-  const leer = Number(u.leergewicht);
-  if(!voll || voll <= leer) { alert('Bitte gültiges Vollgewicht eingeben (größer als das Leergewicht).'); return; }
-  const netto = voll - leer;
-  const bestKg = getSiloBestand(u.silo_von_id);
+  const d = formLesen(true);
+  if(d.fehler) { alert(d.fehler); return; }
+  const netto = d.voll - d.leer;
+  const bestKg = getSiloBestand(d.lagerId);
   if(netto > bestKg + 0.01 &&
      !confirm(`Die Menge (${(netto/1000).toFixed(2)} t) übersteigt den Lagerbestand von ${(bestKg/1000).toFixed(2)} t.\n\nTrotzdem buchen?`)) return;
 
-  const kontrakt = state.kontrakte.find(k => k.id === u.kontrakt_id);
-  const kunde    = state.kontakte.find(c => c.id === u.kontakt_id);
-  const btns = document.querySelectorAll(`[onclick="waUmlaufAbschliessen(${id})"]`);
-  btns.forEach(b => { b.disabled = true; b.textContent = 'Bucht…'; });
+  const kontrakt = state.kontrakte.find(k => k.id === d.kontraktId);
+  const kunde    = state.kontakte.find(c => c.id === d.kundeId);
+  const btn = document.getElementById('wa-btn');
+  if(btn) { btn.disabled = true; btn.textContent = 'Bucht…'; }
   try {
     const saved = await db.insertWarenbewegung({
-      typ:'ausgang', artikelId: u.artikel_id, siloVonId: u.silo_von_id, mengeKg: netto,
-      vollgewicht: voll, leergewicht: leer,
+      typ:'ausgang', artikelId: d.artikelId, siloVonId: d.lagerId, mengeKg: netto,
+      vollgewicht: d.voll, leergewicht: d.leer,
       empfaenger: kunde?.name || '', belegNr: '', bio: !!kontrakt?.bio,
-      kontraktId: u.kontrakt_id, notiz: '', erstelltVon: state.currentUser?.id || null,
-      spedition: u.spedition, kennzeichen: u.kennzeichen, sonstigeAngaben: u.sonstige_angaben
+      kontraktId: d.kontraktId, notiz: '', erstelltVon: state.currentUser?.id || null,
+      spedition: d.spedition, kennzeichen: d.kennzeichen, sonstigeAngaben: d.sonstiges
     });
     state.warenbewegungen.unshift(saved);
     await db.umlaufAbschliessen(id, saved.id);
     state.umlauf = state.umlauf.filter(x => x.id !== id);
     _offenesFahrzeug = null;
+    _ausgangView = 'neu';
 
     showToast(`✓ Ausgang gebucht · ${kg2t(netto)} · Lieferschein ${saved.lieferschein_nr || ''}`);
-    // Direkt drucken – die Angaben stehen alle schon fest, kein zweiter Dialog.
+    const ew = new Date(u.erstwiegung);
     lieferscheinDrucken(lieferscheinDaten(saved, {
-      zeit_erstwiegung: new Date(u.erstwiegung).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
-        + ' ' + new Date(u.erstwiegung).toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}),
+      zeit_erstwiegung: isNaN(ew) ? '' :
+        ew.toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'})
+        + ' ' + ew.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'}),
     }));
     if(_container) renderWaageTab(_container);
     if(window.renderSiloManagement) window.renderSiloManagement();
   } catch(e) {
-    btns.forEach(b => { b.disabled = false; b.innerHTML = '&#10003; Abschließen &amp; drucken'; });
+    if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Abschließen &amp; drucken'; }
     showToast('⚠ Fehler: ' + e.message, 'error');
   }
 }
