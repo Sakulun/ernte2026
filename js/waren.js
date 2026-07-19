@@ -1,8 +1,8 @@
-import { state } from './state.js?v=52';
-import { db } from './db.js?v=52';
-import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=52';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=52';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=52';
+import { state } from './state.js?v=54';
+import { db } from './db.js?v=54';
+import { showToast, escapeHtml, getFeld, getUser, netto } from './helpers.js?v=54';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=54';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=54';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -268,7 +268,9 @@ export function gewichtUebernehmen(targetId) {
   try { if(window.updNetto) window.updNetto('lief'); } catch(e) {}
 }
 
-export function waageFuhreWidgetHTML(fuhreId) {
+// felder: 'beide' (Standard) | 'voll' | 'leer' – beim zweistufigen Warenausgang
+// gibt es je Schritt nur ein Gewichtsfeld, dann wäre der zweite Knopf ohne Ziel.
+export function waageFuhreWidgetHTML(fuhreId, felder = 'beide') {
   const w = state.waageLive;
   const isStable   = w && w.status === 'stable';
   const isUnstable = w && w.status === 'unstable';
@@ -284,8 +286,8 @@ export function waageFuhreWidgetHTML(fuhreId) {
     <span style="color:${dotColor}">${dotChar}</span>
     <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${gewichtStr}</span>
     <span style="font-size:9px;letter-spacing:1.5px;color:${dotColor}">${label}</span>
-    <button style="${btnStyle}" onclick="gewichtUebernehmen('voll-${fuhreId}')" ${isStable?'':'disabled'}>→ VOLLGEWICHT</button>
-    <button style="${btnStyle}" onclick="gewichtUebernehmen('leer-${fuhreId}')" ${isStable?'':'disabled'}>→ LEERGEWICHT</button>
+    ${felder !== 'leer' ? `<button style="${btnStyle}" onclick="gewichtUebernehmen('voll-${fuhreId}')" ${isStable?'':'disabled'}>→ ${felder==='voll'?'ÜBERNEHMEN':'VOLLGEWICHT'}</button>` : ''}
+    ${felder !== 'voll' ? `<button style="${btnStyle}" onclick="gewichtUebernehmen('leer-${fuhreId}')" ${isStable?'':'disabled'}>→ ${felder==='leer'?'ÜBERNEHMEN':'LEERGEWICHT'}</button>` : ''}
   </div>`;
 }
 

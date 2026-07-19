@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=52';
+import { SB_URL, SB_KEY } from './config.js?v=54';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -317,6 +317,40 @@ export const db = {
     const { error } = await sb.from('warenbewegungen').delete().eq('id', id);
     if(error) throw error;
   },
+  // ── Umlaufspeicher: leer verwogene Fahrzeuge, die auf Beladung warten ──
+  async getUmlauf() {
+    const { data, error } = await sb.from('umlauf').select('*')
+      .eq('status', 'wartet').order('erstwiegung');
+    if(error) throw error;
+    return data || [];
+  },
+  async insertUmlauf(u) {
+    const { data, error } = await sb.from('umlauf').insert({
+      kennzeichen: u.kennzeichen,
+      spedition: u.spedition || null,
+      leergewicht: u.leergewicht,
+      kontakt_id: u.kontaktId || null,
+      kontrakt_id: u.kontraktId || null,
+      silo_von_id: u.siloVonId || null,
+      artikel_id: u.artikelId || null,
+      sonstige_angaben: u.sonstigeAngaben || null,
+      erstellt_von: u.erstelltVon || null
+    }).select().single();
+    if(error) throw error;
+    return data;
+  },
+  // Kein Löschen: der Eintrag bleibt als Nachweis stehen und wechselt nur den Status.
+  async umlaufAbschliessen(id, warenbewegungId) {
+    const { error } = await sb.from('umlauf')
+      .update({ status:'erledigt', erledigt_am:new Date().toISOString(), warenbewegung_id: warenbewegungId })
+      .eq('id', id);
+    if(error) throw error;
+  },
+  async umlaufStornieren(id) {
+    const { error } = await sb.from('umlauf')
+      .update({ status:'storniert', erledigt_am:new Date().toISOString() }).eq('id', id);
+    if(error) throw error;
+  },
   async upsertGPS(nutzerId, lat, lon) {
     const { error } = await sb.from('gps_positionen').upsert({
       nutzer_id: nutzerId, lat, lon, aktualisiert_am: new Date().toISOString()
@@ -339,6 +373,7 @@ export const db = {
       .on('postgres_changes', {event:'*', schema:'public', table:'kontakte'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'kontrakte'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'waage_live'}, onChange)
+      .on('postgres_changes', {event:'*', schema:'public', table:'umlauf'}, onChange)
       .subscribe((status, err) => {
         const dot = document.getElementById('topbar-sync');
         if(status === 'SUBSCRIBED') {

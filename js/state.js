@@ -1,5 +1,5 @@
-import { db } from './db.js?v=52';
-import { getSb } from './db.js?v=52';
+import { db } from './db.js?v=54';
+import { getSb } from './db.js?v=54';
 
 let appReady = false;
 
@@ -44,6 +44,7 @@ export const state = {
   kontakte: [],
   kontrakte: [],
   haengerzuege: [],
+  umlauf: [],
   waageLive: null,
   nextId: 1, nextNr: 1, lastFeldId: null, lastSorte: null,
 };
@@ -97,6 +98,7 @@ export async function loadAppData() {
     state.kontakte = await db.getKontakte().catch(e => { console.warn('getKontakte:', e); return []; });
     state.kontrakte = await db.getKontrakte().catch(e => { console.warn('getKontrakte:', e); return []; });
     state.haengerzuege = await db.getHaengerzuege().catch(e => { console.warn('getHaengerzuege:', e); return []; });
+    state.umlauf = await db.getUmlauf().catch(e => { console.warn('getUmlauf:', e); return []; });
     const sb = getSb();
     try { const { data: wlData } = await sb.from('waage_live').select('*').eq('id',1).single(); state.waageLive = wlData || null; } catch(e) { state.waageLive = null; }
     const lnrs = state.lieferungen.map(l=>parseInt((l.nr||'').replace('L-',''))).filter(n=>!isNaN(n));
@@ -139,6 +141,19 @@ export async function loadAppData() {
         }
         if(tbl === 'silos') { state.silos = await db.getSilos().catch(()=>[]); return; }
         if(tbl === 'warenbewegungen') { state.warenbewegungen = await db.getWarenbewegungen().catch(()=>[]); return; }
+        if(tbl === 'umlauf') {
+          // Mehrere Waage-Geräte müssen dieselben wartenden Fahrzeuge sehen
+          state.umlauf = await db.getUmlauf().catch(()=>state.umlauf);
+          // Nicht neu rendern, während jemand ein Gewicht eintippt – sonst wäre
+          // die Eingabe weg. Die Liste zieht beim nächsten Klick nach.
+          const akt = document.activeElement;
+          const tippt = akt && ['INPUT','SELECT','TEXTAREA'].includes(akt.tagName);
+          if(!tippt && window.adminTab === 'waage' && window.renderWaageTab) {
+            const el = document.getElementById('admintab');
+            if(el) window.renderWaageTab(el);
+          }
+          return;
+        }
         if(tbl === 'artikel') { state.artikel = await db.getArtikel().catch(()=>[]); return; }
         if(tbl === 'kontakte') { state.kontakte = await db.getKontakte().catch(()=>[]); return; }
         if(tbl === 'kontrakte') { state.kontrakte = await db.getKontrakte().catch(()=>[]); return; }
