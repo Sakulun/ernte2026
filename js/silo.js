@@ -1,9 +1,9 @@
-import { state } from './state.js?v=57';
-import { db } from './db.js?v=57';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=57';
-import { getFruchtFarbe } from './frucht.js?v=57';
-import { feuchteZuHoch } from './quality.js?v=57';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=57';
+import { state } from './state.js?v=58';
+import { db } from './db.js?v=58';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=58';
+import { getFruchtFarbe } from './frucht.js?v=58';
+import { feuchteZuHoch } from './quality.js?v=58';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=58';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -380,7 +380,7 @@ export function reinigenDialog(quelleId) {
       </div>
       <div style="background:var(--green-50);border:1px solid var(--green-200);border-radius:var(--radius-md);padding:14px;margin-bottom:16px">
         <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">Rohware: ${rohT.toFixed(2)} t · ${escapeHtml(kultur)}</div>
-        <div style="font-size:var(--text-base);color:var(--color-text-muted)">Differenz (Roh − gereinigt) wird als Ausputz ausgebucht</div>
+        <div style="font-size:var(--text-base);color:var(--color-text-muted)">Differenz (Roh − gereinigt) wird als Reinigungsabgang-Fuhre erfasst – du ordnest sie einem Konsum-Silo zu</div>
       </div>
       <div class="form-group" style="margin-bottom:12px">
         <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Silo (leer)</label>
@@ -412,6 +412,10 @@ export async function reinigenSpeichern(quelleId) {
 
   const kultur = getSiloKultur(quelleId);
   const fuhren = state.fuhren.filter(f => f.siloId === quelleId && f.status === 'fertig');
+  // Sorte(n) und Fruchtart des Abgangs aus der Rohware bestimmen (vor dem Verschieben)
+  const sorten = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))];
+  const sorteStr = sorten.join(', ');
+  const abgangFruchtart = fuhren.find(f => f.fruchtart)?.fruchtart || kultur || '';
   document.getElementById('silo-reinigen-modal')?.remove();
 
   try {
@@ -422,17 +426,40 @@ export async function reinigenSpeichern(quelleId) {
     const quellSilo = state.silos.find(s=>s.id===quelleId);
     if(zielSilo && kultur) { zielSilo.fruchtart = kultur; try { await db.updateSilo(zielId, {fruchtart: kultur}); } catch(e){} }
     if(quellSilo) { quellSilo.fruchtart = null; try { await db.updateSilo(quelleId, {fruchtart: null}); } catch(e){} }
-    // 3) Reinigungsverlust (Ausputz) als Ausgang aus dem Ziel-Silo buchen
+    // 3) Reinigungsabgang: als eigene Fuhre "Reinigungsabgang <Sorte>" (Konsum), die
+    //    der Nutzer im Silomanagement einem Konsum-Silo zuordnet. Zusätzlich wird das
+    //    Ziel-Silo intern um den Abgang reduziert (bleibt so bei der gereinigten Menge);
+    //    diese interne Umbuchung erscheint NICHT in den Warenbewegungen (siehe waren.js).
     const verlustKg = Math.max(0, rohKg - gereinigtKg);
     if(verlustKg >= 1) {
+      const name = 'Reinigungsabgang' + (sorteStr ? ' ' + sorteStr : '');
+      let feld = state.felder.find(f => f.typ === 'reinigung' && f.name === name);
+      if(!feld) {
+        const feldId = await db.insertFeldReinigung(name, abgangFruchtart);
+        feld = { id: feldId, name, flaeche: 0, fruchtart: abgangFruchtart, status: 'aktiv',
+          betrieb: 'Reinigung', bio: false, flik: '', nummer: '', typ: 'reinigung', kontaktId: null,
+          zukaufFruchtarten: [], zukaufAbfahrerId: null };
+        state.felder.push(feld);
+      }
+      const zeit = new Date().toISOString();
+      const res = await db.insertFuhreKomplett({
+        status: 'fertig', drescherId: state.currentUser?.id || null, abfahrerId: null,
+        feldId: feld.id, fruchtart: abgangFruchtart, sorte: null,
+        vollgewicht: verlustKg, leergewicht: 0, zeit
+      });
+      state.fuhren.push({ id: res.id, nr: res.nr, status: 'fertig',
+        drescherId: state.currentUser?.id || null, abfahrerId: null, feldId: feld.id,
+        fruchtart: abgangFruchtart, sorte: null, vollgewicht: verlustKg, leergewicht: 0,
+        siloId: null, zeit });
+      // interne Reduktion des Ziel-Silos (nicht als Warenausgang gelistet)
       const wb = await db.insertWarenbewegung({
         typ: 'ausgang', siloVonId: zielId, mengeKg: verlustKg,
-        notiz: 'Reinigungsverlust/Ausputz · Reinigung Silo ' + quelleId + ' → ' + zielId,
+        notiz: 'Reinigungsabgang ' + (sorteStr || abgangFruchtart || '') + ' · Silo ' + quelleId + ' → ' + zielId,
         erstelltVon: state.currentUser?.id || null
       });
       if(wb) state.warenbewegungen.unshift(wb);
     }
-    showToast(`🌀 ${(gereinigtKg/1000).toFixed(2)} t gereinigt → Silo ${zielId} · Silo ${quelleId} ist frei`);
+    showToast(`🌀 ${(gereinigtKg/1000).toFixed(2)} t gereinigt → Silo ${zielId} · Reinigungsabgang als Fuhre erfasst`);
   } catch(e) {
     showToast('⚠ Reinigen fehlgeschlagen: ' + e.message, 'error');
     try { state.fuhren = await db.getFuhren(); state.warenbewegungen = await db.getWarenbewegungen(); } catch(_) {}

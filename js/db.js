@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=57';
+import { SB_URL, SB_KEY } from './config.js?v=58';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -66,6 +66,15 @@ export const db = {
     if(error) throw error;
     return data.id;
   },
+  // Spezial-"Feld" für Reinigungsabgänge (typ 'reinigung'), z.B. "Reinigungsabgang KWS Keitum".
+  async insertFeldReinigung(name, fruchtart) {
+    const { data, error } = await sb.from('felder').insert({
+      name, fruchtart: fruchtart || '', flaeche: 0, status: 'aktiv', betrieb: 'Reinigung',
+      typ: 'reinigung'
+    }).select().single();
+    if(error) throw error;
+    return data.id;
+  },
   async updateFeldStatus(id, status) {
     const { error } = await sb.from('felder').update({status}).eq('id', id);
     if(error) throw error;
@@ -85,7 +94,7 @@ export const db = {
       drescherId: f.drescher_id, abfahrerId: f.abfahrer_id,
       feldId: f.feld_id, fruchtart: f.fruchtart,
       vollgewicht: f.vollgewicht ? parseFloat(f.vollgewicht) : null,
-      leergewicht: f.leergewicht ? parseFloat(f.leergewicht) : null,
+      leergewicht: f.leergewicht != null ? parseFloat(f.leergewicht) : null,
       feuchte: f.feuchte ? parseFloat(f.feuchte) : null,
       fallzahl: f.fallzahl ? parseFloat(f.fallzahl) : null,
       protein: f.protein ? parseFloat(f.protein) : null,

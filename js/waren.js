@@ -1,8 +1,8 @@
-import { state } from './state.js?v=57';
-import { db } from './db.js?v=57';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=57';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=57';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=57';
+import { state } from './state.js?v=58';
+import { db } from './db.js?v=58';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=58';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=58';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=58';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -292,7 +292,11 @@ export function waageFuhreWidgetHTML(fuhreId, felder = 'beide') {
 }
 
 export function renderWarenausgang() {
-  const alle    = state.warenbewegungen.slice().sort((a,b)=>new Date(b.erstellt_am)-new Date(a.erstellt_am));
+  // Reinigungsabgänge sind interne Umbuchungen (Reduktion des Ziel-Silos, dem ein
+  // Reinigungsabgang-Fuhre gegenübersteht) – nicht als Warenausgang listen.
+  const alle    = state.warenbewegungen
+    .filter(w => !(w.notiz||'').startsWith('Reinigungsabgang'))
+    .sort((a,b)=>new Date(b.erstellt_am)-new Date(a.erstellt_am));
   const ausgaenge = alle.filter(w=>w.typ==='ausgang');
   const eingaenge = alle.filter(w=>w.typ==='eingang');
   const ausT = ausgaenge.reduce((s,w)=>s+(w.menge_kg||0),0)/1000;

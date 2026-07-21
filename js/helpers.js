@@ -1,9 +1,11 @@
-import { state } from './state.js?v=57';
+import { state } from './state.js?v=58';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
 export const getUser = id => state.users.find(u=>u.id===id)||{};
-export const netto = f => (f.vollgewicht&&f.leergewicht) ? f.vollgewicht-f.leergewicht : null;
+// Leergewicht 0 ist zulässig (z.B. Reinigungsabgang-Fuhre = reines Netto, kein
+// Fahrzeug). Daher != null statt truthy – für echte Fuhren (Tara > 0) identisch.
+export const netto = f => (f.vollgewicht != null && f.leergewicht != null) ? f.vollgewicht-f.leergewicht : null;
 export const kg2t = kg => (kg/1000).toFixed(2)+' t';
 export const fmtTime = iso => new Date(iso).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
 export const fmtDate = iso => new Date(iso).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'});
