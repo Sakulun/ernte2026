@@ -1,15 +1,84 @@
-import { state } from './state.js?v=60';
-import { db } from './db.js?v=60';
-import { showToast, escapeHtml } from './helpers.js?v=60';
+import { state } from './state.js?v=61';
+import { db } from './db.js?v=61';
+import { showToast, escapeHtml } from './helpers.js?v=61';
+
+let _offenerKontrakt = null;
 
 export function getKontraktGeliefertKg(kontraktId) {
   const ausKg = state.warenbewegungen
     .filter(w=>w.kontrakt_id===kontraktId && w.typ==='ausgang')
-    .reduce((s,w)=>s+(w.menge_kg||0),0);
+    .reduce((s,w)=>s+(Number(w.menge_kg)||0),0);
   const liefKg = state.lieferungen
     .filter(l=>l.kontrakt_id===kontraktId && l.status==='abgeschlossen' && l.vollgewicht && l.leergewicht)
     .reduce((s,l)=>s+(l.vollgewicht-l.leergewicht),0);
   return ausKg + liefKg;
+}
+
+// Auslieferungen (Warenausgänge) eines Kontrakts, älteste zuerst.
+export function kontraktFuhren(kId) {
+  return state.warenbewegungen
+    .filter(w => w.typ==='ausgang' && w.kontrakt_id===kId)
+    .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
+}
+// Raps-Kontrakt? (dann Zusatzspalte Qualitätsabrechnung)
+function istRapsKontrakt(k) {
+  const art = state.artikel.find(a=>a.id===k.artikel_id)?.name || '';
+  return /raps/i.test(art + ' ' + (k.fruchtart_text||''));
+}
+
+export function toggleKontraktDetail(id) {
+  _offenerKontrakt = (_offenerKontrakt === id) ? null : id;
+  renderKontrakte();
+}
+
+// Ein Abrechnungsfeld einer Auslieferung speichern (Gutschrift-Nr., Quali-Nr., Klären, Bemerkung).
+export async function kontraktFuhreFeld(id, feld, wert) {
+  const w = state.warenbewegungen.find(x => x.id === id);
+  if(!w) return;
+  w[feld] = wert;
+  const keyMap = { gutschrift_nr:'gutschriftNr', quali_nr:'qualiNr', klaeren:'klaeren', bemerkung:'bemerkung' };
+  try {
+    await db.updateWarenbewegungAbrechnung(id, { [keyMap[feld]]: wert });
+    // Nur bei "klären" neu rendern (Markierung/Zähler); Textfelder still speichern,
+    // um Fokus/Tippfluss nicht zu unterbrechen.
+    if(feld === 'klaeren') renderKontrakte();
+  } catch(e) { showToast('⚠ '+e.message, 'error'); }
+}
+
+function kontraktDetailHTML(k) {
+  const fuhren = kontraktFuhren(k.id);
+  if(!fuhren.length) return `<div style="padding:10px 2px;font-size:12px;color:var(--text3)">Noch keine Auslieferungen für diesen Kontrakt.</div>`;
+  const raps = istRapsKontrakt(k);
+  const feldInput = (id, feld, val, ph) =>
+    `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${id},'${feld}',this.value)"
+      style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
+  const rows = fuhren.map(w => {
+    const art = state.artikel.find(a=>a.id===w.artikel_id);
+    const datum = w.erstellt_am ? new Date(w.erstellt_am).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) : '';
+    const nettoT = ((Number(w.menge_kg)||0)/1000).toFixed(2);
+    const warn = !!w.klaeren;
+    return `<div style="border:1px solid ${warn?'var(--color-warning)':'var(--color-border)'};border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:${warn?'var(--status-offen-bg)':'var(--color-surface)'}">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-size:12px;color:var(--text)"><b>LS ${escapeHtml(w.lieferschein_nr||'–')}</b> · ${escapeHtml(datum)}<span style="color:var(--text3)"> · ${escapeHtml(art?.name||'–')}</span></div>
+        <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}</div>
+      <div style="display:grid;grid-template-columns:${raps?'1fr 1fr':'1fr'};gap:8px;margin-bottom:8px">
+        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'z.B. Cargill-Gutschrift')}</div>
+        ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput(w.id,'quali_nr',w.quali_nr,'Quali-Abrechnung')}</div>`:''}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:${warn?'700':'400'};color:${warn?'var(--color-warning)':'var(--text2)'};cursor:pointer;white-space:nowrap">
+          <input type="checkbox" ${warn?'checked':''} onchange="kontraktFuhreFeld(${w.id},'klaeren',this.checked)" style="width:16px;height:16px;accent-color:var(--color-warning);cursor:pointer">⚠ zu klären
+        </label>
+        <div style="flex:1;min-width:150px">${feldInput(w.id,'bemerkung',w.bemerkung,'Bemerkung…')}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${fuhren.length} Fuhre${fuhren.length===1?'':'n'} · Abrechnung</div>
+    ${rows}
+  </div>`;
 }
 
 export function renderKontrakte() {
@@ -28,31 +97,39 @@ export function renderKontrakte() {
     const kt        = state.kontakte.find(c=>c.id===k.kontakt_id);
     const art       = state.artikel.find(a=>a.id===k.artikel_id);
     const vonBis    = [k.lieferung_von,k.lieferung_bis].filter(Boolean).map(d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
+    const fuhren    = kontraktFuhren(k.id);
+    const klaerenN  = fuhren.filter(w=>w.klaeren).length;
+    const offen     = _offenerKontrakt === k.id;
     return `<div class="card" style="margin-bottom:8px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
-        <div style="flex:1;min-width:0">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-            <div style="font-family:var(--serif);font-size:15px;font-weight:700;color:var(--text)">${escapeHtml(k.nummer)}</div>
-            ${k.bio?'<span class="badge badge-aktiv">BIO</span>':''}
-            <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
+      <div onclick="toggleKontraktDetail(${k.id})" style="cursor:pointer">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="color:var(--text3);font-size:12px">${offen?'▾':'▸'}</span>
+              <div style="font-family:var(--serif);font-size:15px;font-weight:700;color:var(--text)">${escapeHtml(k.nummer)}</div>
+              ${k.bio?'<span class="badge badge-aktiv">BIO</span>':''}
+              <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
+            <div style="font-size:11px;color:var(--text3)">${vonBis||''}${k.paritaet?' · '+escapeHtml(k.paritaet):''}${k.preis_eur?' · '+k.preis_eur.toFixed(2)+' €/t':''}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">🚚 ${fuhren.length} Fuhre${fuhren.length===1?'':'n'}${klaerenN?` · <span style="color:var(--color-warning);font-weight:700">⚠ ${klaerenN} zu klären</span>`:''}</div>
           </div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
-          <div style="font-size:11px;color:var(--text3)">${vonBis||''}${k.paritaet?' · '+escapeHtml(k.paritaet):''}${k.preis_eur?' · '+k.preis_eur.toFixed(2)+' €/t':''}</div>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:18px;font-weight:700;color:var(--text)">${restT.toFixed(1)} t</div>
+            <div style="font-size:10px;color:var(--text3)">noch offen</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:1px">${geliefT.toFixed(1)} / ${(k.menge_t||0).toFixed(1)} t</div>
+          </div>
         </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:18px;font-weight:700;color:var(--text)">${restT.toFixed(1)} t</div>
-          <div style="font-size:10px;color:var(--text3)">noch offen</div>
-          <div style="font-size:10px;color:var(--text3);margin-top:1px">${geliefT.toFixed(1)} / ${(k.menge_t||0).toFixed(1)} t</div>
+        <div style="background:var(--bg3);border-radius:2px;height:5px;overflow:hidden;margin-bottom:8px">
+          <div style="width:${pct.toFixed(1)}%;height:100%;background:${barColor};border-radius:2px;transition:width .3s"></div>
         </div>
-      </div>
-      <div style="background:var(--bg3);border-radius:2px;height:5px;overflow:hidden;margin-bottom:8px">
-        <div style="width:${pct.toFixed(1)}%;height:100%;background:${barColor};border-radius:2px;transition:width .3s"></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="kontraktBearbeiten(${k.id})">✏ Bearbeiten</button>
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--gold)" onclick="kontraktStatus(${k.id},'erfuellt')">✓ Als erfüllt markieren</button>`:''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktStatus(${k.id},'storniert')">✕ Stornieren</button>`:''}
       </div>
+      ${offen ? kontraktDetailHTML(k) : ''}
     </div>`;
   };
 
@@ -73,7 +150,8 @@ export function renderKontrakte() {
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${gesamtT.toFixed(0)}</div><div class="stat-label">t kontraktiert</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${geliefT.toFixed(1)}</div><div class="stat-label">t geliefert</div></div>
     </div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
+      <button class="btn btn-sm btn-outline" onclick="exportKontrakteExcel()">⬇ Excel</button>
       <button class="btn btn-primary" onclick="kontraktNeuDialog(null)">+ Manuell anlegen</button>
     </div>`;
 

@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=60';
+import { SB_URL, SB_KEY } from './config.js?v=61';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -328,6 +328,16 @@ export const db = {
   },
   async deleteWarenbewegung(id) {
     const { error } = await sb.from('warenbewegungen').delete().eq('id', id);
+    if(error) throw error;
+  },
+  // Abrechnungsfelder einer Auslieferung (Kontrakte-Seite)
+  async updateWarenbewegungAbrechnung(id, u) {
+    const map = {};
+    if(u.gutschriftNr !== undefined) map.gutschrift_nr = u.gutschriftNr || null;
+    if(u.qualiNr !== undefined)      map.quali_nr = u.qualiNr || null;
+    if(u.klaeren !== undefined)      map.klaeren = !!u.klaeren;
+    if(u.bemerkung !== undefined)    map.bemerkung = u.bemerkung || null;
+    const { error } = await sb.from('warenbewegungen').update(map).eq('id', id);
     if(error) throw error;
   },
   // ── Umlaufspeicher: leer verwogene Fahrzeuge, die auf Beladung warten ──

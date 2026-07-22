@@ -1,10 +1,10 @@
-import { state } from './state.js?v=60';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=60';
-import { getSiloFill, getSiloKultur } from './silo.js?v=60';
+import { state } from './state.js?v=61';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=61';
+import { getSiloFill, getSiloKultur } from './silo.js?v=61';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=60';
+} from './config.js?v=61';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -320,6 +320,62 @@ function fmtCols(ws, cols, firstRow, lastRow) {
       if(cell && cell.t === 'n') cell.z = '0.00';
     }
   });
+}
+
+// Kontrakte-Übersicht + alle Auslieferungen (Fuhren) mit Abrechnungsstand.
+export async function exportKontrakteExcel() {
+  try { await ensureXLSX(); } catch(e) { showToast('Excel-Bibliothek konnte nicht geladen werden.', 'error'); return; }
+  const XLSX = window.XLSX;
+  const kontrakte = state.kontrakte.slice().sort((a,b) => (a.nummer||'').localeCompare(b.nummer||'','de',{numeric:true}));
+  if(!kontrakte.length) { showToast('Keine Kontrakte zum Exportieren.', 'error'); return; }
+  const artName   = id => state.artikel.find(a => a.id === id)?.name || '';
+  const kundeName = id => state.kontakte.find(c => c.id === id)?.name || '';
+  const ausOf     = kId => state.warenbewegungen
+    .filter(w => w.typ === 'ausgang' && w.kontrakt_id === kId)
+    .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
+  const deDat = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
+  const wb = XLSX.utils.book_new();
+
+  // Blatt 1: Kontrakte
+  const kHead = ['Nummer','Kunde','Artikel','Menge_t','Geliefert_t','Rest_t','Preis_EUR_t','Parität','Von','Bis','Status','Fuhren','Zu_klären'];
+  const kAoa = [kHead];
+  kontrakte.forEach(k => {
+    const fuhren = ausOf(k.id);
+    const geliefT = fuhren.reduce((s,w) => s + (Number(w.menge_kg)||0), 0) / 1000;
+    const mengeT = parseFloat(k.menge_t) || 0;
+    kAoa.push([
+      k.nummer||'', kundeName(k.kontakt_id), artName(k.artikel_id)||k.fruchtart_text||'',
+      mengeT, Math.round(geliefT*100)/100, Math.round(Math.max(0, mengeT-geliefT)*100)/100,
+      k.preis_eur!=null ? parseFloat(k.preis_eur) : null, k.paritaet||'',
+      deDat(k.lieferung_von), deDat(k.lieferung_bis), k.status||'',
+      fuhren.length, fuhren.filter(w=>w.klaeren).length
+    ]);
+  });
+  const wsK = XLSX.utils.aoa_to_sheet(kAoa);
+  fmtCols(wsK, ['D','E','F','G'], 2, kAoa.length);
+  wsK['!cols'] = [{wch:14},{wch:22},{wch:16},{wch:10},{wch:11},{wch:9},{wch:11},{wch:14},{wch:11},{wch:11},{wch:11},{wch:8},{wch:9}];
+  XLSX.utils.book_append_sheet(wb, wsK, 'Kontrakte');
+
+  // Blatt 2: Fuhren (alle Auslieferungen je Kontrakt) inkl. Abrechnungsstand
+  const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung'];
+  const fAoa = [fHead];
+  kontrakte.forEach(k => {
+    ausOf(k.id).forEach(w => {
+      fAoa.push([
+        k.nummer||'', kundeName(k.kontakt_id), w.lieferschein_nr||'', deDat(w.erstellt_am),
+        artName(w.artikel_id), w.spedition||'', w.kennzeichen||'',
+        Math.round((Number(w.menge_kg)||0)/10)/100,
+        w.gutschrift_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||''
+      ]);
+    });
+  });
+  const wsF = XLSX.utils.aoa_to_sheet(fAoa);
+  fmtCols(wsF, ['H'], 2, fAoa.length);
+  wsF['!cols'] = [{wch:14},{wch:22},{wch:14},{wch:11},{wch:16},{wch:18},{wch:13},{wch:9},{wch:16},{wch:20},{wch:9},{wch:30}];
+  XLSX.utils.book_append_sheet(wb, wsF, 'Fuhren');
+
+  XLSX.writeFile(wb, 'Ernte2026_Kontrakte.xlsx');
+  showToast('✓ Kontrakte-Export erstellt');
 }
 
 export async function exportExcelAuswertung() {
