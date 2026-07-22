@@ -1,9 +1,9 @@
-import { state } from './state.js?v=59';
-import { db } from './db.js?v=59';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=59';
-import { getFruchtFarbe } from './frucht.js?v=59';
-import { feuchteZuHoch } from './quality.js?v=59';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=59';
+import { state } from './state.js?v=60';
+import { db } from './db.js?v=60';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=60';
+import { getFruchtFarbe } from './frucht.js?v=60';
+import { feuchteZuHoch } from './quality.js?v=60';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=60';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -140,7 +140,10 @@ export function showSiloOverlay() {
   }
   const sb = document.getElementById('admin-sidebar');
   const sbW = sb ? sb.offsetWidth : 220;
-  ov.style.cssText = `position:fixed;top:49px;left:${sbW}px;right:0;bottom:0;height:calc(100vh - 49px);background:var(--color-bg);z-index:50;overflow:hidden`;
+  // Mobil: keine feste Sidebar-Verschiebung (Sidebar ist Drawer) und Seite scrollbar
+  const isMobile = window.innerWidth <= 640;
+  const left = isMobile ? 0 : sbW;
+  ov.style.cssText = `position:fixed;top:49px;left:${left}px;right:0;bottom:0;height:calc(100vh - 49px);background:var(--color-bg);z-index:50;overflow:${isMobile?'auto':'hidden'}`;
   renderSiloManagement();
 }
 
@@ -631,14 +634,14 @@ export function renderSiloManagement() {
   const selTotalT = (selFuhren.reduce((s,f) => s+(netto(f)||0), 0)/1000).toFixed(2);
 
   el.innerHTML = `
-    <div style="display:flex;flex-direction:column;height:calc(100vh - 49px);overflow:hidden">
-      <div style="padding:10px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--color-surface)">
+    <div class="silo-mgmt" style="display:flex;flex-direction:column;height:calc(100vh - 49px);overflow:hidden">
+      <div class="silo-topbar" style="padding:10px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--color-surface)">
         <div style="display:flex;align-items:center;gap:10px">
           <button onclick="setAdminTab('schlaege')" style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);padding:5px 10px;border-radius:var(--radius-xs);cursor:pointer;font-family:var(--font-sans);font-size:var(--text-sm)">← Zurück</button>
           <div style="font-family:var(--font-display);font-size:16px;color:var(--color-text)">🏭 Silomanagement</div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div style="display:flex;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px;flex-wrap:wrap">
+        <div class="silo-topbar-right" style="display:flex;align-items:center;gap:12px">
+          <div class="silo-toggle" style="display:flex;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:3px;gap:2px;flex-wrap:wrap">
             <button onclick="setSiloView('B')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('B')};color:${cl('B')}">B</button>
             <button onclick="setSiloView('A')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('A')};color:${cl('A')}">A</button>
             <button onclick="setSiloView('I')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('I')};color:${cl('I')}">I</button>
@@ -646,12 +649,12 @@ export function renderSiloManagement() {
               `<button onclick="setSiloView('${k}')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg(k)};color:${cl(k)}">${l.toggle}</button>`
             ).join('')}
           </div>
-          <div style="font-size:14px;color:var(--text2)">${capLbl}</div>
+          <div class="silo-caplbl" style="font-size:14px;color:var(--text2)">${capLbl}</div>
           <button class="btn btn-sm btn-outline" onclick="exportSiloCSV()">⬇ CSV</button>
         </div>
       </div>
-      <div style="display:flex;flex:1;overflow:hidden">
-        <div style="width:320px;flex-shrink:0;border-right:1px solid var(--color-border);display:flex;flex-direction:column">
+      <div class="silo-body" style="display:flex;flex:1;overflow:hidden">
+        <div class="silo-queue" style="width:320px;flex-shrink:0;border-right:1px solid var(--color-border);display:flex;flex-direction:column">
           <div style="padding:8px 12px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:10px">
             <input type="checkbox" id="silo-select-all" ${allChecked?'checked':''}
               onclick="selectAllFuhren()"
@@ -668,11 +671,14 @@ export function renderSiloManagement() {
             <button class="btn btn-primary" style="font-size:13px;padding:8px 16px" onclick="einlagernDialog()">Einlagern →</button>
           </div>
         </div>
-        <div style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
+        <div class="silo-grid" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
           ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : lagerView(view)}
         </div>
-        <div id="silo-detail-panel" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
-          <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);font-size:16px;color:var(--color-text-subtle);font-weight:600">← Silo anklicken</div>
+        <div id="silo-detail-panel" class="silo-detail-panel${_activeSiloId?' has-selection':''}" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:8px">
+            <span style="font-size:16px;color:var(--color-text-subtle);font-weight:600">${_activeSiloId?'Silo '+_activeSiloId:'← Silo anklicken'}</span>
+            <button class="silo-detail-close" onclick="closeSiloDetail()" aria-label="Schließen" style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);width:32px;height:32px;border-radius:var(--radius-xs);cursor:pointer;font-size:16px">✕</button>
+          </div>
           <div id="silo-detail-content" style="flex:1;overflow-y:auto;padding:12px"></div>
         </div>
       </div>
@@ -681,9 +687,35 @@ export function renderSiloManagement() {
   if(_activeSiloId) renderSiloDetail(_activeSiloId);
 }
 
+// Detailpanel schließen (mobil = Vollbild-Overlay). Setzt die Auswahl zurück.
+export function closeSiloDetail() {
+  _activeSiloId = null;
+  const panel = document.getElementById('silo-detail-panel');
+  if(panel) {
+    panel.classList.remove('has-selection');
+    const titel = panel.querySelector('span');
+    if(titel) titel.textContent = '← Silo anklicken';
+    const content = panel.querySelector('#silo-detail-content');
+    if(content) content.innerHTML = '';
+  }
+  document.querySelectorAll('[id^="ssvg-"]').forEach(svg => {
+    const c = svg.querySelectorAll('circle')[0];
+    if(c) { c.style.stroke = '#c2c9b9'; c.style.strokeWidth = '2'; c.style.fill = 'var(--color-surface)'; }
+  });
+}
+
 export function openSiloDetail(siloId) {
   _activeSiloId = siloId;
   renderSiloDetail(siloId);
+  // Detailpanel als Vollbild-Overlay (mobil) einblenden + Kopf aktualisieren
+  const panel = document.getElementById('silo-detail-panel');
+  if(panel) {
+    panel.classList.add('has-selection');
+    const titel = panel.querySelector('span');
+    if(titel) titel.textContent = 'Silo ' + siloId;
+    const content = panel.querySelector('#silo-detail-content');
+    if(content) content.scrollTop = 0;
+  }
   document.querySelectorAll('[id^="ssvg-"]').forEach(svg => {
     const id = svg.id.replace('ssvg-','');
     const circles = svg.querySelectorAll('circle');
