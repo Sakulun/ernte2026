@@ -1,9 +1,9 @@
-import { state } from './state.js?v=58';
-import { db } from './db.js?v=58';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=58';
-import { getFruchtFarbe } from './frucht.js?v=58';
-import { feuchteZuHoch } from './quality.js?v=58';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=58';
+import { state } from './state.js?v=59';
+import { db } from './db.js?v=59';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=59';
+import { getFruchtFarbe } from './frucht.js?v=59';
+import { feuchteZuHoch } from './quality.js?v=59';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=59';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -35,6 +35,7 @@ export function fuhreHerkunft(f) {
   const feld = getFeld(f.feldId);
   if((feld.typ||'schlag') === 'lieferant') return '🚚 ' + (feld.name || 'Zukauf');
   if((feld.typ||'schlag') === 'umlagerung') return '🔄 Umlagerung';
+  if((feld.typ||'schlag') === 'reinigung') return '🌀 ' + (feld.name || 'Reinigungsabgang');
   return feld.betrieb || '';
 }
 // Standort (Ort) je Flachlager – die Silos A/B/I stehen alle am Hof Beesenstedt.
