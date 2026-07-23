@@ -1,8 +1,11 @@
-import { state } from './state.js?v=66';
-import { db } from './db.js?v=66';
-import { showToast, escapeHtml } from './helpers.js?v=66';
+import { state } from './state.js?v=67';
+import { db } from './db.js?v=67';
+import { showToast, escapeHtml } from './helpers.js?v=67';
 
 let _offenerKontrakt = null;
+// PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
+// uebergeben (Apostrophe im PDF-Text zerbrechen sonst den Handler-String).
+let _pdfImport = { name: '', text: '' };
 
 export function getKontraktGeliefertKg(kontraktId) {
   const ausKg = state.warenbewegungen
@@ -283,6 +286,8 @@ async function kontraktPDFVerarbeiten(file) {
 export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
   const k = id ? state.kontrakte.find(x=>x.id===id) : null;
   const v = k || prefill;
+  // PDF-Daten merken (statt sie durch das onclick-Attribut zu schleusen).
+  _pdfImport = { name: pdfName || '', text: pdfText || '' };
   const kontaktOpts = state.kontakte.map(c =>
     `<option value="${c.id}"${(v.kontakt_id||v.kontaktId)===c.id?' selected':''}>${escapeHtml(c.name)}</option>`
   ).join('');
@@ -320,7 +325,7 @@ export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
       </div>
       <div class="form-group"><label>Notiz</label><input type="text" id="kk-notiz" value="${escapeHtml(v.notiz||k?.notiz||'')}"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-primary" style="flex:1" onclick="kontraktSpeichern(${k?k.id:'null'},'${encodeURIComponent(pdfName)}','${encodeURIComponent(pdfText.slice(0,5000))}')">${k?'Speichern':'Anlegen'}</button>
+        <button class="btn btn-primary" style="flex:1" onclick="kontraktSpeichern(${k?k.id:'null'})">${k?'Speichern':'Anlegen'}</button>
         <button class="btn btn-outline" onclick="document.getElementById('kontrakt-modal').remove()">Abbrechen</button>
       </div>
     </div>`;
@@ -329,7 +334,7 @@ export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
 
 export function kontraktBearbeiten(id) { kontraktNeuDialog(id); }
 
-export async function kontraktSpeichern(id, pdfNameEnc='', pdfTextEnc='') {
+export async function kontraktSpeichern(id) {
   const nummer    = document.getElementById('kk-nummer')?.value.trim();
   const mengeT    = parseFloat(document.getElementById('kk-menge')?.value);
   if(!nummer || isNaN(mengeT) || mengeT <= 0) { showToast('⚠ Nummer und Menge erforderlich','error'); return; }
@@ -347,8 +352,8 @@ export async function kontraktSpeichern(id, pdfNameEnc='', pdfTextEnc='') {
     zertNachhaltig: document.getElementById('kk-nachhaltig')?.checked||false,
     zertGmp: document.getElementById('kk-gmp')?.checked||false,
     notiz: document.getElementById('kk-notiz')?.value.trim()||null,
-    pdfName: decodeURIComponent(pdfNameEnc)||null,
-    pdfText: decodeURIComponent(pdfTextEnc)||null,
+    pdfName: _pdfImport.name || null,
+    pdfText: (_pdfImport.text || '').slice(0, 5000) || null,
   };
   try {
     if(id) {
