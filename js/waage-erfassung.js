@@ -1,10 +1,10 @@
-import { state } from './state.js?v=67';
-import { db } from './db.js?v=67';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=67';
-import { isBioFeld } from './bio.js?v=67';
-import { getQualitaetsfelder } from './quality.js?v=67';
-import { parseGewicht } from './abfahrer.js?v=67';
-import { lieferscheinDrucken } from './lieferschein-druck.js?v=67';
+import { state } from './state.js?v=68';
+import { db } from './db.js?v=68';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=68';
+import { isBioFeld } from './bio.js?v=68';
+import { getQualitaetsfelder } from './quality.js?v=68';
+import { parseGewicht } from './abfahrer.js?v=68';
+import { lieferscheinDrucken } from './lieferschein-druck.js?v=68';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -174,12 +174,15 @@ export function weFeldWahl() {
   // Kennzeichen-Feld nur bei externer Anlieferung (Zukauf-Lieferant), am Waage-Abschluss
   if(kzGroup) kzGroup.style.display = (feld.typ === 'lieferant' && _modus !== 'offen') ? 'block' : 'none';
   // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau).
-  // Bei konfigurierten Zukauf-Lieferanten nur deren hinterlegte Fruchtarten.
+  // Immer die vollständige eigene Kulturliste anbieten, damit externe Fuhren
+  // wie eigene einsortiert werden können. Lieferantenspezifische Extras
+  // (z.B. "Bio Hafer") werden zusätzlich angehängt, damit nichts verloren geht.
   if((feld.typ || 'schlag') !== 'schlag') {
-    const arten = (feld.zukaufFruchtarten && feld.zukaufFruchtarten.length)
-      ? feld.zukaufFruchtarten
-      : [...new Set(state.felder.filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart).map(x => x.fruchtart))]
-          .sort((a,b) => a.localeCompare(b,'de'));
+    const eigene = [...new Set(state.felder
+      .filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart)
+      .map(x => x.fruchtart))];
+    const arten = [...new Set([...eigene, ...(feld.zukaufFruchtarten || [])])]
+      .sort((a,b) => a.localeCompare(b,'de'));
     el.innerHTML = `<select id="we-fruchtart-select" onchange="weFruchtartWahl()" style="width:100%;border:none;background:none;font:inherit;color:inherit;padding:0">
       <option value="">— Fruchtart wählen —</option>${arten.map(a=>`<option>${escapeHtml(a)}</option>`).join('')}
     </select>`;
