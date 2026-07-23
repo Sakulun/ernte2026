@@ -1,9 +1,10 @@
-import { state } from './state.js?v=61';
-import { db } from './db.js?v=61';
-import { getFeld, showToast, escapeHtml, kg2t } from './helpers.js?v=61';
-import { isBioFeld } from './bio.js?v=61';
-import { getQualitaetsfelder } from './quality.js?v=61';
-import { parseGewicht } from './abfahrer.js?v=61';
+import { state } from './state.js?v=62';
+import { db } from './db.js?v=62';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=62';
+import { isBioFeld } from './bio.js?v=62';
+import { getQualitaetsfelder } from './quality.js?v=62';
+import { parseGewicht } from './abfahrer.js?v=62';
+import { lieferscheinDrucken } from './lieferschein-druck.js?v=62';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -104,7 +105,11 @@ function formHTML() {
       <label>Partie / Sorte</label>
       <select id="we-sorte" onchange="weSorteWahl()"><option value="">Konsum</option></select>
     </div>
-    ${abfahrerBlock}`;
+    ${abfahrerBlock}
+    <div id="we-kennzeichen-group" style="display:none" class="form-group">
+      <label>Kennzeichen (Anlieferung)</label>
+      <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase">
+    </div>`;
 
   if(_modus === 'offen') {
     return `${oben}
@@ -155,15 +160,19 @@ export function weFeldWahl() {
   const el = document.getElementById('we-fruchtart-display');
   const sorteGroup = document.getElementById('we-sorte-group');
   const sorteSelect = document.getElementById('we-sorte');
+  const kzGroup = document.getElementById('we-kennzeichen-group');
   if(!feldEl || !el) return;
   const feldId = parseInt(feldEl.value);
   if(!feldId) {
     el.textContent = '— wird automatisch gesetzt —'; el.style.color = 'var(--text3)';
     if(sorteGroup) sorteGroup.style.display = 'none';
+    if(kzGroup) kzGroup.style.display = 'none';
     renderQualGrid();
     return;
   }
   const feld = getFeld(feldId);
+  // Kennzeichen-Feld nur bei externer Anlieferung (Zukauf-Lieferant), am Waage-Abschluss
+  if(kzGroup) kzGroup.style.display = (feld.typ === 'lieferant' && _modus !== 'offen') ? 'block' : 'none';
   // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau).
   // Bei konfigurierten Zukauf-Lieferanten nur deren hinterlegte Fruchtarten.
   if((feld.typ || 'schlag') !== 'schlag') {
@@ -268,9 +277,10 @@ export async function weAbschliessen() {
     return { label:o.label, val: (raw!=='' && raw!=null) ? raw : null };
   });
   const abfName = state.users.find(u=>u.id===abfahrerId)?.name || '';
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
   // GPS-Position bestimmen (kurzer Timeout; blockiert nie – ohne Empfang gibt es einfach keinen Standort)
   _gpsFuerFuhre = await erfasseGPS(4000);
-  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows, gps: _gpsFuerFuhre });
+  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows, gps: _gpsFuerFuhre, kennzeichen });
 }
 
 // Tatsächliches Speichern (nach Bestätigung im Popup).
@@ -284,6 +294,9 @@ async function weAbschliessenSpeichern() {
   if(!feldId || !abfahrerId || !v || !l || v <= l) { closeBestaetigung(); showToast('⚠ Eingaben unvollständig', 'error'); return; }
   const sorte = document.getElementById('we-sorte')?.value || null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
+  const feld = getFeld(feldId);
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+  const lieferscheinDrucke = feld.typ === 'lieferant' && document.getElementById('we-conf-ls')?.checked;
   const qf = getQualitaetsfelder(fruchtart);
   const q = {};
   for(const key of Object.keys(qf)) { const el = document.getElementById('qual-'+key+'-'+WID); q[key] = el ? (parseFloat(el.value)||null) : null; }
@@ -292,6 +305,7 @@ async function weAbschliessenSpeichern() {
     status:'fertig', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
     vollgewicht: v, leergewicht: l,
     feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null,
+    kennzeichen: kennzeichen || null,
     lat: _gpsFuerFuhre?.lat ?? null, lon: _gpsFuerFuhre?.lon ?? null,
     zeit: new Date().toISOString()
   };
@@ -301,11 +315,38 @@ async function weAbschliessenSpeichern() {
     const abfName = state.users.find(u => u.id === abfahrerId)?.name || '';
     showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(v-l)} · ${abfName}`);
     closeBestaetigung();
+    if(lieferscheinDrucke) druckeWareneingangLieferschein(feld, fruchtart, v, l, kennzeichen, res.nr);
     reRenderOrClose();
   } catch(e) {
     if(sbtn) { sbtn.disabled = false; sbtn.innerHTML = '&#10003; Speichern'; }
     showToast('⚠ Fehler: ' + e.message, 'error');
   }
+}
+
+// Lieferschein/Wiegeschein für eine externe Anlieferung (Zukauf) drucken.
+// Nutzt die Firmen-Vorlage; der Lieferant steht als Gegenpartei, die Wiegedaten
+// als Beleg für den Fahrer. Keine Nachhaltigkeits-Zeile (kein Verkauf).
+function druckeWareneingangLieferschein(feld, fruchtart, voll, leer, kennzeichen, nr) {
+  const netto = voll - leer;
+  const kontakt = feld.kontaktId ? state.kontakte.find(c => c.id === feld.kontaktId) : null;
+  const adr = kontaktAnschrift(kontakt);
+  const jetzt = new Date();
+  const dOpt = { day:'2-digit', month:'2-digit', year:'numeric' };
+  const deW = n => n.toLocaleString('de-DE');
+  lieferscheinDrucken({
+    ls_nummer: nr || '',
+    datum: jetzt.toLocaleDateString('de-DE', dOpt),
+    empf_name: kontakt?.name || feld.name || '',
+    empf_zusatz: '', empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
+    artikel: fruchtart || '', kontrakt: '', herkunft: '', einheit: 't',
+    menge: (netto/1000).toLocaleString('de-DE', {minimumFractionDigits:3, maximumFractionDigits:3}),
+    brutto_kg: deW(voll), tara_kg: deW(leer), netto_kg: deW(netto),
+    zeit_erstwiegung: '',
+    zeit_zweitwiegung: jetzt.toLocaleDateString('de-DE', dOpt) + ' ' + jetzt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
+    waage_nr: '', spedition: '', kennzeichen: kennzeichen || '',
+    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : ''),
+    istRaps: false,
+  });
 }
 
 function zeigeBestaetigung(d) {
@@ -327,6 +368,7 @@ function zeigeBestaetigung(d) {
   const standort = d.gps && window.standortText
     ? '📍 ' + escapeHtml(window.standortText(d.gps.lat, d.gps.lon) || 'erfasst')
     : '<span style="color:var(--text3)">— kein GPS</span>';
+  const istLieferant = d.feld.typ === 'lieferant';
   ov.innerHTML = `<div class="card" style="max-width:440px;width:100%;max-height:90vh;overflow:auto">
     <div class="card-header"><div>
       <div class="card-title">Fuhre prüfen &amp; speichern</div>
@@ -336,6 +378,7 @@ function zeigeBestaetigung(d) {
       ${row((d.feld.typ||'schlag')!=='schlag' ? 'Herkunft' : 'Schlag', escapeHtml(d.feld.name||'–'))}
       ${row('Fruchtart', escapeHtml(d.fruchtart||'–'))}
       ${artZeile}
+      ${istLieferant && d.kennzeichen ? row('Kennzeichen', escapeHtml(d.kennzeichen)) : ''}
       ${row('Abfahrer', escapeHtml(d.abfName||'–'))}
       ${row('Vollgewicht', d.v.toLocaleString('de-DE') + ' kg')}
       ${row('Leergewicht', d.l.toLocaleString('de-DE') + ' kg')}
@@ -343,6 +386,10 @@ function zeigeBestaetigung(d) {
       ${qHtml}
       ${row('Standort', standort)}
     </table>
+    ${istLieferant ? `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin:2px 0 8px">
+      <input type="checkbox" id="we-conf-ls" checked style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer">
+      🖨 Lieferschein für den Fahrer drucken
+    </label>` : ''}
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn btn-outline btn-full" id="we-conf-edit">&#9998; Bearbeiten</button>
       <button class="btn btn-green btn-full" id="we-conf-save">&#10003; Speichern</button>

@@ -1,6 +1,6 @@
-import { state } from './state.js?v=61';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=61';
-import { renderLieferschein } from './lieferschein.js?v=61';
+import { state } from './state.js?v=62';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=62';
+import { renderLieferschein } from './lieferschein.js?v=62';
 
 // Lieferschein zu einer Warenbewegung (Warenausgang) erzeugen und drucken.
 // Die Vorlage (js/lieferschein.js) bleibt unverändert – hier wird nur das

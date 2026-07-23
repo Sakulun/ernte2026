@@ -1,6 +1,6 @@
-import { state, loadAppData } from './state.js?v=61';
-import { db, getSb } from './db.js?v=61';
-import { hashPW, hashPWLegacy } from './helpers.js?v=61';
+import { state, loadAppData } from './state.js?v=62';
+import { db, getSb } from './db.js?v=62';
+import { hashPW, hashPWLegacy } from './helpers.js?v=62';
 
 const _loginAttempts = {};
 
