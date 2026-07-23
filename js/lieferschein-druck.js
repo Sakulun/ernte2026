@@ -1,14 +1,15 @@
-import { state } from './state.js?v=63';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=63';
-import { renderLieferschein } from './lieferschein.js?v=63';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP } from './config.js?v=63';
+import { state } from './state.js?v=64';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=64';
+import { renderLieferschein } from './lieferschein.js?v=64';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=64';
 
 // Zertifikatszeilen aus den Siegel-Flags eines Kontrakts (nachhaltig/GMP+/EU-Öko).
+// hinweis = zusätzlicher Pflichtsatz auf dem Lieferschein.
 export function kontraktZertifikate(kontrakt) {
   if(!kontrakt) return [];
   const z = [];
   if(kontrakt.zert_nachhaltig) z.push({ label: 'Nachhaltigkeit (REDcert)', nr: ZERT_NACHHALTIG });
-  if(kontrakt.zert_gmp)        z.push({ label: 'GMP+ FSA', nr: ZERT_GMP });
+  if(kontrakt.zert_gmp)        z.push({ label: 'GMP+ FSA', nr: 'Reg.-Nr. ' + ZERT_GMP_REG + ' · Zert.-Nr. ' + ZERT_GMP_ZERT, hinweis: 'Ware ist GMP+ FSA gesichert' });
   if(kontrakt.bio)             z.push({ label: 'EU-Öko', nr: ZERT_OEKO });
   return z;
 }

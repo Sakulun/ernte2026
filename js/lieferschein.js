@@ -169,7 +169,10 @@ export function renderLieferschein(d = {}) {
         ? [{ label: 'Nachhaltigkeits-Zertifikat', nr: REDCERT_NACHHALTIGKEIT }]
         : []);
   const rapsBlock = zerts.map(z =>
-    `<div class="raps-cert" style="margin-right:2mm"><span class="label">${esc(z.label)}${z.nr ? ':' : ''}</span> ${esc(z.nr || '')}</div>`
+    `<div style="margin-bottom:1.5mm">
+      <span class="raps-cert"><span class="label">${esc(z.label)}${z.nr ? ':' : ''}</span> ${esc(z.nr || '')}</span>
+      ${z.hinweis ? `<div style="font-size:9pt;font-weight:700;margin-top:1mm">${esc(z.hinweis)}</div>` : ''}
+    </div>`
   ).join('');
 
   return `<!DOCTYPE html>
