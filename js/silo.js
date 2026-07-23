@@ -1,9 +1,9 @@
-import { state } from './state.js?v=64';
-import { db } from './db.js?v=64';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=64';
-import { getFruchtFarbe } from './frucht.js?v=64';
-import { feuchteZuHoch } from './quality.js?v=64';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=64';
+import { state } from './state.js?v=65';
+import { db } from './db.js?v=65';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=65';
+import { getFruchtFarbe } from './frucht.js?v=65';
+import { feuchteZuHoch } from './quality.js?v=65';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=65';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -24,6 +24,9 @@ const FLACHLAGER = {
   // Der Schlüssel HALLE_THONDORF bleibt Teil 1, damit ggf. bestehende Zuordnungen gültig bleiben.
   HALLE_THONDORF:    { toggle: 'Thondorf 1', titel: '📦 Halle Thondorf · Teil 1',  label: 'Halle Thondorf 1', kap_t: 4000 },
   HALLE_THONDORF2:   { toggle: 'Thondorf 2', titel: '📦 Halle Thondorf · Teil 2',  label: 'Halle Thondorf 2', kap_t: 1500 },
+  // Kuchenlager: sammelt Sonnenblumenpresskuchen. Keine Bestandseinbuchung
+  // (keine Fuhren), nur Warenausgang – daher ausgangOnly.
+  KUCHENLAGER:       { toggle: 'Kuchen', titel: '🟡 Kuchenlager · Sonnenblumenpresskuchen', label: 'Kuchenlager', ausgangOnly: true, produkt: 'Sonnenblumenpresskuchen' },
 };
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
@@ -47,7 +50,10 @@ const LAGER_ORT = {
   HALLE_LAUCHSTAEDT: 'Bad Lauchstädt',
   HALLE_THONDORF:    'Thondorf',
   HALLE_THONDORF2:   'Thondorf',
+  KUCHENLAGER:       'Beesenstedt',
 };
+// Nur-Ausgang-Lager (Kuchenlager): keine Bestandsbuchung, nur Warenausgang.
+export function istAusgangLager(id) { return !!FLACHLAGER[id]?.ausgangOnly; }
 export function lagerOrtVon(id) {
   return FLACHLAGER[id] ? (LAGER_ORT[id] || 'Sonstige') : 'Beesenstedt';
 }
@@ -57,7 +63,7 @@ export function lagerGruppen() {
   const orte = {};
   const add = (ort, o) => { (orte[ort] = orte[ort] || []).push(o); };
   Object.entries(FLACHLAGER).forEach(([k,l]) =>
-    add(LAGER_ORT[k] || 'Sonstige', { id:k, label:l.label, kapT:l.kap_t || null, typ:'flach' }));
+    add(LAGER_ORT[k] || 'Sonstige', { id:k, label:l.label, kapT:l.kap_t || null, typ:'flach', ausgangOnly: !!l.ausgangOnly }));
   state.silos.slice()
     .sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
     .forEach(s => add('Beesenstedt', { id:s.id, label:'Silo '+s.id, kapT:parseFloat(s.kapazitaet_t)||null, typ:'silo' }));
@@ -125,6 +131,8 @@ export function getSiloBestand(siloId) {
   return Math.max(0, getSiloFill(siloId) - getSiloAusgang(siloId));
 }
 export function getSiloKultur(siloId) {
+  // Ausgang-only-Lager tragen ihr Produkt fest (keine Fuhren zum Ableiten).
+  if(FLACHLAGER[siloId]?.produkt) return FLACHLAGER[siloId].produkt;
   const silo = state.silos.find(s=>s.id===siloId);
   if(silo?.fruchtart) return silo.fruchtart;
   const firstFuhre = state.fuhren.find(f=>f.siloId===siloId&&f.status==='fertig');
@@ -272,7 +280,7 @@ export function einlagernDialog() {
         <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Silo</label>
         <select id="einlagern-silo" class="form-control" style="font-size:13px">
           <option value="">— Lagerort wählen —</option>
-          ${Object.entries(FLACHLAGER).map(([k,l])=>`<option value="${k}">${l.titel}${l.kap_t?' ('+l.kap_t.toLocaleString('de-DE')+' t)':''}</option>`).join('')}
+          ${Object.entries(FLACHLAGER).filter(([,l])=>!l.ausgangOnly).map(([k,l])=>`<option value="${k}">${l.titel}${l.kap_t?' ('+l.kap_t.toLocaleString('de-DE')+' t)':''}</option>`).join('')}
           ${siloOptions}
         </select>
       </div>
@@ -540,9 +548,11 @@ export function renderSiloManagement() {
     const zugangT = lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000;
     const ausgangT = getSiloAusgang(lagerId)/1000;
     const bestandT = Math.max(0, zugangT - ausgangT);
-    const bestandStr = ausgangT > 0
-      ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${bestandT.toFixed(1)} t Bestand</b>`
-      : `${zugangT.toFixed(1)} t`;
+    const bestandStr = lager.ausgangOnly
+      ? `<b>${ausgangT.toFixed(1)} t ausgeliefert</b>`
+      : (ausgangT > 0
+        ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${bestandT.toFixed(1)} t Bestand</b>`
+        : `${zugangT.toFixed(1)} t`);
     const kapHtml = lager.kap_t ? (() => {
       const pct = Math.min(100, bestandT / lager.kap_t * 100);
       const farbe = pct > 85 ? 'var(--color-warning)' : 'var(--color-primary)';
@@ -570,7 +580,7 @@ export function renderSiloManagement() {
                 style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);cursor:pointer;font-size:14px;width:30px;height:30px;border-radius:var(--radius-xs);flex-shrink:0">✕</button>
             </div>
           </div>`;
-        }).join('') : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">Keine Fuhren in ${lager.label}</div>`}
+        }).join('') : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">${lager.ausgangOnly ? 'Nur Warenausgang – hier werden keine Bestände geführt.' : 'Keine Fuhren in ' + lager.label}</div>`}
       </div>
     </div>
   </div>`;

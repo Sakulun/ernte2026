@@ -1,10 +1,10 @@
-import { state } from './state.js?v=64';
-import { db } from './db.js?v=64';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=64';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel } from './silo.js?v=64';
-import { parseGewicht } from './abfahrer.js?v=64';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=64';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=64';
+import { state } from './state.js?v=65';
+import { db } from './db.js?v=65';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=65';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=65';
+import { parseGewicht } from './abfahrer.js?v=65';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=65';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=65';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -108,9 +108,11 @@ function lagerOptionen() {
   return lagerGruppen().map(g => {
     const opts = g.lager.map(l => {
       const bestKg = getSiloBestand(l.id);
-      if(bestKg <= 0) return '';
+      // Ausgang-only-Lager (Kuchenlager) immer anbieten – Bestand wird dort nicht geführt.
+      if(bestKg <= 0 && !l.ausgangOnly) return '';
       const kultur = getSiloKultur(l.id) || '–';
-      return `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)} · ${escapeHtml(kultur)} · ${(bestKg/1000).toFixed(1)} t</option>`;
+      const mengeTxt = l.ausgangOnly ? 'nur Ausgang' : (bestKg/1000).toFixed(1) + ' t';
+      return `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)} · ${escapeHtml(kultur)} · ${mengeTxt}</option>`;
     }).filter(Boolean).join('');
     return opts ? `<optgroup label="${escapeHtml(g.ort)}">${opts}</optgroup>` : '';
   }).join('');
@@ -421,7 +423,8 @@ export async function waAbschliessen(id) {
   if(d.fehler) { alert(d.fehler); return; }
   const netto = d.voll - d.leer;
   const bestKg = getSiloBestand(d.lagerId);
-  if(netto > bestKg + 0.01 &&
+  // Ausgang-only-Lager (Kuchenlager) führt keinen Bestand – Warnung entfällt.
+  if(!istAusgangLager(d.lagerId) && netto > bestKg + 0.01 &&
      !confirm(`Die Menge (${(netto/1000).toFixed(2)} t) übersteigt den Lagerbestand von ${(bestKg/1000).toFixed(2)} t.\n\nTrotzdem buchen?`)) return;
 
   const kontrakt = state.kontrakte.find(k => k.id === d.kontraktId);
