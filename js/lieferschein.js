@@ -40,7 +40,10 @@ const CSS = `/* ================================================================
   --rand:       12mm;
 }
 
-@page { size: A4 portrait; margin: 10mm 12mm; }
+/* margin:0 unterdrueckt die vom Browser gedruckte Kopf-/Fusszeile
+   (Datum, Dateiname, URL). Die Seitenraender liegen stattdessen als
+   Innenabstand auf .blatt (siehe @media print). */
+@page { size: A4 portrait; margin: 0; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -68,7 +71,7 @@ body {
 }
 @media print {
   body { background: none; padding: 0; }
-  .blatt { width: auto; min-height: 277mm; padding: 0; box-shadow: none; margin: 0; }
+  .blatt { width: auto; min-height: 297mm; padding: 10mm 12mm; box-shadow: none; margin: 0; }
 }
 
 /* ---------------------------------------------------------------- Kopf */
