@@ -1,6 +1,6 @@
-import { state } from './state.js?v=62';
-import { db } from './db.js?v=62';
-import { showToast, escapeHtml } from './helpers.js?v=62';
+import { state } from './state.js?v=63';
+import { db } from './db.js?v=63';
+import { showToast, escapeHtml } from './helpers.js?v=63';
 
 let _offenerKontrakt = null;
 
@@ -107,7 +107,9 @@ export function renderKontrakte() {
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <span style="color:var(--text3);font-size:12px">${offen?'▾':'▸'}</span>
               <div style="font-family:var(--serif);font-size:15px;font-weight:700;color:var(--text)">${escapeHtml(k.nummer)}</div>
-              ${k.bio?'<span class="badge badge-aktiv">BIO</span>':''}
+              ${k.zert_nachhaltig?'<span class="badge" style="background:var(--green-100,#e6f2e6);color:var(--green2)">♻ Nachhaltig</span>':''}
+              ${k.zert_gmp?'<span class="badge" style="background:var(--neutral-200);color:var(--text)">GMP+</span>':''}
+              ${k.bio?'<span class="badge badge-aktiv">🌿 EU-Öko</span>':''}
               <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
@@ -128,6 +130,7 @@ export function renderKontrakte() {
         <button class="btn btn-sm btn-outline" onclick="kontraktBearbeiten(${k.id})">✏ Bearbeiten</button>
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--gold)" onclick="kontraktStatus(${k.id},'erfuellt')">✓ Als erfüllt markieren</button>`:''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktStatus(${k.id},'storniert')">✕ Stornieren</button>`:''}
+        ${fuhren.length===0?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktLoeschen(${k.id})" title="Nur möglich, solange keine Fuhren hinterlegt sind">🗑 Löschen</button>`:''}
       </div>
       ${offen ? kontraktDetailHTML(k) : ''}
     </div>`;
@@ -307,9 +310,13 @@ export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
         <div class="form-group"><label>Lieferung bis</label><input type="date" id="kk-bis" value="${v.lieferungBis||k?.lieferung_bis||''}"></div>
       </div>
       <div class="form-group"><label>Parität</label><input type="text" id="kk-paritaet" value="${escapeHtml(v.paritaet||k?.paritaet||'')}" placeholder="z.B. frei Werk"></div>
-      <div class="form-group" style="display:flex;align-items:center;gap:10px">
-        <input type="checkbox" id="kk-bio" style="width:18px;height:18px;accent-color:var(--gold)" ${(v.bio||k?.bio)?'checked':''}>
-        <label style="font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin:0">Bio-Kontrakt</label>
+      <div class="form-group">
+        <label>Zertifikate / Siegel <span style="font-size:10px;color:var(--text3);font-weight:400">– bestimmt die Nummern auf dem Lieferschein</span></label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="kk-nachhaltig" style="width:17px;height:17px;accent-color:var(--gold)" ${(v.zertNachhaltig||k?.zert_nachhaltig)?'checked':''}> ♻ Nachhaltig (REDcert)</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="kk-gmp" style="width:17px;height:17px;accent-color:var(--gold)" ${(v.zertGmp||k?.zert_gmp)?'checked':''}> ✓ GMP+ gesichert</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="kk-bio" style="width:17px;height:17px;accent-color:var(--gold)" ${(v.bio||k?.bio)?'checked':''}> 🌿 EU-Öko-Ware</label>
+        </div>
       </div>
       <div class="form-group"><label>Notiz</label><input type="text" id="kk-notiz" value="${escapeHtml(v.notiz||k?.notiz||'')}"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
@@ -337,6 +344,8 @@ export async function kontraktSpeichern(id, pdfNameEnc='', pdfTextEnc='') {
     lieferungBis: document.getElementById('kk-bis')?.value||null,
     paritaet: document.getElementById('kk-paritaet')?.value.trim()||null,
     bio: document.getElementById('kk-bio')?.checked||false,
+    zertNachhaltig: document.getElementById('kk-nachhaltig')?.checked||false,
+    zertGmp: document.getElementById('kk-gmp')?.checked||false,
     notiz: document.getElementById('kk-notiz')?.value.trim()||null,
     pdfName: decodeURIComponent(pdfNameEnc)||null,
     pdfText: decodeURIComponent(pdfTextEnc)||null,
@@ -346,17 +355,34 @@ export async function kontraktSpeichern(id, pdfNameEnc='', pdfTextEnc='') {
       const k = state.kontrakte.find(x=>x.id===id);
       await db.updateKontrakt({...k, ...data, artikel_id:data.artikelId, kontakt_id:data.kontaktId,
         fruchtart_text:data.fruchtartText, menge_t:data.mengeT, preis_eur:data.preisEur,
-        lieferung_von:data.lieferungVon, lieferung_bis:data.lieferungBis});
+        lieferung_von:data.lieferungVon, lieferung_bis:data.lieferungBis,
+        zert_nachhaltig:data.zertNachhaltig, zert_gmp:data.zertGmp});
       Object.assign(k, {nummer:data.nummer, kontakt_id:data.kontaktId, artikel_id:data.artikelId,
         fruchtart_text:data.fruchtartText, menge_t:data.mengeT, preis_eur:data.preisEur,
         lieferung_von:data.lieferungVon, lieferung_bis:data.lieferungBis,
-        paritaet:data.paritaet, bio:data.bio, notiz:data.notiz});
+        paritaet:data.paritaet, bio:data.bio, notiz:data.notiz,
+        zert_nachhaltig:data.zertNachhaltig, zert_gmp:data.zertGmp});
     } else {
       const saved = await db.insertKontrakt(data);
       state.kontrakte.unshift(saved);
     }
     document.getElementById('kontrakt-modal')?.remove();
     showToast('✓ Kontrakt gespeichert');
+    renderKontrakte();
+  } catch(e) { showToast('⚠ '+e.message,'error'); }
+}
+
+// Kontrakt löschen – nur wenn keine Auslieferungen (Fuhren/Lieferungen) hängen.
+export async function kontraktLoeschen(id) {
+  const k = state.kontrakte.find(x=>x.id===id);
+  if(!k) return;
+  const hatFuhren = kontraktFuhren(id).length > 0 || state.lieferungen.some(l=>l.kontrakt_id===id);
+  if(hatFuhren) { showToast('⚠ Kontrakt hat Auslieferungen – Löschen nicht möglich','error'); return; }
+  if(!confirm(`Kontrakt ${k.nummer} wirklich löschen?`)) return;
+  try {
+    await db.deleteKontrakt(id);
+    state.kontrakte = state.kontrakte.filter(x=>x.id!==id);
+    showToast('🗑 Kontrakt gelöscht');
     renderKontrakte();
   } catch(e) { showToast('⚠ '+e.message,'error'); }
 }

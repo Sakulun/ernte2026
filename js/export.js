@@ -1,10 +1,10 @@
-import { state } from './state.js?v=62';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=62';
-import { getSiloFill, getSiloKultur } from './silo.js?v=62';
+import { state } from './state.js?v=63';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=63';
+import { getSiloFill, getSiloKultur } from './silo.js?v=63';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=62';
+} from './config.js?v=63';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -336,8 +336,12 @@ export async function exportKontrakteExcel() {
   const deDat = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
   const wb = XLSX.utils.book_new();
 
-  // Blatt 1: Kontrakte
-  const kHead = ['Nummer','Kunde','Artikel','Menge_t','Geliefert_t','Rest_t','Preis_EUR_t','Parität','Von','Bis','Status','Fuhren','Zu_klären'];
+  const ja = b => b ? 'ja' : '';
+  // Excel-Spaltenbuchstabe zum 0-basierten Index
+  const colLetter = i => { let s=''; i++; while(i>0){ s=String.fromCharCode(65+(i-1)%26)+s; i=Math.floor((i-1)/26); } return s; };
+
+  // Blatt 1: Kontrakte (mit Siegel-Spalten + Autofilter zum Filtern)
+  const kHead = ['Nummer','Kunde','Artikel','Menge_t','Geliefert_t','Rest_t','Preis_EUR_t','Parität','Von','Bis','Status','Fuhren','Zu_klären','Nachhaltig','GMP+','EU-Öko'];
   const kAoa = [kHead];
   kontrakte.forEach(k => {
     const fuhren = ausOf(k.id);
@@ -348,16 +352,18 @@ export async function exportKontrakteExcel() {
       mengeT, Math.round(geliefT*100)/100, Math.round(Math.max(0, mengeT-geliefT)*100)/100,
       k.preis_eur!=null ? parseFloat(k.preis_eur) : null, k.paritaet||'',
       deDat(k.lieferung_von), deDat(k.lieferung_bis), k.status||'',
-      fuhren.length, fuhren.filter(w=>w.klaeren).length
+      fuhren.length, fuhren.filter(w=>w.klaeren).length,
+      ja(k.zert_nachhaltig), ja(k.zert_gmp), ja(k.bio)
     ]);
   });
   const wsK = XLSX.utils.aoa_to_sheet(kAoa);
   fmtCols(wsK, ['D','E','F','G'], 2, kAoa.length);
-  wsK['!cols'] = [{wch:14},{wch:22},{wch:16},{wch:10},{wch:11},{wch:9},{wch:11},{wch:14},{wch:11},{wch:11},{wch:11},{wch:8},{wch:9}];
+  wsK['!cols'] = [{wch:14},{wch:22},{wch:16},{wch:10},{wch:11},{wch:9},{wch:11},{wch:14},{wch:11},{wch:11},{wch:11},{wch:8},{wch:9},{wch:11},{wch:8},{wch:9}];
+  wsK['!autofilter'] = { ref: 'A1:' + colLetter(kHead.length-1) + kAoa.length };
   XLSX.utils.book_append_sheet(wb, wsK, 'Kontrakte');
 
-  // Blatt 2: Fuhren (alle Auslieferungen je Kontrakt) inkl. Abrechnungsstand
-  const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung'];
+  // Blatt 2: Fuhren (alle Auslieferungen je Kontrakt) inkl. Abrechnungsstand + Siegel
+  const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung','Nachhaltig','GMP+','EU-Öko'];
   const fAoa = [fHead];
   kontrakte.forEach(k => {
     ausOf(k.id).forEach(w => {
@@ -365,13 +371,15 @@ export async function exportKontrakteExcel() {
         k.nummer||'', kundeName(k.kontakt_id), w.lieferschein_nr||'', deDat(w.erstellt_am),
         artName(w.artikel_id), w.spedition||'', w.kennzeichen||'',
         Math.round((Number(w.menge_kg)||0)/10)/100,
-        w.gutschrift_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||''
+        w.gutschrift_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||'',
+        ja(k.zert_nachhaltig), ja(k.zert_gmp), ja(k.bio)
       ]);
     });
   });
   const wsF = XLSX.utils.aoa_to_sheet(fAoa);
   fmtCols(wsF, ['H'], 2, fAoa.length);
-  wsF['!cols'] = [{wch:14},{wch:22},{wch:14},{wch:11},{wch:16},{wch:18},{wch:13},{wch:9},{wch:16},{wch:20},{wch:9},{wch:30}];
+  wsF['!cols'] = [{wch:14},{wch:22},{wch:14},{wch:11},{wch:16},{wch:18},{wch:13},{wch:9},{wch:16},{wch:20},{wch:9},{wch:30},{wch:11},{wch:8},{wch:9}];
+  wsF['!autofilter'] = { ref: 'A1:' + colLetter(fHead.length-1) + fAoa.length };
   XLSX.utils.book_append_sheet(wb, wsF, 'Fuhren');
 
   XLSX.writeFile(wb, 'Ernte2026_Kontrakte.xlsx');

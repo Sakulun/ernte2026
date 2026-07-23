@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=62';
+import { SB_URL, SB_KEY } from './config.js?v=63';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -284,7 +284,8 @@ export const db = {
       fruchtart_text:k.fruchtartText||null, menge_t:k.mengeT,
       preis_eur:k.preisEur||null, lieferung_von:k.lieferungVon||null,
       lieferung_bis:k.lieferungBis||null, paritaet:k.paritaet||null,
-      bio:k.bio||false, notiz:k.notiz||null, pdf_name:k.pdfName||null,
+      bio:k.bio||false, zert_nachhaltig:k.zertNachhaltig||false, zert_gmp:k.zertGmp||false,
+      notiz:k.notiz||null, pdf_name:k.pdfName||null,
       pdf_text:k.pdfText||null, status:'aktiv'
     }).select().single();
     if(error) throw error; return data;
@@ -295,8 +296,13 @@ export const db = {
       fruchtart_text:k.fruchtart_text||null, menge_t:k.menge_t,
       preis_eur:k.preis_eur||null, lieferung_von:k.lieferung_von||null,
       lieferung_bis:k.lieferung_bis||null, paritaet:k.paritaet||null,
-      bio:k.bio||false, notiz:k.notiz||null, status:k.status
+      bio:k.bio||false, zert_nachhaltig:k.zert_nachhaltig||false, zert_gmp:k.zert_gmp||false,
+      notiz:k.notiz||null, status:k.status
     }).eq('id', k.id);
+    if(error) throw error;
+  },
+  async deleteKontrakt(id) {
+    const { error } = await sb.from('kontrakte').delete().eq('id', id);
     if(error) throw error;
   },
   async getWarenbewegungen() {

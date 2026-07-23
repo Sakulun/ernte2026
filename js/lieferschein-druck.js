@@ -1,6 +1,17 @@
-import { state } from './state.js?v=62';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=62';
-import { renderLieferschein } from './lieferschein.js?v=62';
+import { state } from './state.js?v=63';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=63';
+import { renderLieferschein } from './lieferschein.js?v=63';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP } from './config.js?v=63';
+
+// Zertifikatszeilen aus den Siegel-Flags eines Kontrakts (nachhaltig/GMP+/EU-Öko).
+export function kontraktZertifikate(kontrakt) {
+  if(!kontrakt) return [];
+  const z = [];
+  if(kontrakt.zert_nachhaltig) z.push({ label: 'Nachhaltigkeit (REDcert)', nr: ZERT_NACHHALTIG });
+  if(kontrakt.zert_gmp)        z.push({ label: 'GMP+ FSA', nr: ZERT_GMP });
+  if(kontrakt.bio)             z.push({ label: 'EU-Öko', nr: ZERT_OEKO });
+  return z;
+}
 
 // Lieferschein zu einer Warenbewegung (Warenausgang) erzeugen und drucken.
 // Die Vorlage (js/lieferschein.js) bleibt unverändert – hier wird nur das
@@ -66,8 +77,8 @@ export function lieferscheinDaten(w, override = {}) {
     spedition:   w.spedition || '',
     kennzeichen: w.kennzeichen || '',
     sonstige_angaben: w.sonstige_angaben || '',
-    // Bio-Kennzeichnung des Kontrakts als Hinweis übernehmen
-    istRaps: undefined,
+    // Zertifikatszeilen aus den Siegel-Flags des Kontrakts
+    zertifikate: kontraktZertifikate(kontrakt),
     ...override,
   };
 }

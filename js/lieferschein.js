@@ -161,11 +161,16 @@ function esc(v) {
  * @returns {string} vollstaendiges HTML-Dokument (eine A4-Seite)
  */
 export function renderLieferschein(d = {}) {
-  const istRaps = d.istRaps ?? /raps/i.test(d.artikel || '');
-
-  const rapsBlock = istRaps
-    ? `<div class="raps-cert"><span class="label">Nachhaltigkeits-Zertifikat:</span> ${esc(REDCERT_NACHHALTIGKEIT)}</div>`
-    : '';
+  // Zertifikate: explizit als d.zertifikate = [{label, nr}], sonst Fallback auf
+  // Raps-Automatik (Nachhaltigkeits-Zertifikat), damit ältere Aufrufe gleich bleiben.
+  const zerts = Array.isArray(d.zertifikate)
+    ? d.zertifikate.filter(z => z && z.label)
+    : ((d.istRaps ?? /raps/i.test(d.artikel || ''))
+        ? [{ label: 'Nachhaltigkeits-Zertifikat', nr: REDCERT_NACHHALTIGKEIT }]
+        : []);
+  const rapsBlock = zerts.map(z =>
+    `<div class="raps-cert" style="margin-right:2mm"><span class="label">${esc(z.label)}${z.nr ? ':' : ''}</span> ${esc(z.nr || '')}</div>`
+  ).join('');
 
   return `<!DOCTYPE html>
 <html lang="de">
