@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=68';
+import { SB_URL, SB_KEY } from './config.js?v=69';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -45,9 +45,10 @@ export const db = {
     const { data, error } = await sb.from('felder').select('*').order('id');
     if(error) throw error;
     return data
-      // Mais & Silomais bis Oktober ausgeblendet (Daten bleiben in der DB).
-      // Zum Wieder-Einblenden im Herbst einfach diese .filter-Zeile entfernen.
-      .filter(f => !/mais/i.test(f.fruchtart||''))
+      // Vorübergehend ausgeblendet (nur Getreide & Raps relevant): Mais & Silomais,
+      // Sonnenblumen und Soja. Daten bleiben in der DB.
+      // Zum Wieder-Einblenden einfach die passende Kultur aus dieser Regex entfernen.
+      .filter(f => !/mais|sonnenblum|soja/i.test(f.fruchtart||''))
       .map(f => ({
         id: f.id, name: f.name, flaeche: parseFloat(f.flaeche),
         fruchtart: f.fruchtart, status: f.status, betrieb: f.betrieb||'',
