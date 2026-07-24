@@ -1,4 +1,4 @@
-import { state } from './state.js?v=69';
+import { state } from './state.js?v=70';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
@@ -41,7 +41,7 @@ export function showToast(msg, type='success') {
 }
 
 export function roleLabel(r) {
-  return r==='drescher'?'Drescherfahrer':r==='abfahrer'?'Abfahrer / Waage':r==='silomeister'?'Silomeister':'Admin / Übersicht';
+  return r==='drescher'?'Drescherfahrer':r==='abfahrer'?'Abfahrer / Waage':r==='silomeister'?'Silomeister':r==='waage'?'Waage':'Admin / Übersicht';
 }
 
 export function escapeHtml(s) {

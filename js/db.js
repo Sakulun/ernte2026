@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=69';
+import { SB_URL, SB_KEY } from './config.js?v=70';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -8,7 +8,7 @@ export const db = {
     const { data, error } = await sb.from('nutzer_public').select('*').order('id');
     if(error) throw error;
     return data.map(u => {
-      const lbl = u.rolle==='drescher'?'Drescherfahrer':u.rolle==='abfahrer'?'Abfahrer / Waage':u.rolle==='silomeister'?'Silomeister':'Admin / Übersicht';
+      const lbl = u.rolle==='drescher'?'Drescherfahrer':u.rolle==='abfahrer'?'Abfahrer / Waage':u.rolle==='silomeister'?'Silomeister':u.rolle==='waage'?'Waage':'Admin / Übersicht';
       return { id: u.id, name: u.name, role: u.rolle, label: lbl };
     });
   },

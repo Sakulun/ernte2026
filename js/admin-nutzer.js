@@ -1,6 +1,6 @@
-import { state } from './state.js?v=69';
-import { db } from './db.js?v=69';
-import { showToast, roleLabel, hashPW } from './helpers.js?v=69';
+import { state } from './state.js?v=70';
+import { db } from './db.js?v=70';
+import { showToast, roleLabel, hashPW } from './helpers.js?v=70';
 
 let nutzerEditId = null;
 
@@ -42,7 +42,7 @@ function buildNutzerForm(editId) {
   const nameVal = u ? u.name : '';
   const roleVal = u ? u.role : 'drescher';
   const formId = u ? 'edit' : 'new';
-  const roles = ['drescher','abfahrer','admin'].map(r =>
+  const roles = ['drescher','abfahrer','waage','admin'].map(r =>
     `<option value="${r}" ${roleVal===r?'selected':''}>${roleLabel(r)}</option>`).join('');
 
   if(u) return `

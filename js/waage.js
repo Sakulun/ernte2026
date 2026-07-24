@@ -1,10 +1,10 @@
-import { state } from './state.js?v=69';
-import { db } from './db.js?v=69';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=69';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=69';
-import { parseGewicht } from './abfahrer.js?v=69';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=69';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=69';
+import { state } from './state.js?v=70';
+import { db } from './db.js?v=70';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=70';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=70';
+import { parseGewicht } from './abfahrer.js?v=70';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=70';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=70';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -52,6 +52,15 @@ function umschalter() {
     ${btn('eingang', '↓', 'Wareneingang', 'var(--green)')}
     ${btn('ausgang', '↑', 'Warenausgang', 'var(--amber)')}
   </div>`;
+}
+
+// Eigenständige Ansicht für die Benutzer-Rolle "Waage" (Waagen-Terminal):
+// zeigt NUR die Waagenmaske (Warenein-/-ausgang), keine Sidebar/Tabs.
+export function renderWaage() {
+  const mc = document.getElementById('main-content');
+  if(!mc) return;
+  mc.innerHTML = `<div id="waage-standalone" style="padding:14px 12px"></div>`;
+  renderWaageTab(document.getElementById('waage-standalone'));
 }
 
 export function renderWaageTab(el) {

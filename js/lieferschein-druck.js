@@ -1,7 +1,7 @@
-import { state } from './state.js?v=69';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=69';
-import { renderLieferschein } from './lieferschein.js?v=69';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=69';
+import { state } from './state.js?v=70';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=70';
+import { renderLieferschein } from './lieferschein.js?v=70';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=70';
 
 // Zertifikatszeilen aus den Siegel-Flags eines Kontrakts (nachhaltig/GMP+/EU-Öko).
 // hinweis = zusätzlicher Pflichtsatz auf dem Lieferschein.

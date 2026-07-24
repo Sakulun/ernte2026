@@ -1,6 +1,6 @@
-import { state, loadAppData } from './state.js?v=69';
-import { db, getSb } from './db.js?v=69';
-import { hashPW, hashPWLegacy } from './helpers.js?v=69';
+import { state, loadAppData } from './state.js?v=70';
+import { db, getSb } from './db.js?v=70';
+import { hashPW, hashPWLegacy } from './helpers.js?v=70';
 
 const _loginAttempts = {};
 
@@ -12,7 +12,7 @@ export function renderLogin() {
     const btn = document.createElement('button');
     btn.className = 'user-btn';
     const dc = u.role==='drescher'?'role-drescher':u.role==='abfahrer'?'role-abfahrer':'role-admin';
-    const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':'Admin / Übersicht';
+    const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':u.role==='waage'?'Waage':'Admin / Übersicht';
     btn.innerHTML = `<span class="role-dot ${dc}"></span><span class="uname" style="flex:1">${u.name}</span><span class="urole">${rl}</span>`;
     btn.onclick = () => selectLoginUser(u);
     ul.appendChild(btn);
@@ -21,7 +21,7 @@ export function renderLogin() {
 
 export function selectLoginUser(u) {
   const dc = u.role==='drescher'?'role-drescher':u.role==='abfahrer'?'role-abfahrer':'role-admin';
-  const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':'Admin / Übersicht';
+  const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':u.role==='waage'?'Waage':'Admin / Übersicht';
   document.getElementById('login-selected-name').textContent = u.name;
   document.getElementById('login-selected-role').textContent = rl;
   document.getElementById('login-selected-dot').className = 'role-dot ' + dc;
@@ -110,9 +110,11 @@ export function loginUser(user) {
   document.getElementById('topbar-name').textContent = user.name+' · '+user.label;
   document.getElementById('topbar-sync').style.display = 'inline-block';
   window.renderMain();
-  if(user.role !== "admin" && window.shareUserGPS) window.shareUserGPS(user.id);
+  // Waage = stationäres Terminal: kein GPS-Tracking, keine Benachrichtigungs-Prompts.
+  const mobileRolle = user.role !== 'admin' && user.role !== 'waage';
+  if(mobileRolle && window.shareUserGPS) window.shareUserGPS(user.id);
   if(window.initNachrichtenListener) window.initNachrichtenListener();
-  if(user.role !== 'admin' && window.requestBrowserNotification) window.requestBrowserNotification();
+  if(mobileRolle && window.requestBrowserNotification) window.requestBrowserNotification();
   const nb = document.getElementById('topbar-nachricht-btn');
   const hb = document.getElementById('topbar-hilfe-btn');
   if(nb) nb.style.display = user.role === 'admin' ? 'block' : 'none';
