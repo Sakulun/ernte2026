@@ -2,51 +2,51 @@
 
 // ─── Foundation ───
 import { SB_URL, SB_KEY, LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
-         FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2 } from './config.js?v=72';
-import { db, sb, getSb, initSupabase } from './db.js?v=72';
-import { state, bootApp, showLoader, hideLoader } from './state.js?v=72';
+         FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2 } from './config.js?v=73';
+import { db, sb, getSb, initSupabase } from './db.js?v=73';
+import { state, bootApp, showLoader, hideLoader } from './state.js?v=73';
 import { getFeld, getSorte, getUser, netto, kg2t, fmtTime, fmtDate,
          abfahrerIstFrei, showToast, roleLabel, escapeHtml,
-         hashPW, hashPWLegacy, navigiereZuSchlag } from './helpers.js?v=72';
+         hashPW, hashPWLegacy, navigiereZuSchlag } from './helpers.js?v=73';
 
 // ─── Domain ───
-import { BIO_BETRIEBE, isBioBetrieb, isBioFeld, isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=72';
-import { getFruchtFarbe } from './frucht.js?v=72';
-import { getQualitaetsfelder, qualitaetsFehlende, feuchteGrenzwert, feuchteZuHoch } from './quality.js?v=72';
+import { BIO_BETRIEBE, isBioBetrieb, isBioFeld, isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=73';
+import { getFruchtFarbe } from './frucht.js?v=73';
+import { getQualitaetsfelder, qualitaetsFehlende, feuchteGrenzwert, feuchteZuHoch } from './quality.js?v=73';
 
 // ─── Auth & Routing ───
-import { renderLogin, selectLoginUser, loginBack, togglePw, doLogin, loginUser, logout } from './login.js?v=72';
-import { renderMain } from './router.js?v=72';
+import { renderLogin, selectLoginUser, loginBack, togglePw, doLogin, loginUser, logout } from './login.js?v=73';
+import { renderMain } from './router.js?v=73';
 
 // ─── Dashboards ───
-import { renderDrescher, drescherFeldWahl, drescherSorteWahl, drescherZuweisen, setDTab, dTab } from './drescher.js?v=72';
+import { renderDrescher, drescherFeldWahl, drescherSorteWahl, drescherZuweisen, setDTab, dTab } from './drescher.js?v=73';
 import { renderAbfahrer, fmtGewicht, updNetto, fuhreSpeichern, parseGewicht,
          highlightSchlagNav, filterSchlagNav, aTab, setATab,
-         getVermehrungenForFeld, isVermehrungsFuhre, getFuhreKulturKey } from './abfahrer.js?v=72';
-import { renderAdmin, setAdminTab, toggleSidebar, adminTab, sidebarCollapsed } from './admin.js?v=72';
+         getVermehrungenForFeld, isVermehrungsFuhre, getFuhreKulturKey } from './abfahrer.js?v=73';
+import { renderAdmin, setAdminTab, toggleSidebar, adminTab, sidebarCollapsed } from './admin.js?v=73';
 
 // ─── Admin Detail-Module ───
-import { renderAdminDash } from './admin-dash.js?v=72';
-import { toggleFahrerDetail } from './admin-fahrer.js?v=72';
+import { renderAdminDash } from './admin-dash.js?v=73';
+import { toggleFahrerDetail } from './admin-fahrer.js?v=73';
 import { renderAdminFuhren, toggleFuhreEdit, saveFuhreEdit, verifiziereFuhre, deleteFuhre,
          adminAbschliessen, adminFuhreAbschliessenSpeichern,
-         setFuhrenFilter, fuhrenFilterZuruecksetzen, exportGefilterteFuhrenCSV, exportGefilterteFuhrenExcel } from './admin-fuhren.js?v=72';
-import { renderAdminSchlaege, schlagSetStatus, schlagSearchInput, setSchlagFilter } from './admin-schlaege.js?v=72';
+         setFuhrenFilter, fuhrenFilterZuruecksetzen, exportGefilterteFuhrenCSV, exportGefilterteFuhrenExcel } from './admin-fuhren.js?v=73';
+import { renderAdminSchlaege, schlagSetStatus, schlagSearchInput, setSchlagFilter } from './admin-schlaege.js?v=73';
 import { renderAdminKarte, schlagColor, getDriverIcon, requestWakeLock, releaseWakeLock,
-         shareUserGPS, refreshMapColors } from './admin-karte.js?v=72';
-import { renderAdminNutzer, nutzerAnlegen, nutzerEditStart, nutzerSpeichern, nutzerLoeschen } from './admin-nutzer.js?v=72';
-import { renderAdminFortschritt, toggleFortschritt, toggleFortschrittSchlag } from './admin-fortschritt.js?v=72';
-import { renderAdminVermehrungen, toggleVermehrung } from './admin-vermehrungen.js?v=72';
-import { renderAdminLager, toggleLagerDetail } from './admin-lager.js?v=72';
+         shareUserGPS, refreshMapColors } from './admin-karte.js?v=73';
+import { renderAdminNutzer, nutzerAnlegen, nutzerEditStart, nutzerSpeichern, nutzerLoeschen } from './admin-nutzer.js?v=73';
+import { renderAdminFortschritt, toggleFortschritt, toggleFortschrittSchlag } from './admin-fortschritt.js?v=73';
+import { renderAdminVermehrungen, toggleVermehrung } from './admin-vermehrungen.js?v=73';
+import { renderAdminLager, toggleLagerDetail } from './admin-lager.js?v=73';
 import { renderWaageErfassungInto, weFeldWahl, weSorteWahl, weFruchtartWahl, weAbschliessen, weStarten,
          openWaageErfassung, closeWaageErfassung,
          openHaengerzugWahl, closeHaengerzugWahl, waehleHaengerzug,
-         hzEditStart, hzSpeichern, hzLoeschen } from './waage-erfassung.js?v=72';
+         hzEditStart, hzSpeichern, hzLoeschen } from './waage-erfassung.js?v=73';
 import { renderWaage, renderWaageTab, setWaageModus, setAusgangView, waAusgangKundeWahl, waAusgangKontraktWahl,
          waAusgangLagerWahl, waZwischenspeichern, waUmlaufOeffnen, waNetto,
-         waUmlaufStornieren, waAbschliessen } from './waage.js?v=72';
+         waUmlaufStornieren, waAbschliessen } from './waage.js?v=73';
 import { lieferscheinDialog, closeLieferscheinDialog, lieferscheinDialogDrucken,
-         lieferscheinDrucken, lieferscheinDaten } from './lieferschein-druck.js?v=72';
+         lieferscheinDrucken, lieferscheinDaten } from './lieferschein-druck.js?v=73';
 
 // ─── Features ───
 import { renderSiloManagement, openSiloDetail, closeSiloDetail, removeFuhreFromSilo,
@@ -54,22 +54,22 @@ import { renderSiloManagement, openSiloDetail, closeSiloDetail, removeFuhreFromS
          getSiloFill, getSiloAusgang, getSiloBestand, getSiloKultur,
          toggleFuhreSelection, selectAllFuhren, einlagernDialog, einlagernSpeichern,
          setSiloView, lagerLabel, naechstesLager, standortText,
-         reinigenDialog, reinigenSpeichern } from './silo.js?v=72';
+         reinigenDialog, reinigenSpeichern } from './silo.js?v=73';
 import { renderWarenausgang, warenausgangsDialog, wareneingangsDialog, wbSiloInfo, wbKontraktWahl,
          wbSpeichern, auslagernDialog, deleteWarenbewegung, waageWidgetHTML, updateWaageWidget,
          renderWaageBar, gewichtUebernehmen, waageFuhreWidgetHTML,
          neueLieferungDialog, lieferungKontraktWahl, lieferungSpeichern,
-         lieferungAbschliessen, lieferungAbschliessenSpeichern } from './waren.js?v=72';
-import { renderArtikel, artikelNeuDialog, artikelEditDialog, artikelSpeichern, artikelToggleAktiv } from './artikel.js?v=72';
-import { renderKontakte, kontaktNeuDialog, kontaktEditDialog, kontaktSpeichern, kontaktToggleAktiv, lieferantFuhrenToggle, zukaufKonfigDialog, zukaufKonfigSpeichern } from './kontakte.js?v=72';
+         lieferungAbschliessen, lieferungAbschliessenSpeichern } from './waren.js?v=73';
+import { renderArtikel, artikelNeuDialog, artikelEditDialog, artikelSpeichern, artikelToggleAktiv } from './artikel.js?v=73';
+import { renderKontakte, kontaktNeuDialog, kontaktEditDialog, kontaktSpeichern, kontaktToggleAktiv, lieferantFuhrenToggle, zukaufKonfigDialog, zukaufKonfigSpeichern } from './kontakte.js?v=73';
 import { renderKontrakte, kontraktNeuDialog, kontraktBearbeiten, kontraktSpeichern, kontraktStatus,
          kontraktPDFDrop, kontraktPDFDatei, getKontraktGeliefertKg,
-         toggleKontraktDetail, kontraktFuhreFeld, kontraktLoeschen } from './kontrakte.js?v=72';
+         toggleKontraktDetail, kontraktFuhreFeld, kontraktLoeschen } from './kontrakte.js?v=73';
 import { showNachrichtenDialog, adminSendNachricht, initNachrichtenListener,
-         showNachrichtBanner, requestBrowserNotification } from './nachrichten.js?v=72';
-import { showOnboarding, obNext, obPrev, closeOnboarding, checkShowOnboarding } from './onboarding.js?v=72';
-import { renderNeuesErntejahr, erntejahrDownloadCSV, erntejahrExcelImport, erntejahrKMLImport, erntejahrSkipKML } from './erntejahr.js?v=72';
-import { exportTagesbericht, exportCSV, exportCSVSeitLetztem, exportCSVZeitraum, exportExcelAuswertung, exportSiloCSV, lieferungPDF, exportKontrakteExcel } from './export.js?v=72';
+         showNachrichtBanner, requestBrowserNotification } from './nachrichten.js?v=73';
+import { showOnboarding, obNext, obPrev, closeOnboarding, checkShowOnboarding } from './onboarding.js?v=73';
+import { renderNeuesErntejahr, erntejahrDownloadCSV, erntejahrExcelImport, erntejahrKMLImport, erntejahrSkipKML } from './erntejahr.js?v=73';
+import { exportTagesbericht, exportCSV, exportCSVSeitLetztem, exportCSVZeitraum, exportExcelAuswertung, exportSiloCSV, lieferungPDF, exportKontrakteExcel } from './export.js?v=73';
 
 // ─── Auf window registrieren für onclick-Handler ───
 Object.assign(window, {

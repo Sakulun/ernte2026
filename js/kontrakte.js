@@ -1,6 +1,6 @@
-import { state } from './state.js?v=72';
-import { db } from './db.js?v=72';
-import { showToast, escapeHtml } from './helpers.js?v=72';
+import { state } from './state.js?v=73';
+import { db } from './db.js?v=73';
+import { showToast, escapeHtml } from './helpers.js?v=73';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -52,6 +52,9 @@ function kontraktDetailHTML(k) {
   const fuhren = kontraktFuhren(k.id);
   if(!fuhren.length) return `<div style="padding:10px 2px;font-size:12px;color:var(--text3)">Noch keine Auslieferungen für diesen Kontrakt.</div>`;
   const raps = istRapsKontrakt(k);
+  // Frachtabrechnung nur, wenn der Verkäufer die Fracht trägt. Bei Parität
+  // "ab Hof" holt der Käufer ab – dann keine Frachtabrechnung.
+  const abHof = /\bab\s*hof/i.test(k.paritaet || '');
   const feldInput = (id, feld, val, ph) =>
     `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${id},'${feld}',this.value)"
       style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
@@ -68,7 +71,7 @@ function kontraktDetailHTML(k) {
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
         <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
-        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput(w.id,'fracht_nr',w.fracht_nr,'Nummer')}</div>
+        ${abHof?'':`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput(w.id,'fracht_nr',w.fracht_nr,'Nummer')}</div>`}
         ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput(w.id,'quali_nr',w.quali_nr,'Nummer')}</div>`:''}
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">

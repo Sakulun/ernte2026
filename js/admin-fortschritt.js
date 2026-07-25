@@ -1,7 +1,7 @@
-import { state } from './state.js?v=72';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=72';
-import { getFruchtFarbe } from './frucht.js?v=72';
-import { getQualitaetsfelder } from './quality.js?v=72';
+import { state } from './state.js?v=73';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=73';
+import { getFruchtFarbe } from './frucht.js?v=73';
+import { getQualitaetsfelder } from './quality.js?v=73';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};
