@@ -1,6 +1,6 @@
-import { state } from './state.js?v=70';
-import { db } from './db.js?v=70';
-import { showToast, escapeHtml } from './helpers.js?v=70';
+import { state } from './state.js?v=71';
+import { db } from './db.js?v=71';
+import { showToast, escapeHtml } from './helpers.js?v=71';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -84,12 +84,63 @@ function kontraktDetailHTML(k) {
   </div>`;
 }
 
+// Übersicht der kontrahierten & gelieferten Mengen je Fruchtart/Artikel.
+// Über alle nicht-stornierten Kontrakte (aktiv + erfüllt).
+function fruchtartUebersichtHTML() {
+  const map = {};
+  state.kontrakte.filter(k => k.status !== 'storniert').forEach(k => {
+    const art = state.artikel.find(a => a.id === k.artikel_id);
+    const name = (art?.name || k.fruchtart_text || 'Ohne Artikel').trim();
+    const e = map[name] || (map[name] = { kontrahiert:0, geliefert:0, anzahl:0 });
+    e.kontrahiert += (k.menge_t || 0);
+    e.geliefert   += getKontraktGeliefertKg(k.id) / 1000;
+    e.anzahl      += 1;
+  });
+  const rows = Object.entries(map).sort((a,b) => b[1].kontrahiert - a[1].kontrahiert);
+  if(!rows.length) return '';
+  const t0 = n => n.toLocaleString('de-DE', { maximumFractionDigits:0 });
+  const t1 = n => n.toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
+  const zeile = (name, e, total) => {
+    const rest = Math.max(0, e.kontrahiert - e.geliefert);
+    const pct  = e.kontrahiert ? Math.min(100, e.geliefert / e.kontrahiert * 100) : 0;
+    const bar  = pct>=100 ? 'var(--green2)' : pct>70 ? 'var(--amber)' : 'var(--gold)';
+    return `<tr style="${total?'font-weight:700;border-top:2px solid var(--border2)':'border-top:1px solid var(--color-border)'}">
+      <td style="padding:7px 8px;color:var(--text)">${escapeHtml(name)}${total?'':` <span style="color:var(--text3);font-weight:400;font-size:11px">· ${e.anzahl}</span>`}</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--text)">${t0(e.kontrahiert)} t</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--gold)">${t1(e.geliefert)} t</td>
+      <td style="padding:7px 8px;text-align:right;color:var(--text2)">${t1(rest)} t</td>
+      <td style="padding:7px 8px;width:90px"><div style="background:var(--neutral-200);border-radius:6px;height:8px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${bar}"></div></div></td>
+    </tr>`;
+  };
+  const totK = rows.reduce((s,[,e]) => s+e.kontrahiert, 0);
+  const totG = rows.reduce((s,[,e]) => s+e.geliefert, 0);
+  return `<div class="section-label" style="margin-bottom:8px">Kontrahiert &amp; geliefert je Fruchtart</div>
+  <div style="overflow-x:auto;margin-bottom:16px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);overflow:hidden">
+      <thead><tr style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);background:var(--bg2)">
+        <th style="padding:7px 8px;text-align:left">Fruchtart</th>
+        <th style="padding:7px 8px;text-align:right">Kontrahiert</th>
+        <th style="padding:7px 8px;text-align:right">Geliefert</th>
+        <th style="padding:7px 8px;text-align:right">Rest</th>
+        <th style="padding:7px 8px;text-align:left">Fortschritt</th>
+      </tr></thead>
+      <tbody>
+        ${rows.map(([name,e]) => zeile(name, e, false)).join('')}
+        ${zeile('Gesamt', { kontrahiert:totK, geliefert:totG }, true)}
+      </tbody>
+    </table>
+  </div>`;
+}
+
 export function renderKontrakte() {
   const aktiv    = state.kontrakte.filter(k=>k.status==='aktiv');
   const erfuellt = state.kontrakte.filter(k=>k.status==='erfuellt');
   const stornier = state.kontrakte.filter(k=>k.status==='storniert');
-  const gesamtT  = aktiv.reduce((s,k)=>s+(k.menge_t||0),0);
-  const geliefT  = aktiv.reduce((s,k)=>s+getKontraktGeliefertKg(k.id)/1000,0);
+  // Summen/Übersicht über alle nicht-stornierten Kontrakte (aktiv + erfüllt),
+  // damit bereits erfüllte Lieferungen (z.B. Raps) nicht fehlen.
+  const offen    = state.kontrakte.filter(k=>k.status!=='storniert');
+  const gesamtT  = offen.reduce((s,k)=>s+(k.menge_t||0),0);
+  const geliefT  = offen.reduce((s,k)=>s+getKontraktGeliefertKg(k.id)/1000,0);
 
   const kRow = (k) => {
     const geliefKg  = getKontraktGeliefertKg(k.id);
@@ -156,6 +207,7 @@ export function renderKontrakte() {
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${gesamtT.toFixed(0)}</div><div class="stat-label">t kontraktiert</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${geliefT.toFixed(1)}</div><div class="stat-label">t geliefert</div></div>
     </div>
+    ${fruchtartUebersichtHTML()}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
       <button class="btn btn-sm btn-outline" onclick="exportKontrakteExcel()">⬇ Excel</button>
       <button class="btn btn-primary" onclick="kontraktNeuDialog(null)">+ Manuell anlegen</button>
