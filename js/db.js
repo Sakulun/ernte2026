@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=71';
+import { SB_URL, SB_KEY } from './config.js?v=72';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -343,6 +343,7 @@ export const db = {
   async updateWarenbewegungAbrechnung(id, u) {
     const map = {};
     if(u.gutschriftNr !== undefined) map.gutschrift_nr = u.gutschriftNr || null;
+    if(u.frachtNr !== undefined)     map.fracht_nr = u.frachtNr || null;
     if(u.qualiNr !== undefined)      map.quali_nr = u.qualiNr || null;
     if(u.klaeren !== undefined)      map.klaeren = !!u.klaeren;
     if(u.bemerkung !== undefined)    map.bemerkung = u.bemerkung || null;

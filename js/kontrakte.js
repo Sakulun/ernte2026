@@ -1,6 +1,6 @@
-import { state } from './state.js?v=71';
-import { db } from './db.js?v=71';
-import { showToast, escapeHtml } from './helpers.js?v=71';
+import { state } from './state.js?v=72';
+import { db } from './db.js?v=72';
+import { showToast, escapeHtml } from './helpers.js?v=72';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -34,12 +34,12 @@ export function toggleKontraktDetail(id) {
   renderKontrakte();
 }
 
-// Ein Abrechnungsfeld einer Auslieferung speichern (Gutschrift-Nr., Quali-Nr., Klären, Bemerkung).
+// Ein Abrechnungsfeld einer Auslieferung speichern (Gutschrift-Nr., Fracht-Nr., Quali-Nr., Klären, Bemerkung).
 export async function kontraktFuhreFeld(id, feld, wert) {
   const w = state.warenbewegungen.find(x => x.id === id);
   if(!w) return;
   w[feld] = wert;
-  const keyMap = { gutschrift_nr:'gutschriftNr', quali_nr:'qualiNr', klaeren:'klaeren', bemerkung:'bemerkung' };
+  const keyMap = { gutschrift_nr:'gutschriftNr', fracht_nr:'frachtNr', quali_nr:'qualiNr', klaeren:'klaeren', bemerkung:'bemerkung' };
   try {
     await db.updateWarenbewegungAbrechnung(id, { [keyMap[feld]]: wert });
     // Nur bei "klären" neu rendern (Markierung/Zähler); Textfelder still speichern,
@@ -66,9 +66,10 @@ function kontraktDetailHTML(k) {
         <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}</div>
-      <div style="display:grid;grid-template-columns:${raps?'1fr 1fr':'1fr'};gap:8px;margin-bottom:8px">
-        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'z.B. Cargill-Gutschrift')}</div>
-        ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput(w.id,'quali_nr',w.quali_nr,'Quali-Abrechnung')}</div>`:''}
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
+        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
+        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput(w.id,'fracht_nr',w.fracht_nr,'Nummer')}</div>
+        ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput(w.id,'quali_nr',w.quali_nr,'Nummer')}</div>`:''}
       </div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:${warn?'700':'400'};color:${warn?'var(--color-warning)':'var(--text2)'};cursor:pointer;white-space:nowrap">

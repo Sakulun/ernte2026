@@ -1,10 +1,10 @@
-import { state } from './state.js?v=71';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=71';
-import { getSiloFill, getSiloKultur } from './silo.js?v=71';
+import { state } from './state.js?v=72';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=72';
+import { getSiloFill, getSiloKultur } from './silo.js?v=72';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=71';
+} from './config.js?v=72';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -363,7 +363,7 @@ export async function exportKontrakteExcel() {
   XLSX.utils.book_append_sheet(wb, wsK, 'Kontrakte');
 
   // Blatt 2: Fuhren (alle Auslieferungen je Kontrakt) inkl. Abrechnungsstand + Siegel
-  const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung','Nachhaltig','GMP+','EU-Öko'];
+  const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Frachtabrechnung_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung','Nachhaltig','GMP+','EU-Öko'];
   const fAoa = [fHead];
   kontrakte.forEach(k => {
     ausOf(k.id).forEach(w => {
@@ -371,14 +371,14 @@ export async function exportKontrakteExcel() {
         k.nummer||'', kundeName(k.kontakt_id), w.lieferschein_nr||'', deDat(w.erstellt_am),
         artName(w.artikel_id), w.spedition||'', w.kennzeichen||'',
         Math.round((Number(w.menge_kg)||0)/10)/100,
-        w.gutschrift_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||'',
+        w.gutschrift_nr||'', w.fracht_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||'',
         ja(k.zert_nachhaltig), ja(k.zert_gmp), ja(k.bio)
       ]);
     });
   });
   const wsF = XLSX.utils.aoa_to_sheet(fAoa);
   fmtCols(wsF, ['H'], 2, fAoa.length);
-  wsF['!cols'] = [{wch:14},{wch:22},{wch:14},{wch:11},{wch:16},{wch:18},{wch:13},{wch:9},{wch:16},{wch:20},{wch:9},{wch:30},{wch:11},{wch:8},{wch:9}];
+  wsF['!cols'] = [{wch:14},{wch:22},{wch:14},{wch:11},{wch:16},{wch:18},{wch:13},{wch:9},{wch:16},{wch:18},{wch:20},{wch:9},{wch:30},{wch:11},{wch:8},{wch:9}];
   wsF['!autofilter'] = { ref: 'A1:' + colLetter(fHead.length-1) + fAoa.length };
   XLSX.utils.book_append_sheet(wb, wsF, 'Fuhren');
 
