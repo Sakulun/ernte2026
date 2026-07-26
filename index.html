@@ -670,6 +670,11 @@ input::placeholder { color: var(--color-text-subtle); }
   .card { padding: var(--space-3); }
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
   .stat-val { font-size: 22px; }
+  /* Schlag-Liste mobil: Name in eigene volle Zeile, Badge + Buttons darunter –
+     sonst quetschen Status-Badge + Aktions-Buttons den Namen auf wenige Zeichen. */
+  .schlag-item { flex-wrap: wrap; }
+  .schlag-info { flex: 1 1 100%; }
+  .schlag-actions { flex-wrap: wrap; }
   .tab { font-size: var(--text-xs); padding: 9px 4px; }
   .btn { padding: 10px 14px; min-height: 40px; }
   .btn-sm { padding: 8px var(--space-3); min-height: 36px; font-size: var(--text-sm); }
@@ -754,7 +759,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=74"></script>
+<script type="module" src="js/app.js?v=75"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {
