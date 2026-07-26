@@ -1,10 +1,10 @@
-import { state } from './state.js?v=73';
-import { db } from './db.js?v=73';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=73';
-import { getFruchtFarbe } from './frucht.js?v=73';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=73';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=73';
-import { isBioFuhre, bioBadge } from './bio.js?v=73';
+import { state } from './state.js?v=74';
+import { db } from './db.js?v=74';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=74';
+import { getFruchtFarbe } from './frucht.js?v=74';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=74';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=74';
+import { isBioFuhre, bioBadge } from './bio.js?v=74';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
@@ -192,7 +192,7 @@ export function renderAdminFuhren() {
         <div class="stat-box"><div class="stat-val" style="font-size:18px;color:var(--text)">${pending.length}</div><div class="stat-label">zu prüfen</div></div>
         <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--text)">${verified.length}</div><div class="stat-label">bestätigt</div></div>
       </div>
-      <div style="display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap;align-items:center">
+      <div style="display:flex;gap:8px;min-width:0;flex-wrap:wrap;align-items:center">
         <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="exportExcelAuswertung()">📊 Excel-Auswertung</button>
         <button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ CSV komplett</button>
         <button class="btn btn-outline btn-sm" onclick="exportCSVSeitLetztem()">⬇ CSV neu seit letztem</button>

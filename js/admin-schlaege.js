@@ -1,7 +1,7 @@
-import { state } from './state.js?v=73';
-import { db } from './db.js?v=73';
-import { showToast } from './helpers.js?v=73';
-import { isBioFeld, bioBadge } from './bio.js?v=73';
+import { state } from './state.js?v=74';
+import { db } from './db.js?v=74';
+import { showToast } from './helpers.js?v=74';
+import { isBioFeld, bioBadge } from './bio.js?v=74';
 
 let schlagFilter = 'alle';
 let schlagSearch = '';
@@ -46,7 +46,7 @@ export function renderAdminSchlaege() {
 
   if(!document.getElementById('schlag-stats')) {
     document.getElementById('admintab').innerHTML=`
-      <div id="schlag-stats" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:14px">
+      <div id="schlag-stats" class="stats-grid" style="margin-bottom:14px">
         <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--text)" id="s-aktiv"></div><div class="stat-label">Aktiv</div></div>
         <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--color-warning)" id="s-pausiert"></div><div class="stat-label">Pausiert</div></div>
         <div class="stat-box"><div class="stat-val" style="font-size:22px;color:var(--green)" id="s-abg"></div><div class="stat-label">Abgeerntet</div></div>

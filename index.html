@@ -681,6 +681,13 @@ input::placeholder { color: var(--color-text-subtle); }
   .fortschritt-grid { grid-template-columns: 1fr; }
   .topbar-logo { font-size: 15px; }
   .topbar-user { font-size: var(--text-2xs); }
+  /* Topbar mobil: linke Gruppe schrumpfbar + Nutzername kürzen, damit die
+     rechten Bedien-Buttons immer passen (sonst 39px horizontaler Overflow). */
+  .topbar { gap: 8px; }
+  .topbar-left { min-width: 0; overflow: hidden; flex: 1; }
+  .topbar-appname { display: none; }
+  .topbar-user { min-width: 0; overflow: hidden; }
+  #topbar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; max-width: 100%; vertical-align: middle; }
   #admin-sidebar { position: fixed; top: var(--topbar-height); left: 0; height: calc(100vh - var(--topbar-height)); transform: translateX(-100%); box-shadow: 4px 0 20px rgba(0,0,0,0.5); width: var(--sidebar-width); }
   #admin-sidebar.mobile-open { transform: translateX(0); }
   #admin-sidebar.collapsed { width: var(--sidebar-width); }
@@ -747,7 +754,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=73"></script>
+<script type="module" src="js/app.js?v=74"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {
