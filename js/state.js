@@ -1,5 +1,5 @@
-import { db } from './db.js?v=76';
-import { getSb } from './db.js?v=76';
+import { db } from './db.js?v=78';
+import { getSb } from './db.js?v=78';
 
 let appReady = false;
 
@@ -59,6 +59,16 @@ export function startPolling() {
   if(_pollTimer) clearInterval(_pollTimer);
   _pollTimer = setInterval(async () => {
     if(!state.currentUser) return;
+    // Zwangs-Abmeldung (Admin) unabhängig von Realtime prüfen – greift auch,
+    // wenn das Realtime-Event verloren ging. Läuft vor allen anderen Abbrüchen.
+    try {
+      const flt = await db.getForceLogoutAt();
+      if(flt && new Date(flt).getTime() > (state.sessionStartMs || 0) && state.currentUser) {
+        if(window.showToast) window.showToast('Von der Verwaltung abgemeldet.', 'error');
+        if(window.logout) window.logout();
+        return;
+      }
+    } catch(e) {}
     if(typeof document !== 'undefined' && document.hidden) return;
     const active = document.activeElement;
     if(active && (active.tagName==='INPUT'||active.tagName==='SELECT'||active.tagName==='TEXTAREA')) return;
@@ -137,6 +147,15 @@ export async function loadAppData() {
             window._userLocations[g.nutzer_id] = {lat:parseFloat(g.lat), lon:parseFloat(g.lon), ts:new Date(g.aktualisiert_am).getTime()};
           });
           if(window._mapInstance) window.updateGPSMarkers(window._mapInstance);
+          return;
+        }
+        if(tbl === 'app_control') {
+          // Zwangs-Abmeldung durch Admin: eigene Session beenden, wenn älter als der Marker.
+          const flt = await db.getForceLogoutAt().catch(() => null);
+          if(flt && new Date(flt).getTime() > (state.sessionStartMs || 0) && state.currentUser) {
+            if(window.showToast) window.showToast('Von der Verwaltung abgemeldet.', 'error');
+            setTimeout(() => { if(window.logout) window.logout(); }, 500);
+          }
           return;
         }
         if(tbl === 'silos') { state.silos = await db.getSilos().catch(()=>[]); return; }
@@ -222,6 +241,16 @@ export async function bootApp() {
       const m = session?.user?.email?.match(/^n(\d+)@ernte2026\.local$/);
       const user = m ? state.users.find(u => u.id === parseInt(m[1])) : null;
       if(user) {
+        // Zwangs-Abmeldung: vor dem letzten "Alle abmelden" entstandene Session nicht wiederherstellen.
+        const flt = await db.getForceLogoutAt().catch(() => null);
+        const loginTs = parseInt(localStorage.getItem('ernte_login_ts')) || 0;
+        if(flt && new Date(flt).getTime() > loginTs) {
+          try { await sb.auth.signOut(); } catch(e) {}
+          hideLoader();
+          appReady = true;
+          window.renderLogin();
+          return;
+        }
         showLoader('Lade Daten…');
         await loadAppData();
         hideLoader();

@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=76';
+import { SB_URL, SB_KEY } from './config.js?v=78';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -39,6 +39,16 @@ export const db = {
   },
   async deleteNutzer(id) {
     const { error } = await sb.rpc('admin_delete_nutzer', { p_id: id });
+    if(error) throw error;
+  },
+  // Zwangs-Abmeldung: Zeitpunkt, ab dem alle älteren Sessions ungültig sind.
+  async getForceLogoutAt() {
+    const { data, error } = await sb.from('app_control').select('force_logout_at').eq('id', 1).single();
+    if(error) return null;
+    return data?.force_logout_at || null;
+  },
+  async setForceLogoutNow() {
+    const { error } = await sb.from('app_control').update({ force_logout_at: new Date().toISOString() }).eq('id', 1);
     if(error) throw error;
   },
   async getFelder() {
@@ -407,6 +417,7 @@ export const db = {
       .on('postgres_changes', {event:'*', schema:'public', table:'kontrakte'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'waage_live'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'umlauf'}, onChange)
+      .on('postgres_changes', {event:'*', schema:'public', table:'app_control'}, onChange)
       .subscribe((status, err) => {
         const dot = document.getElementById('topbar-sync');
         if(status === 'SUBSCRIBED') {

@@ -1,6 +1,6 @@
-import { state } from './state.js?v=76';
-import { db } from './db.js?v=76';
-import { showToast, roleLabel, hashPW } from './helpers.js?v=76';
+import { state } from './state.js?v=78';
+import { db } from './db.js?v=78';
+import { showToast, roleLabel, hashPW } from './helpers.js?v=78';
 
 let nutzerEditId = null;
 
@@ -33,7 +33,21 @@ export function renderAdminNutzer() {
     </div>
     <div class="section-label">Bestehende Nutzer (${state.users.length})</div>
     ${userRows}
-    ${editForm}`;
+    ${editForm}
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--color-border)">
+      <button class="btn btn-outline" style="border-color:var(--red);color:var(--red)" onclick="alleAbmelden()">🚪 Alle Benutzer abmelden</button>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">Beendet alle aktiven Sitzungen – auch deine. Jeder muss sich danach neu anmelden.</div>
+    </div>`;
+}
+
+// Zwangs-Abmeldung aller Benutzer: setzt den Marker in app_control; jeder Client
+// (auch der eigene) meldet sich über die Realtime-/Boot-Prüfung selbst ab.
+export async function alleAbmelden() {
+  if(!confirm('Alle Benutzer werden abgemeldet und müssen sich neu anmelden – auch du.\n\nFortfahren?')) return;
+  try {
+    await db.setForceLogoutNow();
+    showToast('✓ Alle Benutzer werden abgemeldet');
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 
 function buildNutzerForm(editId) {

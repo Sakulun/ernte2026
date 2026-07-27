@@ -1,10 +1,10 @@
-import { state } from './state.js?v=76';
-import { db } from './db.js?v=76';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=76';
-import { isBioFeld } from './bio.js?v=76';
-import { getQualitaetsfelder } from './quality.js?v=76';
-import { parseGewicht } from './abfahrer.js?v=76';
-import { lieferscheinDrucken } from './lieferschein-druck.js?v=76';
+import { state } from './state.js?v=78';
+import { db } from './db.js?v=78';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=78';
+import { isBioFeld } from './bio.js?v=78';
+import { getQualitaetsfelder } from './quality.js?v=78';
+import { parseGewicht } from './abfahrer.js?v=78';
+import { lieferscheinDrucken } from './lieferschein-druck.js?v=78';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:

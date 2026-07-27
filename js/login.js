@@ -1,6 +1,6 @@
-import { state, loadAppData } from './state.js?v=76';
-import { db, getSb } from './db.js?v=76';
-import { hashPW, hashPWLegacy } from './helpers.js?v=76';
+import { state, loadAppData } from './state.js?v=78';
+import { db, getSb } from './db.js?v=78';
+import { hashPW, hashPWLegacy } from './helpers.js?v=78';
 
 const _loginAttempts = {};
 
@@ -77,6 +77,9 @@ export async function doLogin() {
       if(error) console.warn('Auth-Session nicht aufgebaut (Übergangsmodus):', error.message);
     } catch(e) { console.warn('Auth-Session nicht aufgebaut (Übergangsmodus):', e); }
 
+    // Login-Zeitpunkt merken – Abgleich mit einer späteren Zwangs-Abmeldung (Admin).
+    try { localStorage.setItem('ernte_login_ts', String(Date.now())); } catch(e) {}
+
     errEl.style.display = 'block';
     errEl.style.color = 'var(--text2)';
     errEl.textContent = 'Lade Daten…';
@@ -93,6 +96,8 @@ export async function doLogin() {
 
 export function loginUser(user) {
   state.currentUser = user;
+  // Login-Zeit (Original, auch bei Session-Wiederherstellung aus localStorage).
+  state.sessionStartMs = parseInt(localStorage.getItem('ernte_login_ts')) || Date.now();
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
   const dc = user.role==='drescher'?'role-drescher':user.role==='abfahrer'?'role-abfahrer':'role-admin';
