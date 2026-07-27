@@ -1,44 +1,23 @@
-import { state, loadAppData } from './state.js?v=75';
-import { db, getSb } from './db.js?v=75';
-import { hashPW, hashPWLegacy } from './helpers.js?v=75';
+import { state, loadAppData } from './state.js?v=76';
+import { db, getSb } from './db.js?v=76';
+import { hashPW, hashPWLegacy } from './helpers.js?v=76';
 
 const _loginAttempts = {};
 
+// Anmeldung per Benutzername-Eingabe (Liste entfällt): Felder leeren + fokussieren.
 export function renderLogin() {
-  const ul = document.getElementById('user-list');
-  if(!ul) return;
-  ul.innerHTML = '';
-  state.users.forEach(u => {
-    const btn = document.createElement('button');
-    btn.className = 'user-btn';
-    const dc = u.role==='drescher'?'role-drescher':u.role==='abfahrer'?'role-abfahrer':'role-admin';
-    const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':u.role==='waage'?'Waage':'Admin / Übersicht';
-    btn.innerHTML = `<span class="role-dot ${dc}"></span><span class="uname" style="flex:1">${u.name}</span><span class="urole">${rl}</span>`;
-    btn.onclick = () => selectLoginUser(u);
-    ul.appendChild(btn);
-  });
+  const nameEl = document.getElementById('login-name');
+  const pwEl = document.getElementById('login-pw');
+  const errEl = document.getElementById('login-error');
+  if(nameEl) nameEl.value = '';
+  if(pwEl) pwEl.value = '';
+  if(errEl) { errEl.style.display = 'none'; errEl.style.color = ''; }
+  if(nameEl) setTimeout(() => nameEl.focus(), 80);
 }
 
-export function selectLoginUser(u) {
-  const dc = u.role==='drescher'?'role-drescher':u.role==='abfahrer'?'role-abfahrer':'role-admin';
-  const rl = u.role==='drescher'?'Drescherfahrer':u.role==='abfahrer'?'Abfahrer / Waage':u.role==='silomeister'?'Silomeister':u.role==='waage'?'Waage':'Admin / Übersicht';
-  document.getElementById('login-selected-name').textContent = u.name;
-  document.getElementById('login-selected-role').textContent = rl;
-  document.getElementById('login-selected-dot').className = 'role-dot ' + dc;
-  document.getElementById('login-step-user').style.display = 'none';
-  document.getElementById('login-step-pw').style.display = '';
-  document.getElementById('login-pw').value = '';
-  document.getElementById('login-error').style.display = 'none';
-  window._loginSelectedUser = u;
-  setTimeout(() => document.getElementById('login-pw').focus(), 80);
-}
-
-export function loginBack() {
-  window._loginSelectedUser = null;
-  document.getElementById('login-step-pw').style.display = 'none';
-  document.getElementById('login-step-user').style.display = '';
-  document.getElementById('login-error').style.display = 'none';
-}
+// Alt-Flow (Benutzerauswahl aus Liste) entfällt – Stubs für Kompatibilität der window-Registrierung.
+export function selectLoginUser() {}
+export function loginBack() {}
 
 export function togglePw() {
   const inp = document.getElementById('login-pw');
@@ -46,18 +25,30 @@ export function togglePw() {
 }
 
 export async function doLogin() {
-  const selectedUser = window._loginSelectedUser;
+  const nameInput = (document.getElementById('login-name')?.value || '').trim();
   const pw = document.getElementById('login-pw').value;
   const errEl = document.getElementById('login-error');
-  if(!selectedUser) return;
-  if(!pw) { errEl.textContent = 'Bitte Passwort eingeben.'; errEl.style.display = 'block'; return; }
-  const name = selectedUser.name;
+  const zeigeFehler = (msg) => { errEl.style.color = 'var(--red)'; errEl.textContent = msg; errEl.style.display = 'block'; };
+  if(!nameInput) { zeigeFehler('Bitte Benutzernamen eingeben.'); document.getElementById('login-name')?.focus(); return; }
+  if(!pw) { zeigeFehler('Bitte Passwort eingeben.'); return; }
+  // Benutzer anhand des eingegebenen Namens finden (Groß-/Kleinschreibung egal).
+  const selectedUser = state.users.find(u => (u.name||'').trim().toLowerCase() === nameInput.toLowerCase());
+  const name = selectedUser ? selectedUser.name : nameInput;
+  const key = nameInput.toLowerCase();
   const now = Date.now();
-  const attempt = _loginAttempts[name.toLowerCase()] || {count:0, until:0};
+  const attempt = _loginAttempts[key] || {count:0, until:0};
   if(attempt.until > now) {
     const mins = Math.ceil((attempt.until - now) / 60000);
-    errEl.style.display = 'block';
-    errEl.textContent = `Zu viele Versuche – bitte ${mins} Minute(n) warten.`;
+    zeigeFehler(`Zu viele Versuche – bitte ${mins} Minute(n) warten.`);
+    return;
+  }
+  // Unbekannter Benutzername → gleiche Meldung wie falsches Passwort (keine Preisgabe gültiger Namen).
+  if(!selectedUser) {
+    const att = _loginAttempts[key] || {count:0, until:0};
+    att.count++;
+    if(att.count >= 5) { att.until = Date.now() + 15*60*1000; att.count = 0; }
+    _loginAttempts[key] = att;
+    zeigeFehler('Benutzername oder Passwort falsch.');
     return;
   }
   try {
@@ -65,17 +56,16 @@ export async function doLogin() {
     const legacyHashed = await hashPWLegacy(pw);
     const result = await db.checkPassword(name, hashed, legacyHashed);
     if(!result) {
-      const att = _loginAttempts[name.toLowerCase()] || {count:0, until:0};
+      const att = _loginAttempts[key] || {count:0, until:0};
       att.count++;
       if(att.count >= 5) { att.until = Date.now() + 15*60*1000; att.count = 0; }
-      _loginAttempts[name.toLowerCase()] = att;
-      errEl.style.display = 'block';
-      errEl.textContent = 'Passwort falsch.';
+      _loginAttempts[key] = att;
+      zeigeFehler('Benutzername oder Passwort falsch.');
       return;
     }
     const user = state.users.find(u => u.id === result.id);
-    if(!user) { errEl.style.display = 'block'; errEl.textContent = 'Benutzer nicht gefunden.'; return; }
-    delete _loginAttempts[name.toLowerCase()];
+    if(!user) { zeigeFehler('Benutzer nicht gefunden.'); return; }
+    delete _loginAttempts[key];
 
     // Supabase-Auth-Session aufbauen (RLS: Daten sind nur für angemeldete Nutzer
     // lesbar). Auth-Passwort = pw-Hash; check_password hat Legacy-Hashes bereits

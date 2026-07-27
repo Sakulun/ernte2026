@@ -721,31 +721,21 @@ input::placeholder { color: var(--color-text-subtle); }
   <div class="login-app-name">Ernte 2026</div>
   <div class="login-sub">Ernteerfassung · Kampagne 2026</div>
   <div class="login-card">
-    <!-- Schritt 1: Benutzer wählen -->
-    <div id="login-step-user">
-      <h2>Wer bist du?</h2>
-      <div id="user-list" class="user-grid"></div>
+    <h2>Anmelden</h2>
+    <div class="form-group">
+      <label>Benutzername</label>
+      <input type="text" id="login-name" placeholder="Name eingeben" autocomplete="username" autocapitalize="off" spellcheck="false"
+        onkeydown="if(event.key==='Enter')document.getElementById('login-pw').focus()">
     </div>
-    <!-- Schritt 2: Passwort eingeben -->
-    <div id="login-step-pw" style="display:none">
-      <button onclick="loginBack()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:12px;padding:0 0 16px 0;display:flex;align-items:center;gap:6px;font-family:var(--mono)">← Zurück</button>
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:12px 14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border)">
-        <span id="login-selected-dot" class="role-dot"></span>
-        <div>
-          <div id="login-selected-name" style="font-weight:600;font-size:14px;color:var(--text)"></div>
-          <div id="login-selected-role" style="font-size:11px;color:var(--text2)"></div>
-        </div>
+    <div class="form-group">
+      <label>Passwort</label>
+      <div style="position:relative">
+        <input type="password" id="login-pw" placeholder="Passwort eingeben" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:40px">
+        <button onclick="togglePw()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0" id="pw-toggle">&#128065;</button>
       </div>
-      <div class="form-group">
-        <label>Passwort</label>
-        <div style="position:relative">
-          <input type="password" id="login-pw" placeholder="Passwort eingeben" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()" style="padding-right:40px">
-          <button onclick="togglePw()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0" id="pw-toggle">&#128065;</button>
-        </div>
-      </div>
-      <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none">Passwort falsch.</div>
-      <button class="btn btn-primary btn-full" onclick="doLogin()">Anmelden</button>
     </div>
+    <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none">Anmeldung fehlgeschlagen.</div>
+    <button class="btn btn-primary btn-full" onclick="doLogin()">Anmelden</button>
   </div>
 </div>
 <div id="app">
@@ -759,7 +749,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=75"></script>
+<script type="module" src="js/app.js?v=76"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {
