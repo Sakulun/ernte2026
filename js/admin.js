@@ -1,74 +1,55 @@
-import { state } from './state.js?v=78';
+import { state } from './state.js?v=79';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
 export let schlagSearch = '';
 export let sidebarCollapsed = false;
 
+// Sidebar-Navigation als Daten (Reihenfolge wie bisher): [tab, icon, label] je Eintrag.
+const NAV = [
+  { section: null,             items: [['waage','⚖','Waage']] },
+  { section: 'Übersicht',      items: [['dashboard','📊','Dashboard'],['fortschritt','📈','Fortschritt'],['karte','🗺','Karte'],['vermehrungen','🌱','Vermehrungen']] },
+  { section: 'Verwaltung',     items: [['schlaege','🌾','Schläge'],['fuhren','🚛','Fuhren'],['nutzer','👥','Nutzer']] },
+  { section: 'Lager',          items: [['lager','📦','Lagerübersicht'],['silos','🏭','Silomanagement']] },
+  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Warenbewegungen'],['kontrakte','📋','Kontrakte'],['kontakte','👔','Kunden/Lieferanten'],['artikel','🗂','Artikel']] },
+  { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
+];
+// Rollen mit eingeschränkter Navigation. Silomeister sieht nur diese Bereiche.
+const ROLE_TABS = { silomeister: ['waage','fuhren','vermehrungen','silos'] };
+function erlaubteTabs() { return ROLE_TABS[state.currentUser?.role] || null; } // null = alle
+
 export function renderAdmin() {
+  const allowed = erlaubteTabs();
+  // Aktuellen Tab auf einen erlaubten zwingen (z.B. Silomeister startet auf "Waage").
+  if(allowed && !allowed.includes(adminTab)) { adminTab = allowed[0]; window.adminTab = adminTab; }
+
   if(adminTab !== 'karte' && window._mapInstance) {
     window._mapInstance.remove(); window._mapInstance = null; window._schlagLayers = {};
   }
 
+  // Bei Rollenwechsel (ohne Reload) die Sidebar neu aufbauen, sonst bliebe die alte Navigation stehen.
+  const layout = document.getElementById('admin-layout');
+  if(layout && layout.dataset.role !== (state.currentUser?.role || '')) layout.remove();
+
   if(!document.getElementById('admin-layout')) {
+    const btn = (tab, icon, label) =>
+      `<button class="sidebar-btn ${adminTab===tab?'active':''}" onclick="setAdminTab('${tab}')">
+        <span class="sidebar-icon">${icon}</span><span class="sidebar-label">${label}</span>
+      </button>`;
+    const navHtml = NAV.map(grp => {
+      const items = grp.items.filter(([tab]) => !allowed || allowed.includes(tab));
+      if(!items.length) return '';
+      return (grp.section ? `<div class="sidebar-section">${grp.section}</div>` : '') + items.map(it => btn(...it)).join('');
+    }).join('');
     document.getElementById('main-content').innerHTML = `
       <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
-      <div id="admin-layout">
+      <div id="admin-layout" data-role="${state.currentUser?.role || ''}">
         <nav id="admin-sidebar" class="${sidebarCollapsed?'collapsed':''}">
           <button class="sidebar-toggle" onclick="toggleSidebar()">
             <span style="font-size:18px">${sidebarCollapsed?'☰':'✕'}</span>
             <span class="sidebar-label" style="font-family:var(--font-display);color:var(--color-text-on-brand)">Ernte 2026</span>
           </button>
-          <button class="sidebar-btn ${adminTab==='waage'?'active':''}" onclick="setAdminTab('waage')">
-            <span class="sidebar-icon">⚖</span><span class="sidebar-label">Waage</span>
-          </button>
-          <div class="sidebar-section">Übersicht</div>
-          <button class="sidebar-btn ${adminTab==='dashboard'?'active':''}" onclick="setAdminTab('dashboard')">
-            <span class="sidebar-icon">📊</span><span class="sidebar-label">Dashboard</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='fortschritt'?'active':''}" onclick="setAdminTab('fortschritt')">
-            <span class="sidebar-icon">📈</span><span class="sidebar-label">Fortschritt</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='karte'?'active':''}" onclick="setAdminTab('karte')">
-            <span class="sidebar-icon">🗺</span><span class="sidebar-label">Karte</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='vermehrungen'?'active':''}" onclick="setAdminTab('vermehrungen')">
-            <span class="sidebar-icon">🌱</span><span class="sidebar-label">Vermehrungen</span>
-          </button>
-          <div class="sidebar-section">Verwaltung</div>
-          <button class="sidebar-btn ${adminTab==='schlaege'?'active':''}" onclick="setAdminTab('schlaege')">
-            <span class="sidebar-icon">🌾</span><span class="sidebar-label">Schläge</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='fuhren'?'active':''}" onclick="setAdminTab('fuhren')">
-            <span class="sidebar-icon">🚛</span><span class="sidebar-label">Fuhren</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='nutzer'?'active':''}" onclick="setAdminTab('nutzer')">
-            <span class="sidebar-icon">👥</span><span class="sidebar-label">Nutzer</span>
-          </button>
-          <div class="sidebar-section">Lager</div>
-          <button class="sidebar-btn ${adminTab==='lager'?'active':''}" onclick="setAdminTab('lager')">
-            <span class="sidebar-icon">📦</span><span class="sidebar-label">Lagerübersicht</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='silos'?'active':''}" onclick="setAdminTab('silos')">
-            <span class="sidebar-icon">🏭</span><span class="sidebar-label">Silomanagement</span>
-          </button>
-          <div class="sidebar-section">Warenwirtschaft</div>
-          <button class="sidebar-btn ${adminTab==='warenausgang'?'active':''}" onclick="setAdminTab('warenausgang')">
-            <span class="sidebar-icon">⇅</span><span class="sidebar-label">Warenbewegungen</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='kontrakte'?'active':''}" onclick="setAdminTab('kontrakte')">
-            <span class="sidebar-icon">📋</span><span class="sidebar-label">Kontrakte</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='kontakte'?'active':''}" onclick="setAdminTab('kontakte')">
-            <span class="sidebar-icon">👔</span><span class="sidebar-label">Kunden/Lieferanten</span>
-          </button>
-          <button class="sidebar-btn ${adminTab==='artikel'?'active':''}" onclick="setAdminTab('artikel')">
-            <span class="sidebar-icon">🗂</span><span class="sidebar-label">Artikel</span>
-          </button>
-          <div class="sidebar-section">System</div>
-          <button class="sidebar-btn ${adminTab==='erntejahr'?'active':''}" onclick="setAdminTab('erntejahr')">
-            <span class="sidebar-icon">🌱</span><span class="sidebar-label">Neues Erntejahr</span>
-          </button>
+          ${navHtml}
         </nav>
         <div id="admin-main">
           <div id="admin-main-inner">
