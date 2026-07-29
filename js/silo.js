@@ -1,9 +1,9 @@
-import { state } from './state.js?v=82';
-import { db } from './db.js?v=82';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=82';
-import { getFruchtFarbe } from './frucht.js?v=82';
-import { feuchteZuHoch } from './quality.js?v=82';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=82';
+import { state } from './state.js?v=83';
+import { db } from './db.js?v=83';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=83';
+import { getFruchtFarbe } from './frucht.js?v=83';
+import { feuchteZuHoch } from './quality.js?v=83';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=83';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -489,9 +489,11 @@ export function renderSiloManagement() {
   const smallSilos = state.silos.filter(s=>!istInnen(s)&&!istThond(s)&&s.kapazitaet_t<1000).sort(numSort);
   const innenSilos = state.silos.filter(istInnen).sort(numSort);
   const thondorfBoxen = state.silos.filter(istThond).sort(numSort);
-  const unassigned = state.fuhren.filter(f=>f.status==='fertig'&&!f.siloId).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
-  const totalFertig = state.fuhren.filter(f=>f.status==='fertig').length;
-  const totalAssigned = state.fuhren.filter(f=>f.status==='fertig'&&f.siloId).length;
+  // Nur bestätigte Fuhren erscheinen im Silomanagement (Warteschlange + Zähler).
+  // Unbestätigte warten im Tab "Fuhren", bis sie verifiziert sind.
+  const unassigned = state.fuhren.filter(f=>f.status==='fertig'&&f.verifiziert&&!f.siloId).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+  const totalFertig = state.fuhren.filter(f=>f.status==='fertig'&&f.verifiziert).length;
+  const totalAssigned = state.fuhren.filter(f=>f.status==='fertig'&&f.verifiziert&&f.siloId).length;
   const view = _siloView;
 
   // Remove stale selections
