@@ -1,9 +1,9 @@
-import { state } from './state.js?v=80';
-import { db } from './db.js?v=80';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=80';
-import { getFruchtFarbe } from './frucht.js?v=80';
-import { feuchteZuHoch } from './quality.js?v=80';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=80';
+import { state } from './state.js?v=81';
+import { db } from './db.js?v=81';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=81';
+import { getFruchtFarbe } from './frucht.js?v=81';
+import { feuchteZuHoch } from './quality.js?v=81';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=81';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -20,16 +20,16 @@ const FLACHLAGER = {
   HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt 1', titel: '📦 Halle Höhnstedt · Teil 1 (Gerste)', label: 'Halle Höhnstedt 1', kap_t: 2000 },
   HALLE_HOEHNSTEDT2: { toggle: 'Höhnstedt 2', titel: '📦 Halle Höhnstedt · Teil 2',           label: 'Halle Höhnstedt 2', kap_t: 2000 },
   HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
-  // Halle Thondorf ist in zwei Teile unterteilt (kap_t = Kapazität in Tonnen).
-  // Der Schlüssel HALLE_THONDORF bleibt Teil 1, damit ggf. bestehende Zuordnungen gültig bleiben.
-  HALLE_THONDORF:    { toggle: 'Thondorf 1', titel: '📦 Halle Thondorf · Teil 1',  label: 'Halle Thondorf 1', kap_t: 4000 },
-  HALLE_THONDORF2:   { toggle: 'Thondorf 2', titel: '📦 Halle Thondorf · Teil 2',  label: 'Halle Thondorf 2', kap_t: 1500 },
+  // Halle Thondorf ist als 4 einzelne Boxen (Silos T1–T4) modelliert – siehe
+  // eigene Ansicht "Thondorf" im Silomanagement (nicht mehr als Flachlager).
   // Kuchenlager: sammelt Sonnenblumenpresskuchen. Keine Bestandseinbuchung
   // (keine Fuhren), nur Warenausgang – daher ausgangOnly.
   KUCHENLAGER:       { toggle: 'Kuchen', titel: '🟡 Kuchenlager · Sonnenblumenpresskuchen', label: 'Kuchenlager', ausgangOnly: true, produkt: 'Sonnenblumenpresskuchen' },
 };
 // Anzeigename eines Lagerorts: Flachlager-Name oder "Silo <id>"
 export function lagerLabel(siloId) {
+  const t = /^T(\d+)$/i.exec(siloId || '');
+  if(t) return 'Thondorf Box ' + t[1];
   return FLACHLAGER[siloId] ? FLACHLAGER[siloId].label : 'Silo ' + siloId;
 }
 // Herkunft einer Fuhre: eigener Betrieb (Landgut, Viehmast …) oder externer Zukauf-Lieferant.
@@ -48,10 +48,10 @@ const LAGER_ORT = {
   HALLE_HOEHNSTEDT:  'Höhnstedt',
   HALLE_HOEHNSTEDT2: 'Höhnstedt',
   HALLE_LAUCHSTAEDT: 'Bad Lauchstädt',
-  HALLE_THONDORF:    'Thondorf',
-  HALLE_THONDORF2:   'Thondorf',
   KUCHENLAGER:       'Beesenstedt',
 };
+// Thondorf-Box-Silo? (T1–T4). Eigener Standort/eigene Ansicht.
+export function istThondorfBox(id) { return /^T\d+$/i.test(id || ''); }
 // Nur-Ausgang-Lager (Kuchenlager): keine Bestandsbuchung, nur Warenausgang.
 export function istAusgangLager(id) { return !!FLACHLAGER[id]?.ausgangOnly; }
 export function lagerOrtVon(id) {
@@ -66,7 +66,8 @@ export function lagerGruppen() {
     add(LAGER_ORT[k] || 'Sonstige', { id:k, label:l.label, kapT:l.kap_t || null, typ:'flach', ausgangOnly: !!l.ausgangOnly }));
   state.silos.slice()
     .sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}))
-    .forEach(s => add('Beesenstedt', { id:s.id, label:'Silo '+s.id, kapT:parseFloat(s.kapazitaet_t)||null, typ:'silo' }));
+    .forEach(s => add(istThondorfBox(s.id) ? 'Thondorf' : 'Beesenstedt',
+      { id:s.id, label:lagerLabel(s.id), kapT:parseFloat(s.kapazitaet_t)||null, typ:'silo' }));
   return Object.keys(orte)
     .sort((a,b) => a==='Beesenstedt' ? -1 : b==='Beesenstedt' ? 1 : a.localeCompare(b,'de'))
     .map(ort => ({ ort, lager: orte[ort] }));
@@ -256,7 +257,7 @@ export function einlagernDialog() {
       const pct = Math.min(100, (getSiloBestand(s.id)/1000/s.kapazitaet_t)*100).toFixed(0);
       const bioStatus = getSiloBioStatus(s.id);
       const kompatibel = checkSiloKompatibel(s.id, selFuhren);
-      const label = `Silo ${s.id} · ${s.kapazitaet_t}t · ${kultur||'leer'} · ${bestandT}t (${pct}%)${bioStatus&&bioStatus!=='leer'?' · '+bioStatus.toUpperCase():''}`;
+      const label = `${lagerLabel(s.id)} · ${s.kapazitaet_t}t · ${kultur||'leer'} · ${bestandT}t (${pct}%)${bioStatus&&bioStatus!=='leer'?' · '+bioStatus.toUpperCase():''}`;
       // Nicht mehr sperren – nur warnen. Der Bediener entscheidet (gleiche Produkte
       // können unterschiedlich benannt sein, z.B. "Bio Weizen" vs. "Winterweichweizen").
       return `<option value="${s.id}">${kompatibel.ok?'':'⚠ '}${label}${kompatibel.ok?'':' — '+kompatibel.reason}</option>`;
@@ -482,9 +483,12 @@ export async function reinigenSpeichern(quelleId) {
 
 export function renderSiloManagement() {
   const istInnen = s => /^I\d+$/i.test(s.id);
-  const bigSilos = state.silos.filter(s=>!istInnen(s)&&s.kapazitaet_t>=1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
-  const smallSilos = state.silos.filter(s=>!istInnen(s)&&s.kapazitaet_t<1000).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
-  const innenSilos = state.silos.filter(istInnen).sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const istThond = s => istThondorfBox(s.id);
+  const numSort = (a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true});
+  const bigSilos = state.silos.filter(s=>!istInnen(s)&&!istThond(s)&&s.kapazitaet_t>=1000).sort(numSort);
+  const smallSilos = state.silos.filter(s=>!istInnen(s)&&!istThond(s)&&s.kapazitaet_t<1000).sort(numSort);
+  const innenSilos = state.silos.filter(istInnen).sort(numSort);
+  const thondorfBoxen = state.silos.filter(istThond).sort(numSort);
   const unassigned = state.fuhren.filter(f=>f.status==='fertig'&&!f.siloId).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
   const totalFertig = state.fuhren.filter(f=>f.status==='fertig').length;
   const totalAssigned = state.fuhren.filter(f=>f.status==='fertig'&&f.siloId).length;
@@ -597,6 +601,10 @@ export function renderSiloManagement() {
   const col = (arr) => `<div style="display:flex;flex-direction:column;gap:0;width:${colW}px;align-items:center">${arr.map(sc).join('')}</div>`;
   const aGrid = `<div style="display:flex;gap:8px;justify-content:center;padding:8px;align-items:flex-start">${col(smallSilos.slice(0,7))}${col(smallSilos.slice(7,14))}${col(smallSilos.slice(14,21))}</div>`;
   const iGrid = `<div style="display:flex;gap:8px;justify-content:center;padding:8px;align-items:flex-start">${col(innenSilos.slice(0,6))}${col(innenSilos.slice(6,12))}${col(innenSilos.slice(12,17))}</div>`;
+  // Halle Thondorf: 4 Boxen (T1–T4) als Kacheln, 2×2 – wie die Beesenstedt-Silos.
+  const tGrid = thondorfBoxen.length
+    ? `<div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:12px;max-width:400px">${thondorfBoxen.map(sc).join('')}</div>`
+    : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle)">Keine Thondorf-Boxen angelegt.</div>`;
 
   const fi = (f) => {
     const n = netto(f);
@@ -635,7 +643,7 @@ export function renderSiloManagement() {
   if(!el) return;
   const bg = (v) => view===v ? 'var(--gold)' : 'transparent';
   const cl = (v) => view===v ? '#1a1400' : 'var(--text3)';
-  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : view==='I' ? '17 × 150 t · Innensilos' : (FLACHLAGER[view]?.label || '');
+  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : view==='I' ? '17 × 150 t · Innensilos' : view==='T' ? thondorfBoxen.length+' Boxen · Halle Thondorf' : (FLACHLAGER[view]?.label || '');
   const emptyMsg = totalFertig ? '✓ Alle zugeordnet' : 'Keine fertigen Fuhren';
   const queueHtml = unassigned.length ? unassigned.map(fi).join('') : `<div style="text-align:center;padding:20px 8px;color:var(--text2);font-size:12px">${emptyMsg}</div>`;
   const allChecked = unassigned.length > 0 && _selectedFuhren.size === unassigned.length;
@@ -655,6 +663,7 @@ export function renderSiloManagement() {
             <button onclick="setSiloView('B')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('B')};color:${cl('B')}">B</button>
             <button onclick="setSiloView('A')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('A')};color:${cl('A')}">A</button>
             <button onclick="setSiloView('I')" style="padding:8px 16px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('I')};color:${cl('I')}">I</button>
+            <button onclick="setSiloView('T')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('T')};color:${cl('T')}">Thondorf</button>
             ${Object.entries(FLACHLAGER).map(([k,l]) =>
               `<button onclick="setSiloView('${k}')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg(k)};color:${cl(k)}">${l.toggle}</button>`
             ).join('')}
@@ -682,11 +691,11 @@ export function renderSiloManagement() {
           </div>
         </div>
         <div class="silo-grid" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
-          ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : lagerView(view)}
+          ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : view==='T' ? tGrid : lagerView(view)}
         </div>
         <div id="silo-detail-panel" class="silo-detail-panel${_activeSiloId?' has-selection':''}" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
           <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span style="font-size:16px;color:var(--color-text-subtle);font-weight:600">${_activeSiloId?'Silo '+_activeSiloId:'← Silo anklicken'}</span>
+            <span style="font-size:16px;color:var(--color-text-subtle);font-weight:600">${_activeSiloId?lagerLabel(_activeSiloId):'← Silo anklicken'}</span>
             <button class="silo-detail-close" onclick="closeSiloDetail()" aria-label="Schließen" style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);width:32px;height:32px;border-radius:var(--radius-xs);cursor:pointer;font-size:16px">✕</button>
           </div>
           <div id="silo-detail-content" style="flex:1;overflow-y:auto;padding:12px"></div>
@@ -722,7 +731,7 @@ export function openSiloDetail(siloId) {
   if(panel) {
     panel.classList.add('has-selection');
     const titel = panel.querySelector('span');
-    if(titel) titel.textContent = 'Silo ' + siloId;
+    if(titel) titel.textContent = lagerLabel(siloId);
     const content = panel.querySelector('#silo-detail-content');
     if(content) content.scrollTop = 0;
   }
@@ -789,7 +798,7 @@ function renderSiloDetail(siloId) {
   };
 
   panel.innerHTML = `
-    <div style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--color-text);margin-bottom:2px">Silo ${siloId}</div>
+    <div style="font-family:var(--font-display);font-size:28px;font-weight:700;color:var(--color-text);margin-bottom:2px">${lagerLabel(siloId)}</div>
     <div style="font-size:14px;margin-bottom:14px">${silo.kapazitaet_t} t${kultur?` · <span style="color:${farbe.dot};font-weight:600">${kultur}</span>`:' · <span style="color:var(--text2)">leer</span>'}</div>
     <div style="background:var(--green-200);border-radius:var(--radius-xs);height:10px;overflow:hidden;margin-bottom:6px">
       <div style="width:${Math.min(pct,100).toFixed(1)}%;height:100%;background:${barColor};border-radius:6px;transition:width .3s"></div>
