@@ -1,10 +1,10 @@
-import { state } from './state.js?v=81';
-import { db } from './db.js?v=81';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=81';
-import { isBioFeld } from './bio.js?v=81';
-import { getQualitaetsfelder } from './quality.js?v=81';
-import { parseGewicht } from './abfahrer.js?v=81';
-import { lieferscheinDrucken } from './lieferschein-druck.js?v=81';
+import { state } from './state.js?v=82';
+import { db } from './db.js?v=82';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=82';
+import { isBioFeld } from './bio.js?v=82';
+import { getQualitaetsfelder } from './quality.js?v=82';
+import { parseGewicht } from './abfahrer.js?v=82';
+import { lieferscheinDrucken } from './lieferschein-druck.js?v=82';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -18,6 +18,17 @@ const WID = 'waage';
 let _container = null;
 let _lockAbfahrer = null;   // feste Abfahrer-ID (Selbsterfassung) oder null = Auswahl
 let _modus = 'abschluss';
+
+// Läuft gerade eine (angefangene) Erfassung in dieser Maske? Wird von den
+// Realtime-/Polling-Updates geprüft, damit ein Hintergrund-Neurender die
+// halbfertige Eingabe des Abfahrers nicht wegwirft (auch ohne Feld-Fokus).
+export function erfassungInProgress() {
+  const val = id => { const e = document.getElementById(id); return e && String(e.value || '').trim(); };
+  if(val('we-feld')) return true;                 // Schlag/Quelle gewählt
+  if(val('voll-' + WID) || val('leer-' + WID)) return true;  // Gewicht eingegeben
+  if(val('we-kennzeichen')) return true;
+  return [...document.querySelectorAll('[id^="qual-"][id$="-' + WID + '"]')].some(i => String(i.value || '').trim());
+}
 
 // GPS-Position beim Einwiegen: für die Zuordnung der Fuhre zum Lagerstandort.
 // Darf das Wiegen NIE blockieren – bei fehlendem Empfang/Verweigerung läuft

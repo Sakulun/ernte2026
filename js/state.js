@@ -1,5 +1,5 @@
-import { db } from './db.js?v=81';
-import { getSb } from './db.js?v=81';
+import { db } from './db.js?v=82';
+import { getSb } from './db.js?v=82';
 
 let appReady = false;
 
@@ -72,6 +72,8 @@ export function startPolling() {
     if(typeof document !== 'undefined' && document.hidden) return;
     const active = document.activeElement;
     if(active && (active.tagName==='INPUT'||active.tagName==='SELECT'||active.tagName==='TEXTAREA')) return;
+    // Angefangene Erfassung nicht durch Hintergrund-Neurender zerstören (auch ohne Fokus).
+    if(window.erfassungInProgress && window.erfassungInProgress()) return;
     let fuhren;
     try { fuhren = await db.getFuhren(); } catch(e) { return; }
     const sig = JSON.stringify(fuhren.map(f=>[f.id,f.status,f.abfahrerId,f.feldId,f.vollgewicht,f.leergewicht,f.siloId]));
@@ -198,7 +200,10 @@ export async function loadAppData() {
         const isInteracting = active && (
           active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA'
         );
-        if(isInteracting) return;
+        // Auch überspringen, wenn die Erfassungsmaske angefangen wurde, aber
+        // gerade kein Feld fokussiert ist (Fahrer wiegt z.B. gerade) – sonst
+        // ginge die halbfertige Eingabe beim Hintergrund-Update verloren.
+        if(isInteracting || (window.erfassungInProgress && window.erfassungInProgress())) return;
         const role = state.currentUser.role;
         if(role === 'admin') {
           if(window.adminTab === 'dashboard' && window.renderAdminDash) window.renderAdminDash();
