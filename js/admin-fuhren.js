@@ -1,10 +1,10 @@
-import { state } from './state.js?v=79';
-import { db } from './db.js?v=79';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=79';
-import { getFruchtFarbe } from './frucht.js?v=79';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=79';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=79';
-import { isBioFuhre, bioBadge } from './bio.js?v=79';
+import { state } from './state.js?v=80';
+import { db } from './db.js?v=80';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=80';
+import { getFruchtFarbe } from './frucht.js?v=80';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=80';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=80';
+import { isBioFuhre, bioBadge } from './bio.js?v=80';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
@@ -135,6 +135,11 @@ export function renderAdminFuhren() {
           <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--text)">${n?kg2t(n):'–'}</div>
           <div style="font-size:10px;color:var(--text2)">netto</div>
         </div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;padding:7px 10px;background:var(--bg2);border-radius:var(--radius-xs);font-size:12px;font-variant-numeric:tabular-nums">
+        <span style="color:var(--text2)">Voll <b style="color:var(--text);font-weight:700">${f.vollgewicht!=null?f.vollgewicht.toLocaleString('de-DE'):'–'}</b></span>
+        <span style="color:var(--text2)">Leer <b style="color:var(--text);font-weight:700">${f.leergewicht!=null?f.leergewicht.toLocaleString('de-DE'):'–'}</b></span>
+        <span style="color:var(--text2)">Netto <b style="color:var(--gold);font-weight:700">${n!=null?n.toLocaleString('de-DE'):'–'}</b> kg</span>
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px">
         <div><span style="font-size:11px;color:var(--text2)">Feuchte </span><span style="font-size:14px;font-weight:600">${f.feuchte??'–'}%</span></div>
