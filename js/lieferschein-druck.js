@@ -1,7 +1,21 @@
-import { state } from './state.js?v=86';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=86';
-import { renderLieferschein } from './lieferschein.js?v=86';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=86';
+import { state } from './state.js?v=87';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=87';
+import { renderLieferschein } from './lieferschein.js?v=87';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=87';
+
+// Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
+// "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
+// auf dem Lieferschein soll aber "Raps"/"Weizen"/"Gerste" stehen.
+const LS_ARTIKEL_KURZ = {
+  'Winterraps':        'Raps',
+  'Winterweizen':      'Weizen',
+  'Winterweichweizen': 'Weizen',
+  'Wintergerste':      'Gerste',
+};
+export function lieferscheinArtikelName(name) {
+  const n = (name || '').trim();
+  return LS_ARTIKEL_KURZ[n] || name || '';
+}
 
 // Zertifikatszeilen aus den Siegel-Flags eines Kontrakts (nachhaltig/GMP+/EU-Öko).
 // hinweis = zusätzlicher Pflichtsatz auf dem Lieferschein.
@@ -63,7 +77,7 @@ export function lieferscheinDaten(w, override = {}) {
     empf_strasse: adr.strasse,
     empf_plz_ort: adr.plzOrt,
     empf_land:    '',
-    artikel:  artikel?.name || kontrakt?.fruchtart_text || '',
+    artikel:  lieferscheinArtikelName(artikel?.name || kontrakt?.fruchtart_text || ''),
     kontrakt: kontrakt?.nummer || '',
     herkunft: HERKUNFT_STANDARD,
     einheit:  't',

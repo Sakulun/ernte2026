@@ -1,10 +1,10 @@
-import { state } from './state.js?v=86';
-import { db } from './db.js?v=86';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=86';
-import { isBioFeld } from './bio.js?v=86';
-import { getQualitaetsfelder } from './quality.js?v=86';
-import { parseGewicht } from './abfahrer.js?v=86';
-import { lieferscheinDrucken } from './lieferschein-druck.js?v=86';
+import { state } from './state.js?v=87';
+import { db } from './db.js?v=87';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=87';
+import { isBioFeld } from './bio.js?v=87';
+import { getQualitaetsfelder } from './quality.js?v=87';
+import { parseGewicht } from './abfahrer.js?v=87';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=87';
 
 // ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
 // Zwei Modi:
@@ -352,7 +352,7 @@ function druckeWareneingangLieferschein(feld, fruchtart, voll, leer, kennzeichen
     datum: jetzt.toLocaleDateString('de-DE', dOpt),
     empf_name: kontakt?.name || feld.name || '',
     empf_zusatz: '', empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
-    artikel: fruchtart || '', kontrakt: '', herkunft: '', einheit: 't',
+    artikel: lieferscheinArtikelName(fruchtart || ''), kontrakt: '', herkunft: '', einheit: 't',
     menge: (netto/1000).toLocaleString('de-DE', {minimumFractionDigits:3, maximumFractionDigits:3}),
     brutto_kg: deW(voll), tara_kg: deW(leer), netto_kg: deW(netto),
     zeit_erstwiegung: '',
