@@ -1,11 +1,54 @@
-import { state } from './state.js?v=84';
-import { db } from './db.js?v=84';
-import { showToast, escapeHtml } from './helpers.js?v=84';
+import { state } from './state.js?v=85';
+import { db } from './db.js?v=85';
+import { showToast, escapeHtml } from './helpers.js?v=85';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
 // uebergeben (Apostrophe im PDF-Text zerbrechen sonst den Handler-String).
 let _pdfImport = { name: '', text: '' };
+
+// Filter/Suche der Kontrakt-Liste (wie bei Schlägen).
+let _kFilterFruchtart = '';
+let _kFilterKunde = '';
+let _kSuche = '';
+
+// Fruchtart-/Artikelname eines Kontrakts (für Anzeige + Filter + Suche).
+function kontraktFruchtart(k) {
+  const art = state.artikel.find(a => a.id === k.artikel_id);
+  return (art?.name || k.fruchtart_text || '').trim();
+}
+function kontraktKundeName(k) {
+  return (state.kontakte.find(c => c.id === k.kontakt_id)?.name || '').trim();
+}
+// Trifft ein Kontrakt die aktuellen Filter + die Suche?
+function kontraktPasst(k) {
+  if(_kFilterFruchtart && kontraktFruchtart(k) !== _kFilterFruchtart) return false;
+  if(_kFilterKunde && kontraktKundeName(k) !== _kFilterKunde) return false;
+  if(_kSuche) {
+    const q = _kSuche.toLowerCase();
+    const heu = [k.nummer, kontraktKundeName(k), kontraktFruchtart(k), k.paritaet]
+      .filter(Boolean).join(' ').toLowerCase();
+    if(!heu.includes(q)) return false;
+  }
+  return true;
+}
+
+export function setKontraktFilter(feld, wert) {
+  if(feld === 'fruchtart') _kFilterFruchtart = wert;
+  else if(feld === 'kunde') _kFilterKunde = wert;
+  renderKontrakte();
+}
+export function kontraktSucheInput(val) {
+  _kSuche = val;
+  renderKontrakte();
+  // Fokus + Cursor im (neu gerenderten) Suchfeld wiederherstellen.
+  const inp = document.getElementById('kontrakt-suche');
+  if(inp) { inp.focus(); const p = (val || '').length; inp.setSelectionRange(p, p); }
+}
+export function kontraktFilterReset() {
+  _kFilterFruchtart = ''; _kFilterKunde = ''; _kSuche = '';
+  renderKontrakte();
+}
 
 export function getKontraktGeliefertKg(kontraktId) {
   const ausKg = state.warenbewegungen
@@ -146,6 +189,16 @@ export function renderKontrakte() {
   const gesamtT  = offen.reduce((s,k)=>s+(k.menge_t||0),0);
   const geliefT  = offen.reduce((s,k)=>s+getKontraktGeliefertKg(k.id)/1000,0);
 
+  // Filter/Suche nur auf die angezeigten Listen (Kennzahlen + Übersicht bleiben gesamt).
+  const filterAktiv = !!(_kFilterFruchtart || _kFilterKunde || _kSuche);
+  const fAktiv    = aktiv.filter(kontraktPasst);
+  const fErfuellt = erfuellt.filter(kontraktPasst);
+  const fStornier = stornier.filter(kontraktPasst);
+  const fruchtarten = [...new Set(state.kontrakte.map(kontraktFruchtart).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
+  const kunden      = [...new Set(state.kontrakte.map(kontraktKundeName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
+  const fruchtartOpts = fruchtarten.map(f=>`<option value="${escapeHtml(f)}" ${_kFilterFruchtart===f?'selected':''}>${escapeHtml(f)}</option>`).join('');
+  const kundeOpts     = kunden.map(k=>`<option value="${escapeHtml(k)}" ${_kFilterKunde===k?'selected':''}>${escapeHtml(k)}</option>`).join('');
+
   const kRow = (k) => {
     const geliefKg  = getKontraktGeliefertKg(k.id);
     const geliefT   = geliefKg/1000;
@@ -215,21 +268,39 @@ export function renderKontrakte() {
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
       <button class="btn btn-sm btn-outline" onclick="exportKontrakteExcel()">⬇ Excel</button>
       <button class="btn btn-primary" onclick="kontraktNeuDialog(null)">+ Manuell anlegen</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-md);padding:10px 12px;margin-bottom:14px">
+      <span style="font-size:12px;font-weight:700;color:var(--text2);letter-spacing:1px;text-transform:uppercase">🔎 Filter</span>
+      <input type="text" id="kontrakt-suche" value="${escapeHtml(_kSuche)}" placeholder="Suche: Nummer, Kunde, Artikel…" oninput="kontraktSucheInput(this.value)"
+        style="flex:1;min-width:160px;padding:6px 10px;font-size:13px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--bg2);color:var(--text)">
+      <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Fruchtart
+        <select class="input" style="width:auto;padding:5px 8px;font-size:13px" onchange="setKontraktFilter('fruchtart', this.value)">
+          <option value="">Alle</option>${fruchtartOpts}
+        </select>
+      </label>
+      <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Kunde
+        <select class="input" style="width:auto;padding:5px 8px;font-size:13px" onchange="setKontraktFilter('kunde', this.value)">
+          <option value="">Alle</option>${kundeOpts}
+        </select>
+      </label>
+      ${filterAktiv ? `<button class="btn btn-sm btn-outline" onclick="kontraktFilterReset()">✕ Zurücksetzen</button>` : ''}
     </div>`;
 
-  if(aktiv.length) {
-    html += `<div class="section-label" style="margin-bottom:8px">Aktive Kontrakte (${aktiv.length})</div>`;
-    html += aktiv.map(kRow).join('');
+  if(fAktiv.length) {
+    html += `<div class="section-label" style="margin-bottom:8px">Aktive Kontrakte (${fAktiv.length}${filterAktiv?' / '+aktiv.length:''})</div>`;
+    html += fAktiv.map(kRow).join('');
   }
-  if(erfuellt.length) {
-    html += `<div class="section-label" style="margin-top:12px;margin-bottom:8px">Erfüllt (${erfuellt.length})</div>`;
-    html += erfuellt.map(kRow).join('');
+  if(fErfuellt.length) {
+    html += `<div class="section-label" style="margin-top:12px;margin-bottom:8px">Erfüllt (${fErfuellt.length}${filterAktiv?' / '+erfuellt.length:''})</div>`;
+    html += fErfuellt.map(kRow).join('');
   }
-  if(stornier.length) {
-    html += `<div class="section-label" style="margin-top:12px;margin-bottom:8px">Storniert (${stornier.length})</div>`;
-    html += stornier.map(kRow).join('');
+  if(fStornier.length) {
+    html += `<div class="section-label" style="margin-top:12px;margin-bottom:8px">Storniert (${fStornier.length}${filterAktiv?' / '+stornier.length:''})</div>`;
+    html += fStornier.map(kRow).join('');
   }
   if(!state.kontrakte.length) html += '<div class="empty-state">Noch keine Kontrakte. PDF ablegen oder manuell anlegen.</div>';
+  else if(filterAktiv && !fAktiv.length && !fErfuellt.length && !fStornier.length)
+    html += '<div class="empty-state">Kein Kontrakt passt zu Filter/Suche.</div>';
   document.getElementById('admintab').innerHTML = html;
 }
 
