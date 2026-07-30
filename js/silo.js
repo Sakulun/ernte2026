@@ -1,9 +1,9 @@
-import { state } from './state.js?v=85';
-import { db } from './db.js?v=85';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=85';
-import { getFruchtFarbe } from './frucht.js?v=85';
-import { feuchteZuHoch } from './quality.js?v=85';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=85';
+import { state } from './state.js?v=86';
+import { db } from './db.js?v=86';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=86';
+import { getFruchtFarbe } from './frucht.js?v=86';
+import { feuchteZuHoch } from './quality.js?v=86';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=86';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -627,9 +627,15 @@ export function renderSiloManagement() {
         </div>
       </div>`;
     };
-    const summeStr = (zugangKg, ausgangKg, bestandKg) => ausgangKg > 0
-      ? `${(zugangKg/1000).toFixed(1)} t − ${(ausgangKg/1000).toFixed(1)} t = <b>${(bestandKg/1000).toFixed(1)} t</b>`
-      : `<b>${(bestandKg/1000).toFixed(1)} t</b>`;
+    // Ein-/Ausgangs- und Bestandssumme je Fruchtart/Sorte (bzw. Gesamt).
+    const summeStr = (zugangKg, ausgangKg, bestandKg) => {
+      const t = kg => (kg/1000).toFixed(1);
+      const lbl = s => `<span style="color:var(--color-text-muted);font-weight:400">${s}</span>`;
+      return `<span style="white-space:nowrap;font-variant-numeric:tabular-nums">`
+        + `${lbl('Ein')} ${t(zugangKg)}`
+        + ` · ${lbl('Aus')} ${t(ausgangKg)}`
+        + ` · ${lbl('Best')} <b>${t(bestandKg)} t</b></span>`;
+    };
     const gruppenHtml = gruppenSorted.map(g => {
       const farbe = getFruchtFarbe(g.fruchtart);
       const mehrereSorten = g.sortenSorted.length > 1;
@@ -652,9 +658,13 @@ export function renderSiloManagement() {
     return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
     <div style="width:100%;max-width:600px">
       <div style="background:var(--green-50);border:2px dashed var(--color-primary);border-radius:var(--radius-lg);min-height:200px;padding:16px;margin-bottom:16px">
-        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${bestandStr}</div>
+        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren${lager.ausgangOnly ? ' · ' + bestandStr : (gruppenSorted.length ? ` · ${gruppenSorted.length} Fruchtart${gruppenSorted.length>1?'en':''}` : '')}</div>
         ${kapHtml}
         ${gruppenSorted.length ? gruppenHtml : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">${lager.ausgangOnly ? 'Nur Warenausgang – hier werden keine Bestände geführt.' : 'Keine Fuhren in ' + lager.label}</div>`}
+        ${gruppenSorted.length ? `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;background:var(--color-surface);border:2px solid var(--color-primary);border-radius:var(--radius-sm)">
+          <span style="font-weight:800;color:var(--color-text);text-transform:uppercase;letter-spacing:.5px;font-size:12px">Gesamt · alle Fruchtarten</span>
+          <span style="font-size:13px;color:var(--color-text)">${summeStr(zugangT*1000, ausgangT*1000, bestandT*1000)}</span>
+        </div>` : ''}
       </div>
     </div>
   </div>`;
