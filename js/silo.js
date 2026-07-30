@@ -547,18 +547,21 @@ export function renderSiloManagement() {
     </div>`;
   };
 
-  // Flachlager-Ansicht (Hofplatz/Hallen): Fuhrenliste im gestrichelten Rahmen
+  // Flachlager-Ansicht (Hofplatz/Hallen): nach Fruchtart und Sorte gruppiert,
+  // damit bei mehreren gelagerten Artikeln (inkl. Umlagerungen) der Bestand je
+  // Gruppe erkennbar bleibt statt in einer langen, unsortierten Liste zu verschwinden.
   const lagerView = (lagerId) => {
     const lager = FLACHLAGER[lagerId];
     const lagerFuhren = state.fuhren.filter(f=>f.siloId===lagerId&&f.status==='fertig');
+    const ausgangBewegungen = state.warenbewegungen.filter(w=>w.silo_von_id===lagerId&&w.typ==='ausgang');
     const zugangT = lagerFuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000;
-    const ausgangT = getSiloAusgang(lagerId)/1000;
+    const ausgangT = ausgangBewegungen.reduce((s,w)=>s+(w.menge_kg||0),0)/1000;
     const bestandT = Math.max(0, zugangT - ausgangT);
     const bestandStr = lager.ausgangOnly
       ? `<b>${ausgangT.toFixed(1)} t ausgeliefert</b>`
       : (ausgangT > 0
-        ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${bestandT.toFixed(1)} t Bestand</b>`
-        : `${zugangT.toFixed(1)} t`);
+        ? `${zugangT.toFixed(1)} t − ${ausgangT.toFixed(1)} t Ausgang = <b>${bestandT.toFixed(1)} t Gesamtbestand</b>`
+        : `<b>${zugangT.toFixed(1)} t Gesamtbestand</b>`);
     const kapHtml = lager.kap_t ? (() => {
       const pct = Math.min(100, bestandT / lager.kap_t * 100);
       const farbe = pct > 85 ? 'var(--color-warning)' : 'var(--color-primary)';
@@ -567,26 +570,91 @@ export function renderSiloManagement() {
         <div style="background:var(--neutral-200);border:1px solid var(--color-border);border-radius:6px;height:12px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${farbe};transition:width .3s"></div></div>
       </div>`;
     })() : '';
+
+    // Gruppierung: Fruchtart → Sorte, je Gruppe Zugang/Ausgang/Bestand summiert.
+    const gruppen = new Map();
+    const gruppeVon = (fruchtart) => {
+      const key = fruchtart || '(ohne Fruchtart)';
+      if(!gruppen.has(key)) gruppen.set(key, { fruchtart: key, zugangKg: 0, ausgangKg: 0, sorten: new Map() });
+      return gruppen.get(key);
+    };
+    const sorteVon = (g, sorte) => {
+      const key = sorte || 'Konsum';
+      if(!g.sorten.has(key)) g.sorten.set(key, { sorte: key, zugangKg: 0, ausgangKg: 0, fuhren: [] });
+      return g.sorten.get(key);
+    };
+    lagerFuhren.forEach(f => {
+      const n = netto(f) || 0;
+      const g = gruppeVon(f.fruchtart);
+      g.zugangKg += n;
+      const s = sorteVon(g, f.sorte);
+      s.zugangKg += n;
+      s.fuhren.push(f);
+    });
+    // Ausgänge einer Fruchtart/Sorte zuordnen: bei Umlagerungs-Ausbuchungen über die
+    // verknüpfte Fuhre (fuhre_id), sonst über den gebuchten Artikel (Warenausgang).
+    ausgangBewegungen.forEach(w => {
+      let fruchtart = null, sorte = null;
+      const quellFuhre = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
+      if(quellFuhre) { fruchtart = quellFuhre.fruchtart; sorte = quellFuhre.sorte; }
+      else { const art = state.artikel.find(a=>a.id===w.artikel_id); fruchtart = art ? art.name : '(Artikel unbekannt)'; }
+      const g = gruppeVon(fruchtart);
+      g.ausgangKg += (w.menge_kg||0);
+      sorteVon(g, sorte).ausgangKg += (w.menge_kg||0);
+    });
+    const gruppenSorted = [...gruppen.values()].sort((a,b)=>a.fruchtart.localeCompare(b.fruchtart,'de'));
+    gruppenSorted.forEach(g => {
+      g.bestandKg = Math.max(0, g.zugangKg - g.ausgangKg);
+      g.sortenSorted = [...g.sorten.values()].sort((a,b)=>a.sorte.localeCompare(b.sorte,'de'));
+      g.sortenSorted.forEach(s => {
+        s.bestandKg = Math.max(0, s.zugangKg - s.ausgangKg);
+        s.fuhren.sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+      });
+    });
+
+    const fuhreCard = (f) => {
+      const n=netto(f); const fr=getFruchtFarbe(f.fruchtart);
+      return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
+        <div style="width:5px;flex-shrink:0;background:${fr.dot}"></div>
+        <div style="padding:10px 12px;flex:1;display:flex;align-items:center;gap:10px">
+          <div style="flex:1">
+            <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">${f.fruchtart}${sorteBadge(f)}</div>
+            <div style="font-size:var(--text-base);color:var(--color-text);font-weight:600">${n?(n/1000).toFixed(2)+' t':'–'}</div>
+            <div style="font-size:var(--text-sm);color:var(--color-text-muted)">${getFeld(f.feldId).name||'–'} · ${f.feuchte??'–'}%F</div>
+          </div>
+          <button onclick="removeFuhreFromSilo(${f.id})" title="Aus ${lager.label} entfernen"
+            style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);cursor:pointer;font-size:14px;width:30px;height:30px;border-radius:var(--radius-xs);flex-shrink:0">✕</button>
+        </div>
+      </div>`;
+    };
+    const summeStr = (zugangKg, ausgangKg, bestandKg) => ausgangKg > 0
+      ? `${(zugangKg/1000).toFixed(1)} t − ${(ausgangKg/1000).toFixed(1)} t = <b>${(bestandKg/1000).toFixed(1)} t</b>`
+      : `<b>${(bestandKg/1000).toFixed(1)} t</b>`;
+    const gruppenHtml = gruppenSorted.map(g => {
+      const farbe = getFruchtFarbe(g.fruchtart);
+      const mehrereSorten = g.sortenSorted.length > 1;
+      const sortenHtml = mehrereSorten ? g.sortenSorted.map(s => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px 5px 20px;font-size:12px;color:var(--color-text-muted)">
+          <span>${escapeHtml(s.sorte)}</span>
+          <span style="color:var(--color-text)">${summeStr(s.zugangKg, s.ausgangKg, s.bestandKg)}</span>
+        </div>`).join('') : '';
+      const fuhrenHtml = g.sortenSorted.flatMap(s=>s.fuhren).map(fuhreCard).join('');
+      return `<div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm)">
+          <span style="display:flex;align-items:center;gap:6px;font-weight:700;color:var(--color-text)"><span style="width:8px;height:8px;border-radius:50%;background:${farbe.dot};display:inline-block;flex-shrink:0"></span>${escapeHtml(g.fruchtart)}</span>
+          <span style="font-size:13px;color:var(--color-text)">${summeStr(g.zugangKg, g.ausgangKg, g.bestandKg)}</span>
+        </div>
+        ${sortenHtml}
+        ${fuhrenHtml ? `<div style="margin-top:6px">${fuhrenHtml}</div>` : ''}
+      </div>`;
+    }).join('');
+
     return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
     <div style="width:100%;max-width:600px">
       <div style="background:var(--green-50);border:2px dashed var(--color-primary);border-radius:var(--radius-lg);min-height:200px;padding:16px;margin-bottom:16px">
         <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">${lager.titel} · ${lagerFuhren.length} Fuhren · ${bestandStr}</div>
         ${kapHtml}
-        ${lagerFuhren.length ? lagerFuhren.map(f=>{
-          const n=netto(f); const fr=getFruchtFarbe(f.fruchtart);
-          return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
-            <div style="width:5px;flex-shrink:0;background:${fr.dot}"></div>
-            <div style="padding:10px 12px;flex:1;display:flex;align-items:center;gap:10px">
-              <div style="flex:1">
-                <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">${f.fruchtart}${sorteBadge(f)}</div>
-                <div style="font-size:var(--text-base);color:var(--color-text);font-weight:600">${n?(n/1000).toFixed(2)+' t':'–'}</div>
-                <div style="font-size:var(--text-sm);color:var(--color-text-muted)">${getFeld(f.feldId).name||'–'} · ${f.feuchte??'–'}%F</div>
-              </div>
-              <button onclick="removeFuhreFromSilo(${f.id})" title="Aus ${lager.label} entfernen"
-                style="background:none;border:1px solid var(--color-border);color:var(--color-text-muted);cursor:pointer;font-size:14px;width:30px;height:30px;border-radius:var(--radius-xs);flex-shrink:0">✕</button>
-            </div>
-          </div>`;
-        }).join('') : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">${lager.ausgangOnly ? 'Nur Warenausgang – hier werden keine Bestände geführt.' : 'Keine Fuhren in ' + lager.label}</div>`}
+        ${gruppenSorted.length ? gruppenHtml : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">${lager.ausgangOnly ? 'Nur Warenausgang – hier werden keine Bestände geführt.' : 'Keine Fuhren in ' + lager.label}</div>`}
       </div>
     </div>
   </div>`;
