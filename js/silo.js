@@ -1,9 +1,9 @@
-import { state } from './state.js?v=88';
-import { db } from './db.js?v=88';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=88';
-import { getFruchtFarbe } from './frucht.js?v=88';
-import { feuchteZuHoch } from './quality.js?v=88';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=88';
+import { state } from './state.js?v=89';
+import { db } from './db.js?v=89';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=89';
+import { getFruchtFarbe } from './frucht.js?v=89';
+import { feuchteZuHoch } from './quality.js?v=89';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=89';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -134,10 +134,17 @@ export function getSiloBestand(siloId) {
 export function getSiloKultur(siloId) {
   // Ausgang-only-Lager tragen ihr Produkt fest (keine Fuhren zum Ableiten).
   if(FLACHLAGER[siloId]?.produkt) return FLACHLAGER[siloId].produkt;
-  const silo = state.silos.find(s=>s.id===siloId);
-  if(silo?.fruchtart) return silo.fruchtart;
-  const firstFuhre = state.fuhren.find(f=>f.siloId===siloId&&f.status==='fertig');
-  return firstFuhre ? (window.getFuhreKulturKey ? window.getFuhreKulturKey(firstFuhre) : firstFuhre.fruchtart) : null;
+  // Kultur immer aus den tatsächlich eingelagerten Fuhren ableiten – so bleibt keine
+  // veraltete Altkultur hängen, wenn die Fuhren aus- oder umgelagert wurden (früher
+  // wurde ein gespeichertes silos.fruchtart bevorzugt, das dabei stale werden konnte).
+  // Vermehrungs-Labels ("VERMEHRUNG:<Sorte>") ergeben sich über getFuhreKulturKey aus
+  // der Sorte der Fuhre; bei gemischtem Inhalt gewinnt die häufigste Kultur.
+  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  if(!fuhren.length) return null;
+  const keyOf = f => window.getFuhreKulturKey ? window.getFuhreKulturKey(f) : (f.fruchtart || 'Unbekannt');
+  const counts = new Map();
+  for(const f of fuhren) { const k = keyOf(f); counts.set(k, (counts.get(k) || 0) + 1); }
+  return [...counts.entries()].sort((a,b) => b[1] - a[1])[0][0];
 }
 
 export function showSiloOverlay() {
