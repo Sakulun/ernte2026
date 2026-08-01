@@ -1,9 +1,9 @@
-import { state } from './state.js?v=89';
-import { db } from './db.js?v=89';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=89';
-import { getFruchtFarbe } from './frucht.js?v=89';
-import { feuchteZuHoch } from './quality.js?v=89';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=89';
+import { state } from './state.js?v=90';
+import { db } from './db.js?v=90';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=90';
+import { getFruchtFarbe } from './frucht.js?v=90';
+import { feuchteZuHoch } from './quality.js?v=90';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=90';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -145,6 +145,78 @@ export function getSiloKultur(siloId) {
   const counts = new Map();
   for(const f of fuhren) { const k = keyOf(f); counts.set(k, (counts.get(k) || 0) + 1); }
   return [...counts.entries()].sort((a,b) => b[1] - a[1])[0][0];
+}
+
+// ── Ausgangs-Historie eines Lagerorts ────────────────────────────────────────
+// Alle Warenausgänge (typ 'ausgang') mit silo_von_id === lagerId, kategorisiert
+// nach Lieferung (auf Kontrakt), Umlagerung (in anderes Lager) und Reinigungsabgang.
+const HIST_META = {
+  lieferung:  { label: 'Lieferung',  icon: '📄', farbe: 'var(--color-primary)' },
+  umlagerung: { label: 'Umlagerung', icon: '🔄', farbe: 'var(--blue-500)' },
+  reinigung:  { label: 'Reinigung',  icon: '🌀', farbe: 'var(--color-text-muted)' },
+  ausgang:    { label: 'Ausgang',    icon: '📤', farbe: 'var(--color-text-muted)' },
+};
+function histKat(w) {
+  return w.kontrakt_id ? 'lieferung'
+    : /^\s*Umlagerung/i.test(w.notiz||'') ? 'umlagerung'
+    : /^\s*Reinigungsabgang/i.test(w.notiz||'') ? 'reinigung'
+    : 'ausgang';
+}
+export function ausgangHistorie(lagerId) {
+  return state.warenbewegungen
+    .filter(w => w.silo_von_id === lagerId && w.typ === 'ausgang')
+    .map(w => ({ w, k: histKat(w) }))
+    .sort((a,b) => new Date(b.w.erstellt_am||0) - new Date(a.w.erstellt_am||0));
+}
+function histCrop(w) {
+  const qf = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
+  if(qf) return { fruchtart: qf.fruchtart || '', badge: sorteBadge(qf) };
+  const art = state.artikel.find(a=>a.id===w.artikel_id);
+  return { fruchtart: art ? art.name : '', badge: '' };
+}
+function histZiel(w, k) {
+  const m = /→\s*(.+?)\s*$/.exec(w.notiz||'');
+  if(k === 'lieferung') {
+    const nr = state.kontrakte.find(x=>x.id===w.kontrakt_id)?.nummer;
+    return (w.empfaenger || 'Kunde') + (nr ? ' · Kontrakt ' + nr : '');
+  }
+  if(k === 'umlagerung') {
+    const qf = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
+    return (qf && qf.siloId) ? lagerLabel(qf.siloId) : (m ? m[1] : '');
+  }
+  return m ? m[1] : (w.empfaenger || '');
+}
+// Eine Historien-Zeile. showVon=true stellt den Quell-Lagernamen voran (globaler
+// Kontext); im Silo-/Lager-Detail ist die Quelle klar und wird weggelassen.
+function histRow({ w, k }, showVon) {
+  const m = HIST_META[k];
+  const { fruchtart, badge } = histCrop(w);
+  const t = (Number(w.menge_kg)||0)/1000;
+  const datum = w.erstellt_am ? new Date(w.erstellt_am).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+  const ziel = histZiel(w, k);
+  const wohin = (showVon ? lagerLabel(w.silo_von_id) + ' → ' : '→ ') + (ziel || '–');
+  const fr = getFruchtFarbe(fruchtart);
+  return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
+    <div style="width:5px;flex-shrink:0;background:${fruchtart?fr.dot:m.farbe}"></div>
+    <div style="padding:9px 12px;flex:1;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
+        <span style="font-size:11px;font-weight:700;color:${m.farbe};text-transform:uppercase;letter-spacing:.5px">${m.icon} ${m.label}</span>
+        <span style="font-size:12px;color:var(--color-text-muted)">${datum}${w.lieferschein_nr?' · LS '+escapeHtml(w.lieferschein_nr):''}</span>
+      </div>
+      <div style="font-size:14px;font-weight:700;color:var(--color-text)">${escapeHtml(fruchtart||'–')}${badge} · <span style="color:var(--gold)">${t.toFixed(2)} t</span></div>
+      <div style="font-size:12px;color:var(--color-text-muted);margin-top:1px">${escapeHtml(wohin)}</div>
+    </div>
+  </div>`;
+}
+// Historien-Block eines Lagerorts (Überschrift + Zeilen). Ohne Ausgänge leer.
+function histBlockHTML(lagerId, { showVon = false, titel = '📤 Ausgänge · Historie' } = {}) {
+  const bew = ausgangHistorie(lagerId);
+  if(!bew.length) return '';
+  const totalT = bew.reduce((s,{w}) => s+(Number(w.menge_kg)||0), 0)/1000;
+  return `<div style="margin-top:16px">
+    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">${titel} · ${bew.length} · ${totalT.toFixed(1)} t</div>
+    ${bew.map(b => histRow(b, showVon)).join('')}
+  </div>`;
 }
 
 export function showSiloOverlay() {
@@ -673,86 +745,9 @@ export function renderSiloManagement() {
           <span style="font-size:13px;color:var(--color-text)">${summeStr(zugangT*1000, ausgangT*1000, bestandT*1000)}</span>
         </div>` : ''}
       </div>
+      ${histBlockHTML(lagerId)}
     </div>
   </div>`;
-  };
-
-  // Historie: alle Ausgänge (typ 'ausgang') chronologisch – Umlagerungen in andere
-  // Lager, Lieferungen auf einen Kontrakt sowie Reinigungsabgänge. Zeigt Quelle,
-  // Ziel/Empfänger, Menge und Fruchtart/Sorte je Bewegung + Summen je Kategorie.
-  const historyView = () => {
-    const META = {
-      lieferung:  { label: 'Lieferung',  icon: '📄', farbe: 'var(--color-primary)' },
-      umlagerung: { label: 'Umlagerung', icon: '🔄', farbe: 'var(--blue-500)' },
-      reinigung:  { label: 'Reinigung',  icon: '🌀', farbe: 'var(--color-text-muted)' },
-      ausgang:    { label: 'Ausgang',    icon: '📤', farbe: 'var(--color-text-muted)' },
-    };
-    const kat = (w) =>
-      w.kontrakt_id ? 'lieferung'
-      : /^\s*Umlagerung/i.test(w.notiz||'') ? 'umlagerung'
-      : /^\s*Reinigungsabgang/i.test(w.notiz||'') ? 'reinigung'
-      : 'ausgang';
-    const bew = state.warenbewegungen.filter(w => w.typ === 'ausgang')
-      .map(w => ({ w, k: kat(w) }))
-      .sort((a,b) => new Date(b.w.erstellt_am||0) - new Date(a.w.erstellt_am||0));
-
-    const cropOf = (w) => {
-      const qf = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
-      if(qf) return { fruchtart: qf.fruchtart || '', badge: sorteBadge(qf) };
-      const art = state.artikel.find(a=>a.id===w.artikel_id);
-      return { fruchtart: art ? art.name : '', badge: '' };
-    };
-    const zielOf = (w, k) => {
-      const m = /→\s*(.+?)\s*$/.exec(w.notiz||'');
-      if(k === 'lieferung') {
-        const nr = state.kontrakte.find(x=>x.id===w.kontrakt_id)?.nummer;
-        return (w.empfaenger || 'Kunde') + (nr ? ' · Kontrakt ' + nr : '');
-      }
-      if(k === 'umlagerung') {
-        const qf = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
-        return (qf && qf.siloId) ? lagerLabel(qf.siloId) : (m ? m[1] : '');
-      }
-      return m ? m[1] : (w.empfaenger || '');
-    };
-
-    const sum = { lieferung:0, umlagerung:0, reinigung:0, ausgang:0 };
-    bew.forEach(({w,k}) => sum[k] += (Number(w.menge_kg)||0));
-    const tiles = ['lieferung','umlagerung','reinigung','ausgang']
-      .filter(k => sum[k] > 0)
-      .map(k => `<div style="flex:1;min-width:110px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px 12px;text-align:center">
-        <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--color-text-muted);margin-bottom:3px">${META[k].icon} ${META[k].label}</div>
-        <div style="font-size:18px;font-weight:800;color:${META[k].farbe}">${(sum[k]/1000).toFixed(1)} t</div>
-      </div>`).join('');
-
-    const rowHtml = ({w,k}) => {
-      const m = META[k];
-      const { fruchtart, badge } = cropOf(w);
-      const t = (Number(w.menge_kg)||0)/1000;
-      const datum = w.erstellt_am ? new Date(w.erstellt_am).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-      const von = lagerLabel(w.silo_von_id);
-      const ziel = zielOf(w, k);
-      const fr = getFruchtFarbe(fruchtart);
-      return `<div style="display:flex;border-radius:var(--radius-sm);overflow:hidden;margin-bottom:8px;background:var(--color-surface);border:1px solid var(--color-border)">
-        <div style="width:5px;flex-shrink:0;background:${fruchtart?fr.dot:m.farbe}"></div>
-        <div style="padding:10px 12px;flex:1;min-width:0">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
-            <span style="font-size:11px;font-weight:700;color:${m.farbe};text-transform:uppercase;letter-spacing:.5px">${m.icon} ${m.label}</span>
-            <span style="font-size:12px;color:var(--color-text-muted)">${datum}${w.lieferschein_nr?' · LS '+escapeHtml(w.lieferschein_nr):''}</span>
-          </div>
-          <div style="font-size:14px;font-weight:700;color:var(--color-text)">${escapeHtml(fruchtart||'–')}${badge} · <span style="color:var(--gold)">${t.toFixed(2)} t</span></div>
-          <div style="font-size:12px;color:var(--color-text-muted);margin-top:1px">${escapeHtml(von)} → ${escapeHtml(ziel||'–')}</div>
-        </div>
-      </div>`;
-    };
-
-    const totalOutT = (sum.lieferung+sum.umlagerung+sum.reinigung+sum.ausgang)/1000;
-    return `<div style="display:flex;flex-direction:column;align-items:center;width:100%;padding:16px">
-      <div style="width:100%;max-width:600px">
-        <div style="font-size:var(--text-md);letter-spacing:1px;text-transform:uppercase;color:var(--color-text);margin-bottom:12px">📤 Historie · Ausgänge · ${bew.length} Bewegungen · ${totalOutT.toFixed(1)} t</div>
-        ${tiles ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">${tiles}</div>` : ''}
-        ${bew.length ? bew.map(rowHtml).join('') : `<div style="text-align:center;padding:32px;color:var(--color-text-subtle);font-size:var(--text-md)">Noch keine Ausgänge gebucht.</div>`}
-      </div>
-    </div>`;
   };
 
   const bRow = (silos) => `<div style="display:flex;gap:8px;justify-content:center">${silos.map(sc).join('')}</div>`;
@@ -808,7 +803,7 @@ export function renderSiloManagement() {
   if(!el) return;
   const bg = (v) => view===v ? 'var(--gold)' : 'transparent';
   const cl = (v) => view===v ? '#1a1400' : 'var(--text3)';
-  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : view==='I' ? '17 × 150 t · Innensilos' : view==='T' ? thondorfBoxen.length+' Boxen · Halle Thondorf' : view==='HIST' ? 'Ausgänge · Umlagerungen & Lieferungen' : (FLACHLAGER[view]?.label || '');
+  const capLbl = view==='B' ? '5 × 1.000 t' : view==='A' ? '21 × 300 t' : view==='I' ? '17 × 150 t · Innensilos' : view==='T' ? thondorfBoxen.length+' Boxen · Halle Thondorf' : (FLACHLAGER[view]?.label || '');
   const emptyMsg = totalFertig ? '✓ Alle zugeordnet' : 'Keine fertigen Fuhren';
   const queueHtml = unassigned.length ? unassigned.map(fi).join('') : `<div style="text-align:center;padding:20px 8px;color:var(--text2);font-size:12px">${emptyMsg}</div>`;
   const allChecked = unassigned.length > 0 && _selectedFuhren.size === unassigned.length;
@@ -832,7 +827,6 @@ export function renderSiloManagement() {
             ${Object.entries(FLACHLAGER).map(([k,l]) =>
               `<button onclick="setSiloView('${k}')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg(k)};color:${cl(k)}">${l.toggle}</button>`
             ).join('')}
-            <button onclick="setSiloView('HIST')" style="padding:8px 14px;border-radius:var(--radius-pill);border:none;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;background:${bg('HIST')};color:${cl('HIST')}">📤 Historie</button>
           </div>
           <div class="silo-caplbl" style="font-size:14px;color:var(--text2)">${capLbl}</div>
           <button class="btn btn-sm btn-outline" onclick="exportSiloCSV()">⬇ CSV</button>
@@ -857,7 +851,7 @@ export function renderSiloManagement() {
           </div>
         </div>
         <div class="silo-grid" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;padding:8px">
-          ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : view==='T' ? tGrid : view==='HIST' ? historyView() : lagerView(view)}
+          ${view==='B' ? bList : view==='A' ? aGrid : view==='I' ? iGrid : view==='T' ? tGrid : lagerView(view)}
         </div>
         <div id="silo-detail-panel" class="silo-detail-panel${_activeSiloId?' has-selection':''}" style="width:360px;flex-shrink:0;border-left:1px solid var(--color-border);display:flex;flex-direction:column;background:var(--color-surface)">
           <div style="padding:14px 16px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;gap:8px">
@@ -999,8 +993,9 @@ function renderSiloDetail(siloId) {
         ${avgOel?`<div><div style="font-size:11px;color:var(--text2);margin-bottom:2px">Ölgehalt</div><div style="font-size:22px;font-weight:700;color:var(--text)">${avgOel}<span style="font-size:13px;color:var(--text2)">%</span></div></div>`:''}
       </div>
     </div>` : ''}
-    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">
-      ${assignedFuhren.length} Fuhren · ✕ zum Entfernen
+    ${histBlockHTML(siloId)}
+    <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin:16px 0 10px">
+      📥 ${assignedFuhren.length} Fuhren im Silo · ✕ zum Entfernen
     </div>
     ${assignedFuhren.map(fuhreRow).join('')}
     ${!assignedFuhren.length?`<div style="text-align:center;padding:32px 0;color:var(--text);font-size:14px">Leer</div>`:''}`;
