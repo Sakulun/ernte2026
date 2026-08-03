@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=91';
+import { SB_URL, SB_KEY } from './config.js?v=92';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -78,10 +78,10 @@ export const db = {
     return data.id;
   },
   // Spezial-"Feld" für Reinigungsabgänge (typ 'reinigung'), z.B. "Reinigungsabgang KWS Keitum".
-  async insertFeldReinigung(name, fruchtart) {
+  async insertFeldReinigung(name, fruchtart, bio = false) {
     const { data, error } = await sb.from('felder').insert({
       name, fruchtart: fruchtart || '', flaeche: 0, status: 'aktiv', betrieb: 'Reinigung',
-      typ: 'reinigung'
+      typ: 'reinigung', bio: !!bio
     }).select().single();
     if(error) throw error;
     return data.id;

@@ -1,9 +1,9 @@
-import { state } from './state.js?v=91';
-import { db } from './db.js?v=91';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=91';
-import { getFruchtFarbe } from './frucht.js?v=91';
-import { feuchteZuHoch } from './quality.js?v=91';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=91';
+import { state } from './state.js?v=92';
+import { db } from './db.js?v=92';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=92';
+import { getFruchtFarbe } from './frucht.js?v=92';
+import { feuchteZuHoch } from './quality.js?v=92';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=92';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -508,6 +508,8 @@ export async function reinigenSpeichern(quelleId) {
   const sorten = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))];
   const sorteStr = sorten.join(', ');
   const abgangFruchtart = fuhren.find(f => f.fruchtart)?.fruchtart || kultur || '';
+  // Bio-Status des Abgangs = Bio-Status der gereinigten Ware (Öko-Vermehrung → Öko-Abgang).
+  const abgangBio = fuhren.length > 0 && fuhren.every(f => isBioFuhre(f));
   document.getElementById('silo-reinigen-modal')?.remove();
 
   try {
@@ -527,9 +529,9 @@ export async function reinigenSpeichern(quelleId) {
       const name = 'Reinigungsabgang' + (sorteStr ? ' ' + sorteStr : '');
       let feld = state.felder.find(f => f.typ === 'reinigung' && f.name === name);
       if(!feld) {
-        const feldId = await db.insertFeldReinigung(name, abgangFruchtart);
+        const feldId = await db.insertFeldReinigung(name, abgangFruchtart, abgangBio);
         feld = { id: feldId, name, flaeche: 0, fruchtart: abgangFruchtart, status: 'aktiv',
-          betrieb: 'Reinigung', bio: false, flik: '', nummer: '', typ: 'reinigung', kontaktId: null,
+          betrieb: 'Reinigung', bio: abgangBio, flik: '', nummer: '', typ: 'reinigung', kontaktId: null,
           zukaufFruchtarten: [], zukaufAbfahrerId: null };
         state.felder.push(feld);
       }
