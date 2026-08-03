@@ -1,5 +1,5 @@
-import { state } from './state.js?v=90';
-import { getFeld } from './helpers.js?v=90';
+import { state } from './state.js?v=91';
+import { getFeld } from './helpers.js?v=91';
 
 // Fallback-Liste der Bio-Betriebe (nur relevant für Altdaten ohne pro-Feld-Bio-Flag).
 // Maßgeblich ist das bio-Feld in der felder-Tabelle (aus der Öko-Spalte der Flächenübersicht).
@@ -18,7 +18,20 @@ export function isBioFeld(feldId) {
   return isBioBetrieb(feld.betrieb);
 }
 
-export function isBioFuhre(f) {
+export function isBioFuhre(f, _seen) {
+  const feld = getFeld(f.feldId);
+  // Umlagerungs-Fuhre trägt selbst kein Bio-Flag (die Umlagerungs-"Fläche" ist
+  // neutral) → Bio-Status aus dem Quell-Lager ableiten: bio, wenn alle dort
+  // gelagerten echten Fuhren bio sind. Reinigungsabgänge sind Nebenprodukte und
+  // zählen nicht mit. _seen schützt vor Zyklen bei Ketten-Umlagerungen.
+  if(feld?.typ === 'umlagerung' && f.quelleLagerId) {
+    _seen = _seen || new Set();
+    if(_seen.has(f.quelleLagerId)) return false;
+    _seen.add(f.quelleLagerId);
+    const quell = state.fuhren.filter(x => x.siloId === f.quelleLagerId
+      && x.status === 'fertig' && getFeld(x.feldId)?.typ !== 'reinigung');
+    return quell.length > 0 && quell.every(x => isBioFuhre(x, _seen));
+  }
   return isBioFeld(f.feldId);
 }
 

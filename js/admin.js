@@ -1,4 +1,4 @@
-import { state } from './state.js?v=90';
+import { state } from './state.js?v=91';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -15,7 +15,10 @@ const NAV = [
   { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
 ];
 // Rollen mit eingeschränkter Navigation. Silomeister sieht nur diese Bereiche.
-const ROLE_TABS = { silomeister: ['waage','fuhren','vermehrungen','silos'] };
+const ROLE_TABS = {
+  silomeister: ['waage','fuhren','vermehrungen','silos'],
+  waage:       ['waage','fuhren'],
+};
 function erlaubteTabs() { return ROLE_TABS[state.currentUser?.role] || null; } // null = alle
 
 export function renderAdmin() {
