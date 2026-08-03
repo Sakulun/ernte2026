@@ -1,7 +1,8 @@
-import { state } from './state.js?v=92';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=92';
-import { getFruchtFarbe } from './frucht.js?v=92';
-import { getQualitaetsfelder } from './quality.js?v=92';
+import { state } from './state.js?v=93';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=93';
+import { getFruchtFarbe } from './frucht.js?v=93';
+import { getQualitaetsfelder } from './quality.js?v=93';
+import { isBioFeld, bioBadge } from './bio.js?v=93';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};
@@ -44,11 +45,22 @@ function schlagFuhrenDetail(feldId, fruchtart) {
 }
 
 export function renderAdminFortschritt() {
-  const kulturen = {};
+  // Gruppierung nach Fruchtart UND Bio-Status: Öko-Flächen bilden je Kultur eine
+  // eigene Kachel mit eigenen Summen/Durchschnitten (getrennt von konventionell).
+  const kulturen = {}; // keyed by domKey
+  const ensureKultur = (fruchtart, bio) => {
+    const fa = fruchtart || 'Unbekannt';
+    const domKey = (fa + (bio ? '__oeko' : '')).replace(/[^a-zA-Z0-9]/g,'_');
+    if(!kulturen[domKey]) kulturen[domKey] = {
+      domKey, fruchtart: fa, bio,
+      ha_gesamt:0, ha_aktiv:0, ha_abgeerntet:0, kg_geerntet:0, fuhren:0, schlaege:{}
+    };
+    return kulturen[domKey];
+  };
+
   // Nur echte Schläge – Umlagerung/Zukauf-Quellen gehören nicht in den Erntefortschritt
   state.felder.filter(f => (f.typ||'schlag')==='schlag').forEach(f => {
-    if(!kulturen[f.fruchtart]) kulturen[f.fruchtart] = { ha_gesamt:0, ha_aktiv:0, ha_abgeerntet:0, kg_geerntet:0, fuhren:0, schlaege:{} };
-    const k = kulturen[f.fruchtart];
+    const k = ensureKultur(f.fruchtart, isBioFeld(f.id));
     k.ha_gesamt += f.flaeche;
     if(f.status==='aktiv') k.ha_aktiv += f.flaeche;
     if(f.status==='abgeerntet') k.ha_abgeerntet += f.flaeche;
@@ -57,8 +69,7 @@ export function renderAdminFortschritt() {
 
   state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f)).forEach(f => {
     const fa = f.fruchtart || getFeld(f.feldId).fruchtart || 'Unbekannt';
-    if(!kulturen[fa]) kulturen[fa] = { ha_gesamt:0, ha_aktiv:0, ha_abgeerntet:0, kg_geerntet:0, fuhren:0, schlaege:{} };
-    const k = kulturen[fa];
+    const k = ensureKultur(fa, isBioFeld(f.feldId));
     const kg = netto(f)||0;
     k.kg_geerntet += kg;
     k.fuhren++;
@@ -78,16 +89,18 @@ export function renderAdminFortschritt() {
   const gesamtT = state.fuhren.filter(f=>f.status==='fertig' && istErnteFuhre(f)).reduce((s,f)=>s+(netto(f)||0),0);
   const gesamtPct = gesamtHa>0 ? (abgerntetHa/gesamtHa*100) : 0;
 
-  const sorted = Object.entries(kulturen).sort((a,b)=>b[1].ha_gesamt-a[1].ha_gesamt);
+  // Sortierung: gleiche Kultur zusammen (konventionell vor Öko), größte Fläche zuerst.
+  const sorted = Object.values(kulturen).sort((a,b) =>
+    a.fruchtart.localeCompare(b.fruchtart,'de') || (a.bio - b.bio) || (b.ha_gesamt - a.ha_gesamt));
 
-  const rows = sorted.map(([fa, k]) => {
+  const rows = sorted.map(k => {
     const ha_offen = Math.max(0, k.ha_gesamt - k.ha_abgeerntet - k.ha_aktiv);
     const pct = k.ha_gesamt>0 ? (k.ha_abgeerntet/k.ha_gesamt*100) : 0;
     const pct_aktiv = k.ha_gesamt>0 ? (k.ha_aktiv/k.ha_gesamt*100) : 0;
     const dtHa = k.ha_abgeerntet>0 ? (k.kg_geerntet/100/k.ha_abgeerntet) : null;
     const statusColor = pct>=100 ? 'var(--green2)' : pct>0 ? 'var(--gold2)' : 'var(--text3)';
-    const isOpen = fortschrittExpanded[fa] || false;
-    const faKey = fa.replace(/[^a-zA-Z0-9]/g,'_');
+    const isOpen = fortschrittExpanded[k.domKey] || false;
+    const faKey = k.domKey;
 
     const schlagRows = Object.values(k.schlaege)
       .filter(s => s.kg > 0)
@@ -106,19 +119,21 @@ export function renderAdminFortschritt() {
             <span class="fs-flaeche">${s.flaeche.toFixed(1)} ha</span>
             <span class="fs-ertrag">${dt.toFixed(1)} dt/ha</span>
             <span class="fs-gesamt">${(s.kg/1000).toFixed(1)} t</span>
-          </div>${sOpen ? schlagFuhrenDetail(s.id, fa) : ''}`;
+          </div>${sOpen ? schlagFuhrenDetail(s.id, k.fruchtart) : ''}`;
         }).join('')}
       </div>` : '';
 
     const chevron = schlagRows.length ? `<span style="font-size:11px;color:var(--text2);margin-left:6px">${isOpen?'▲':'▼'}</span>` : '';
-    const clickable = schlagRows.length ? `style="cursor:pointer" onclick="toggleFortschritt('${fa}')"` : '';
+    const clickable = schlagRows.length ? `style="cursor:pointer" onclick="toggleFortschritt('${k.domKey}')"` : '';
+    const cardBorder = k.bio ? 'var(--color-success)' : 'var(--color-border)';
+    const farbe = getFruchtFarbe(k.fruchtart);
 
-    return `<div style="border:1px solid var(--color-border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;background:var(--color-surface)">
+    return `<div style="border:1px solid ${cardBorder};border-left:4px solid ${k.bio?'var(--color-success)':farbe.dot};border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;background:var(--color-surface)">
       <div ${clickable}>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
           <div>
-            <div style="font-size:13px;font-weight:500;color:var(--text);display:flex;align-items:center">
-              ${fa}${chevron}
+            <div style="font-size:13px;font-weight:500;color:var(--text);display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+              ${escapeHtml(k.fruchtart)}${k.bio?bioBadge(true):''}${chevron}
             </div>
             <div style="font-size:11px;color:var(--text2);margin-top:2px">${k.ha_gesamt.toFixed(1)} ha gesamt · ${k.fuhren} Fuhren</div>
           </div>
@@ -149,6 +164,19 @@ export function renderAdminFortschritt() {
 
   const gesamtDtHa = abgerntetHa>0 ? (gesamtT/100/abgerntetHa).toFixed(1) : '–';
 
+  // Bio-/konventionell-Kurzübersicht für den Kopf (eigene Summen)
+  const bioKulturen = Object.values(kulturen).filter(k => k.bio);
+  const bioHa = bioKulturen.reduce((s,k)=>s+k.ha_gesamt,0);
+  const bioAbg = bioKulturen.reduce((s,k)=>s+k.ha_abgeerntet,0);
+  const bioT   = bioKulturen.reduce((s,k)=>s+k.kg_geerntet,0)/1000;
+  const bioZeile = bioHa>0 ? `
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);margin-bottom:14px">
+        <span>${bioBadge(true)} <b style="color:var(--text)">${bioHa.toFixed(1)} ha</b> Öko gesamt</span>
+        <span>· <b style="color:var(--text)">${bioAbg.toFixed(1)} ha</b> abgeerntet</span>
+        <span>· <b style="color:var(--text)">${bioT.toFixed(1)} t</b> geerntet</span>
+        <span style="color:var(--text3)">(konventionell: ${(gesamtHa-bioHa).toFixed(1)} ha)</span>
+      </div>` : '';
+
   document.getElementById('admintab').innerHTML = `
     <div class="card">
       <div class="card-header"><div class="card-title">Gesamtfortschritt</div></div>
@@ -165,6 +193,7 @@ export function renderAdminFortschritt() {
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--gold);border-radius:2px;margin-right:4px"></span>In Arbeit</span>
         <span><span style="display:inline-block;width:10px;height:10px;background:var(--neutral-200);border:1px solid var(--color-border);border-radius:2px;margin-right:4px"></span>Noch offen</span>
       </div>
+      ${bioZeile}
       <div class="stats-grid" style="margin-bottom:0">
         <div class="stat-box"><div class="stat-val">${(gesamtT/1000).toFixed(1)}</div><div class="stat-label">t gesamt</div></div>
         <div class="stat-box"><div class="stat-val" style="color:var(--text)">${abgerntetHa.toFixed(0)}</div><div class="stat-label">ha fertig</div></div>
@@ -172,12 +201,12 @@ export function renderAdminFortschritt() {
         <div class="stat-box"><div class="stat-val" style="color:var(--blue)">${gesamtDtHa}</div><div class="stat-label">Ø dt/ha</div></div>
       </div>
     </div>
-    <div class="section-label" style="margin-top:4px">Nach Kultur — anklicken für Schlag-Details</div>
+    <div class="section-label" style="margin-top:4px">Nach Kultur — Öko getrennt · anklicken für Schlag-Details</div>
     ${rows}`;
 }
 
-export function toggleFortschritt(fa) {
-  fortschrittExpanded[fa] = !fortschrittExpanded[fa];
+export function toggleFortschritt(domKey) {
+  fortschrittExpanded[domKey] = !fortschrittExpanded[domKey];
   renderAdminFortschritt();
 }
 
