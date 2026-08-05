@@ -1,9 +1,9 @@
-import { state } from './state.js?v=95';
-import { db } from './db.js?v=95';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=95';
-import { getFruchtFarbe } from './frucht.js?v=95';
-import { feuchteZuHoch } from './quality.js?v=95';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=95';
+import { state } from './state.js?v=96';
+import { db } from './db.js?v=96';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=96';
+import { getFruchtFarbe } from './frucht.js?v=96';
+import { feuchteZuHoch } from './quality.js?v=96';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=96';
 
 let _activeSiloId = null;
 let _siloView = 'B';

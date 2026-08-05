@@ -1,4 +1,4 @@
-import { state } from './state.js?v=95';
+import { state } from './state.js?v=96';
 
 export function renderMain() {
   const r = state.currentUser.role;

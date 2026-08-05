@@ -1,7 +1,7 @@
-import { state } from './state.js?v=95';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=95';
-import { getFruchtFarbe } from './frucht.js?v=95';
-import { getQualitaetsfelder } from './quality.js?v=95';
+import { state } from './state.js?v=96';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=96';
+import { getFruchtFarbe } from './frucht.js?v=96';
+import { getQualitaetsfelder } from './quality.js?v=96';
 
 // ── Übersicht: Vermehrungen ──────────────────────────────────────────────────
 // Alle Vermehrungssorten mit Status (geerntet/in Ernte/offen), Mengen & Ø-Qualität.
@@ -77,6 +77,10 @@ function mengenUebersicht() {
     sorten.forEach(s => { absiebe[s] = (absiebe[s] || 0) + share; });
   });
 
+  // Fläche je Sorte (aus der vermehrungen-Tabelle) für den dt/ha-Ertrag der Rohware.
+  const flaecheOf = {};
+  state.vermehrungen.forEach(v => { flaecheOf[v.sorte] = (flaecheOf[v.sorte] || 0) + (parseFloat(v.flaeche) || 0); });
+
   const kulturen = {};
   Object.keys(roh).forEach(sorte => {
     const fa = faOf[sorte] || '—';
@@ -89,30 +93,33 @@ function mengenUebersicht() {
   const pct = (a,r) => r > 0 ? (a/r*100) : 0;
   const pctCol = p => p >= 25 ? 'var(--red)' : p >= 15 ? 'var(--gold2)' : p > 0 ? 'var(--green2)' : 'var(--text3)';
   const numTd = (v,extra='') => `<td style="padding:6px 10px;text-align:right;font-variant-numeric:tabular-nums;${extra}">${v}</td>`;
+  const dtHa = (kg,ha) => ha > 0 ? (kg/100/ha).toFixed(1) : '–';
 
-  let gRoh = 0, gAbs = 0;
+  let gRoh = 0, gAbs = 0, gFla = 0;
   const body = faSorted.map(fa => {
     const list = kulturen[fa].sort((a,b) => a.sorte.localeCompare(b.sorte,'de'));
     const sRoh = list.reduce((s,x) => s + x.roh, 0);
     const sAbs = list.reduce((s,x) => s + x.absiebe, 0);
-    gRoh += sRoh; gAbs += sAbs;
+    const sFla = list.reduce((s,x) => s + (flaecheOf[x.sorte] || 0), 0);
+    gRoh += sRoh; gAbs += sAbs; gFla += sFla;
     const farbe = getFruchtFarbe(fa);
     const zeilen = list.map(x => {
       const p = pct(x.absiebe, x.roh);
       return `<tr style="border-bottom:1px solid var(--color-border)">
         <td style="padding:6px 10px 6px 24px;text-align:left;color:var(--text)">🌱 ${escapeHtml(x.sorte)}</td>
         ${numTd(t(x.roh))}
+        ${numTd(dtHa(x.roh, flaecheOf[x.sorte] || 0), 'color:var(--blue)')}
         ${numTd('<b>'+t(x.roh - x.absiebe)+'</b>')}
         ${numTd(x.absiebe > 0 ? t(x.absiebe) : '–')}
         ${numTd(x.absiebe > 0 ? p.toFixed(1)+' %' : '–', 'color:'+pctCol(p))}
       </tr>`;
     }).join('');
     const kopf = `<tr style="background:var(--neutral-200)">
-      <td colspan="5" style="padding:7px 10px;text-align:left;font-weight:700;color:var(--text)">
+      <td colspan="6" style="padding:7px 10px;text-align:left;font-weight:700;color:var(--text)">
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe.dot};margin-right:6px"></span>${escapeHtml(fa)}</td></tr>`;
     const summe = `<tr style="background:var(--neutral-200);font-weight:700;border-top:1px solid var(--color-border)">
       <td style="padding:6px 10px;text-align:left;color:var(--text2)">Σ ${escapeHtml(fa)}</td>
-      ${numTd(t(sRoh))}${numTd(t(sRoh - sAbs))}${numTd(t(sAbs))}
+      ${numTd(t(sRoh))}${numTd(dtHa(sRoh, sFla), 'color:var(--blue)')}${numTd(t(sRoh - sAbs))}${numTd(t(sAbs))}
       ${numTd(pct(sAbs,sRoh).toFixed(1)+' %', 'color:'+pctCol(pct(sAbs,sRoh)))}</tr>`;
     return kopf + zeilen + summe;
   }).join('');
@@ -120,20 +127,20 @@ function mengenUebersicht() {
   const th = 'padding:8px 10px;text-align:right;font-size:11px;color:var(--text2);font-weight:600;border-bottom:2px solid var(--color-border);letter-spacing:.3px';
   const gesamt = `<tr style="font-weight:800;border-top:2px solid var(--color-primary)">
     <td style="padding:9px 10px;text-align:left;color:var(--text)">Gesamt · alle Kulturen</td>
-    ${numTd(t(gRoh))}${numTd(t(gRoh - gAbs))}${numTd(t(gAbs))}
+    ${numTd(t(gRoh))}${numTd(dtHa(gRoh, gFla), 'color:var(--blue)')}${numTd(t(gRoh - gAbs))}${numTd(t(gAbs))}
     ${numTd(pct(gAbs,gRoh).toFixed(1)+' %', 'color:'+pctCol(pct(gAbs,gRoh)))}</tr>`;
 
   return `<div class="card">
     <div class="card-header"><div class="card-title">Mengenübersicht je Sorte</div></div>
     <div style="font-size:11px;color:var(--text3);margin:-4px 0 10px">Gereinigt = Rohware − Absiebe · Absiebe % = Absiebe / Rohware</div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:440px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
         <thead><tr>
           <th style="${th};text-align:left">Sorte / Kultur</th>
-          <th style="${th}">Rohware</th><th style="${th}">Gereinigt</th>
+          <th style="${th}">Rohware</th><th style="${th}">dt/ha</th><th style="${th}">Gereinigt</th>
           <th style="${th}">Absiebe</th><th style="${th}">Absiebe&nbsp;%</th>
         </tr>
-        <tr><th colspan="5" style="padding:0"></th></tr></thead>
+        <tr><th colspan="6" style="padding:0"></th></tr></thead>
         <tbody>${body}${gesamt}</tbody>
       </table>
     </div>
