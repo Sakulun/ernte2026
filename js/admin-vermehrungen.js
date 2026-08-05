@@ -1,7 +1,8 @@
-import { state } from './state.js?v=96';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=96';
-import { getFruchtFarbe } from './frucht.js?v=96';
-import { getQualitaetsfelder } from './quality.js?v=96';
+import { state } from './state.js?v=98';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=98';
+import { getFruchtFarbe } from './frucht.js?v=98';
+import { getQualitaetsfelder } from './quality.js?v=98';
+import { lagerLabel } from './silo.js?v=98';
 
 // ── Übersicht: Vermehrungen ──────────────────────────────────────────────────
 // Alle Vermehrungssorten mit Status (geerntet/in Ernte/offen), Mengen & Ø-Qualität.
@@ -59,12 +60,11 @@ function fuhrenDetail(s) {
   </div>`;
 }
 
-// Mengenübersicht je Sorte/Kultur: Rohware, gereinigte Ware, Absiebe (t + %).
-// Rohware = Summe aller Ernte-Fuhren mit Sorte. Absiebe = Reinigungsabgang-Fuhren
-// (der Sorte über den Feldnamen "Reinigungsabgang <Sorte>" zugeordnet).
-// Gereinigte Ware = Rohware − Absiebe. Summen je Kultur + Gesamtsumme.
-function mengenUebersicht() {
-  const roh = {}, faOf = {}, absiebe = {};
+// Datenbasis der Mengenübersicht (auch für den Excel-Export): je Sorte Rohware,
+// Absiebe, Fläche sowie Roh-/Saatware-Silo. Roh-Silo = Quelle der Reinigung (bzw.
+// aktueller Standort, solange ungereinigt); Saat-Silo = Ziel der Reinigung.
+export function mengenUebersichtDaten() {
+  const roh = {}, faOf = {}, absiebe = {}, flaecheOf = {};
   state.fuhren.filter(f => f.status === 'fertig' && f.sorte).forEach(f => {
     roh[f.sorte] = (roh[f.sorte] || 0) + (netto(f) || 0);
     if(!faOf[f.sorte]) faOf[f.sorte] = f.fruchtart || getFeld(f.feldId).fruchtart || '—';
@@ -76,24 +76,56 @@ function mengenUebersicht() {
     const share = (netto(f) || 0) / sorten.length; // Mehrfach-Reinigung: gleichmäßig aufteilen
     sorten.forEach(s => { absiebe[s] = (absiebe[s] || 0) + share; });
   });
-
-  // Fläche je Sorte (aus der vermehrungen-Tabelle) für den dt/ha-Ertrag der Rohware.
-  const flaecheOf = {};
   state.vermehrungen.forEach(v => { flaecheOf[v.sorte] = (flaecheOf[v.sorte] || 0) + (parseFloat(v.flaeche) || 0); });
 
+  // Rohware-Silo (Quelle) aus den Reinigungs-Warenbewegungen ("… · Silo <Quelle> → <Ziel>").
+  const rohSet = {};
+  state.warenbewegungen.filter(w => w.typ === 'ausgang' && /^\s*Reinigungsabgang/i.test(w.notiz || '')).forEach(w => {
+    const m = /Reinigungsabgang\s*(.*?)\s*·\s*Silo\s*(.+?)\s*→\s*(.+?)\s*$/i.exec(w.notiz || '');
+    if(!m) return;
+    m[1].split(/\s*,\s*/).map(s => s.trim()).filter(Boolean).forEach(s => {
+      (rohSet[s] = rohSet[s] || new Set()).add(m[2].trim());
+    });
+  });
+  const aktSet = {};
+  state.fuhren.filter(f => f.status === 'fertig' && f.sorte && f.siloId).forEach(f => {
+    (aktSet[f.sorte] = aktSet[f.sorte] || new Set()).add(f.siloId);
+  });
+  const siloStr = set => set && set.size ? [...set].map(lagerLabel).join(', ') : '';
+
+  return Object.keys(roh).map(sorte => {
+    // Gereinigt, sobald ein Reinigungsabgang existiert (Absiebe > 0). Saatware-Silo =
+    // aktueller Standort der (gereinigten) Fuhren; Rohware-Silo = Quelle der Reinigung
+    // (aus der Notiz, falls vorhanden), solange ungereinigt = aktueller Standort.
+    const cleaned = (absiebe[sorte] || 0) > 0;
+    return {
+      fruchtart: faOf[sorte] || '—', sorte,
+      rohKg: roh[sorte], absiebeKg: absiebe[sorte] || 0, flaeche: flaecheOf[sorte] || 0,
+      rohSilo: cleaned ? siloStr(rohSet[sorte]) : siloStr(aktSet[sorte]),
+      saatSilo: cleaned ? siloStr(aktSet[sorte]) : '',
+    };
+  }).sort((a,b) => a.fruchtart.localeCompare(b.fruchtart,'de') || a.sorte.localeCompare(b.sorte,'de'));
+}
+
+// Mengenübersicht je Sorte/Kultur als Tabelle: Rohware, dt/ha, gereinigte Ware,
+// Absiebe (t + %), Roh-/Saatware-Silo. Summen je Kultur + Gesamtsumme.
+function mengenUebersicht() {
+  const data = mengenUebersichtDaten();
+  if(!data.length) return '';
+  const flaecheOf = {};
   const kulturen = {};
-  Object.keys(roh).forEach(sorte => {
-    const fa = faOf[sorte] || '—';
-    (kulturen[fa] = kulturen[fa] || []).push({ sorte, roh: roh[sorte], absiebe: absiebe[sorte] || 0 });
+  data.forEach(d => {
+    flaecheOf[d.sorte] = d.flaeche;
+    (kulturen[d.fruchtart] = kulturen[d.fruchtart] || []).push({ sorte: d.sorte, roh: d.rohKg, absiebe: d.absiebeKg, rohSilo: d.rohSilo, saatSilo: d.saatSilo });
   });
   const faSorted = Object.keys(kulturen).sort((a,b) => a.localeCompare(b,'de'));
-  if(!faSorted.length) return '';
 
   const t = kg => (kg/1000).toFixed(1);
   const pct = (a,r) => r > 0 ? (a/r*100) : 0;
   const pctCol = p => p >= 25 ? 'var(--red)' : p >= 15 ? 'var(--gold2)' : p > 0 ? 'var(--green2)' : 'var(--text3)';
   const numTd = (v,extra='') => `<td style="padding:6px 10px;text-align:right;font-variant-numeric:tabular-nums;${extra}">${v}</td>`;
   const dtHa = (kg,ha) => ha > 0 ? (kg/100/ha).toFixed(1) : '–';
+  const siloTd = v => `<td style="padding:6px 10px;text-align:left;font-size:12px;color:var(--text2);white-space:nowrap">${escapeHtml(v || '–')}</td>`;
 
   let gRoh = 0, gAbs = 0, gFla = 0;
   const body = faSorted.map(fa => {
@@ -112,15 +144,16 @@ function mengenUebersicht() {
         ${numTd('<b>'+t(x.roh - x.absiebe)+'</b>')}
         ${numTd(x.absiebe > 0 ? t(x.absiebe) : '–')}
         ${numTd(x.absiebe > 0 ? p.toFixed(1)+' %' : '–', 'color:'+pctCol(p))}
+        ${siloTd(x.rohSilo)}${siloTd(x.saatSilo)}
       </tr>`;
     }).join('');
     const kopf = `<tr style="background:var(--neutral-200)">
-      <td colspan="6" style="padding:7px 10px;text-align:left;font-weight:700;color:var(--text)">
+      <td colspan="8" style="padding:7px 10px;text-align:left;font-weight:700;color:var(--text)">
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe.dot};margin-right:6px"></span>${escapeHtml(fa)}</td></tr>`;
     const summe = `<tr style="background:var(--neutral-200);font-weight:700;border-top:1px solid var(--color-border)">
       <td style="padding:6px 10px;text-align:left;color:var(--text2)">Σ ${escapeHtml(fa)}</td>
       ${numTd(t(sRoh))}${numTd(dtHa(sRoh, sFla), 'color:var(--blue)')}${numTd(t(sRoh - sAbs))}${numTd(t(sAbs))}
-      ${numTd(pct(sAbs,sRoh).toFixed(1)+' %', 'color:'+pctCol(pct(sAbs,sRoh)))}</tr>`;
+      ${numTd(pct(sAbs,sRoh).toFixed(1)+' %', 'color:'+pctCol(pct(sAbs,sRoh)))}<td></td><td></td></tr>`;
     return kopf + zeilen + summe;
   }).join('');
 
@@ -128,19 +161,23 @@ function mengenUebersicht() {
   const gesamt = `<tr style="font-weight:800;border-top:2px solid var(--color-primary)">
     <td style="padding:9px 10px;text-align:left;color:var(--text)">Gesamt · alle Kulturen</td>
     ${numTd(t(gRoh))}${numTd(dtHa(gRoh, gFla), 'color:var(--blue)')}${numTd(t(gRoh - gAbs))}${numTd(t(gAbs))}
-    ${numTd(pct(gAbs,gRoh).toFixed(1)+' %', 'color:'+pctCol(pct(gAbs,gRoh)))}</tr>`;
+    ${numTd(pct(gAbs,gRoh).toFixed(1)+' %', 'color:'+pctCol(pct(gAbs,gRoh)))}<td></td><td></td></tr>`;
 
   return `<div class="card">
-    <div class="card-header"><div class="card-title">Mengenübersicht je Sorte</div></div>
-    <div style="font-size:11px;color:var(--text3);margin:-4px 0 10px">Gereinigt = Rohware − Absiebe · Absiebe % = Absiebe / Rohware</div>
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div class="card-title">Mengenübersicht je Sorte</div>
+      <button class="btn btn-sm btn-outline" onclick="exportMengenuebersichtExcel()">⬇ Excel</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin:-4px 0 10px">Gereinigt = Rohware − Absiebe · Absiebe % = Absiebe / Rohware · Silos: Rohware = Quelle, Saatware = Ziel der Reinigung</div>
     <div style="overflow-x:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:520px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:720px">
         <thead><tr>
           <th style="${th};text-align:left">Sorte / Kultur</th>
           <th style="${th}">Rohware</th><th style="${th}">dt/ha</th><th style="${th}">Gereinigt</th>
           <th style="${th}">Absiebe</th><th style="${th}">Absiebe&nbsp;%</th>
+          <th style="${th};text-align:left">Silo Rohware</th><th style="${th};text-align:left">Silo Saatware</th>
         </tr>
-        <tr><th colspan="6" style="padding:0"></th></tr></thead>
+        <tr><th colspan="8" style="padding:0"></th></tr></thead>
         <tbody>${body}${gesamt}</tbody>
       </table>
     </div>
