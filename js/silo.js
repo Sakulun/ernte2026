@@ -1,9 +1,9 @@
-import { state } from './state.js?v=93';
-import { db } from './db.js?v=93';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=93';
-import { getFruchtFarbe } from './frucht.js?v=93';
-import { feuchteZuHoch } from './quality.js?v=93';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=93';
+import { state } from './state.js?v=94';
+import { db } from './db.js?v=94';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=94';
+import { getFruchtFarbe } from './frucht.js?v=94';
+import { feuchteZuHoch } from './quality.js?v=94';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=94';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -217,6 +217,22 @@ function histBlockHTML(lagerId, { showVon = false, titel = '📤 Ausgänge · Hi
     <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text2);margin-bottom:10px">${titel} · ${bew.length} · ${totalT.toFixed(1)} t</div>
     ${bew.map(b => histRow(b, showVon)).join('')}
   </div>`;
+}
+
+// Bereits gereinigte Sorten (= fertiges Z-Saatgut "ZS"), abgeleitet aus den
+// vorhandenen "Reinigungsabgang <Sorte>"-Feldern. So ist im Silomanagement auf
+// einen Blick erkennbar, welche Sorte schon gereinigt ist und welche noch ansteht.
+function gereinigteSorten() {
+  const set = new Set();
+  for(const f of state.felder) {
+    if(f.typ !== 'reinigung') continue;
+    const raw = (f.name || '').replace(/^Reinigungsabgang\s*/i, '');
+    for(const s of raw.split(/\s*,\s*/)) { const t = s.trim(); if(t) set.add(t); }
+  }
+  return set;
+}
+function zsBadge() {
+  return '<span style="display:inline-block;background:var(--blue-500);color:#fff;font-size:9px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.5px;vertical-align:middle;margin-left:4px" title="Bereits gereinigt · Z-Saatgut">ZS</span>';
 }
 
 export function showSiloOverlay() {
@@ -576,6 +592,7 @@ export function renderSiloManagement() {
   const totalFertig = state.fuhren.filter(f=>f.status==='fertig'&&f.verifiziert).length;
   const totalAssigned = state.fuhren.filter(f=>f.status==='fertig'&&f.verifiziert&&f.siloId).length;
   const view = _siloView;
+  const zsSet = gereinigteSorten(); // bereits gereinigte Sorten -> ZS-Kennzeichnung
 
   // Remove stale selections
   _selectedFuhren.forEach(id => {
@@ -609,8 +626,10 @@ export function renderSiloManagement() {
     const fillBg = active ? 'var(--green-50)' : 'var(--color-surface)';
     const pctText = pct>0 ? `<text x="${sz/2}" y="${sz/2+22}" text-anchor="middle" fill="#73796c" font-size="${isBig?11:9}" font-family="monospace">${pct.toFixed(0)}%</text>` : '';
     const kulturColor = getFruchtFarbe(kultur).dot;
+    const kSorte = (kultur && kultur.startsWith('VERMEHRUNG:')) ? kultur.slice(11) : null;
+    const zs = (kSorte && zsSet.has(kSorte)) ? zsBadge() : '';
     const kulturSpan = kl
-      ? `<span style="color:${kulturColor};font-size:${isBig?12:10}px;font-weight:600">${kl}</span>`
+      ? `<span style="color:${kulturColor};font-size:${isBig?12:10}px;font-weight:600">${kl}</span>${zs}`
       : `<span style="color:var(--text2);font-size:${isBig?11:9}px">leer</span>`;
     const cntSpan = cnt ? `<br><span style="color:var(--text2);font-size:${isBig?10:9}px">${cnt} Fhm</span>` : '';
     return `<div style="display:flex;flex-direction:column;align-items:center;gap:5px;padding:8px 4px;position:relative">
@@ -699,7 +718,7 @@ export function renderSiloManagement() {
         <div style="width:5px;flex-shrink:0;background:${fr.dot}"></div>
         <div style="padding:10px 12px;flex:1;display:flex;align-items:center;gap:10px">
           <div style="flex:1">
-            <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">${f.fruchtart}${sorteBadge(f)}</div>
+            <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">${f.fruchtart}${sorteBadge(f)}${f.sorte&&zsSet.has(f.sorte)?zsBadge():''}</div>
             <div style="font-size:var(--text-base);color:var(--color-text);font-weight:600">${n?(n/1000).toFixed(2)+' t':'–'}</div>
             <div style="font-size:var(--text-sm);color:var(--color-text-muted)">${getFeld(f.feldId).name||'–'} · ${f.feuchte??'–'}%F</div>
           </div>
@@ -722,7 +741,7 @@ export function renderSiloManagement() {
       const mehrereSorten = g.sortenSorted.length > 1;
       const sortenHtml = mehrereSorten ? g.sortenSorted.map(s => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 10px 5px 20px;font-size:12px;color:var(--color-text-muted)">
-          <span>${escapeHtml(s.sorte)}</span>
+          <span>${escapeHtml(s.sorte)}${zsSet.has(s.sorte)?zsBadge():''}</span>
           <span style="color:var(--color-text)">${summeStr(s.zugangKg, s.ausgangKg, s.bestandKg)}</span>
         </div>`).join('') : '';
       const fuhrenHtml = g.sortenSorted.flatMap(s=>s.fuhren).map(fuhreCard).join('');
@@ -786,7 +805,7 @@ export function renderSiloManagement() {
           style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;flex-shrink:0">
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:6px;flex-wrap:wrap">
-            <span style="font-size:14px;font-weight:700;color:var(--text)">${f.fruchtart}${sorteBadge(f)}${isBioFuhre(f)?bioBadge(true):''}</span>
+            <span style="font-size:14px;font-weight:700;color:var(--text)">${f.fruchtart}${sorteBadge(f)}${f.sorte&&zsSet.has(f.sorte)?zsBadge():''}${isBioFuhre(f)?bioBadge(true):''}</span>
             <span style="font-size:13px;color:${verColor}">${verIcon}</span>
           </div>
           <div style="font-size:11px;color:var(--text2);margin-bottom:2px">${escapeHtml(fuhreHerkunft(f))}</div>
@@ -915,6 +934,7 @@ function renderSiloDetail(siloId) {
   const silo = state.silos.find(s=>s.id===siloId);
   if(!silo) return;
   const assignedFuhren = state.fuhren.filter(f=>f.siloId===siloId&&f.status==='fertig').sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+  const zsSet = gereinigteSorten();
   const eingangKg = getSiloFill(siloId);
   const ausgangKg = getSiloAusgang(siloId);
   const bestandKg = Math.max(0, eingangKg - ausgangKg);
@@ -953,7 +973,7 @@ function renderSiloDetail(siloId) {
       +warnBadge
       +'<button onclick="removeFuhreFromSilo('+f.id+')" title="Aus Silo entfernen" style="background:none;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-size:14px;width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0">&#x2715;</button>'
       +'</div>'
-      +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+(isBioFuhre(f)?bioBadge(true):'')+'</div>'
+      +'<div style="font-size:13px;color:var(--text2)">'+f.fruchtart+sorteBadge(f)+(f.sorte&&zsSet.has(f.sorte)?zsBadge():'')+(isBioFuhre(f)?bioBadge(true):'')+'</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">'+escapeHtml(fuhreHerkunft(f))+' · '+(getFeld(f.feldId).name||'–')+' · '+datum+'</div>'
       +'<div style="font-size:12px;margin-top:1px">'+feuchteStr+proteinStr+hlStr+glutenStr+oelStr+'</div>'
       +'</div></div>';
