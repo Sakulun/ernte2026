@@ -1,4 +1,4 @@
-import { state } from './state.js?v=98';
+import { state } from './state.js?v=99';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -11,13 +11,13 @@ const NAV = [
   { section: 'Übersicht',      items: [['dashboard','📊','Dashboard'],['fortschritt','📈','Fortschritt'],['karte','🗺','Karte'],['vermehrungen','🌱','Vermehrungen']] },
   { section: 'Verwaltung',     items: [['schlaege','🌾','Schläge'],['fuhren','🚛','Fuhren'],['nutzer','👥','Nutzer']] },
   { section: 'Lager',          items: [['lager','📦','Lagerübersicht'],['silos','🏭','Silomanagement']] },
-  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Warenbewegungen'],['kontrakte','📋','Kontrakte'],['kontakte','👔','Kunden/Lieferanten'],['artikel','🗂','Artikel']] },
+  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Warenbewegungen'],['kontrakte','📋','Kontrakte'],['zukauf','🧪','Zukauf (Dünger)'],['kontakte','👔','Kunden/Lieferanten'],['artikel','🗂','Artikel']] },
   { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
 ];
 // Rollen mit eingeschränkter Navigation. Silomeister sieht nur diese Bereiche.
 const ROLE_TABS = {
-  silomeister: ['waage','fuhren','vermehrungen','silos'],
-  waage:       ['waage','fuhren'],
+  silomeister: ['waage','fuhren','vermehrungen','silos','zukauf'],
+  waage:       ['waage','fuhren','zukauf'],
 };
 function erlaubteTabs() { return ROLE_TABS[state.currentUser?.role] || null; } // null = alle
 
@@ -80,6 +80,7 @@ export function renderAdmin() {
   else if(adminTab==='kontakte' && window.renderKontakte) window.renderKontakte();
   else if(adminTab==='lager' && window.renderAdminLager) window.renderAdminLager();
   else if(adminTab==='artikel' && window.renderArtikel) window.renderArtikel();
+  else if(adminTab==='zukauf' && window.renderAdminZukauf) window.renderAdminZukauf();
   else if(adminTab==='erntejahr' && window.renderNeuesErntejahr) window.renderNeuesErntejahr();
   else if(adminTab==='waage' && window.renderWaageTab) window.renderWaageTab(document.getElementById('admintab'));
   else if(adminTab==='silos') {

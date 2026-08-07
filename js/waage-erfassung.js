@@ -1,32 +1,35 @@
-import { state } from './state.js?v=98';
-import { db } from './db.js?v=98';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=98';
-import { isBioFeld } from './bio.js?v=98';
-import { getQualitaetsfelder } from './quality.js?v=98';
-import { parseGewicht } from './abfahrer.js?v=98';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=98';
+import { state } from './state.js?v=99';
+import { db } from './db.js?v=99';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=99';
+import { isBioFeld } from './bio.js?v=99';
+import { getQualitaetsfelder } from './quality.js?v=99';
+import { parseGewicht } from './abfahrer.js?v=99';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=99';
 
-// ── Modul "Fuhre erfassen" ───────────────────────────────────────────────────
+// ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
-//  • modus 'abschluss' (Admin/Silomeister, Waage-Tablet): Schlag/Sorte/Abfahrer +
-//    Gewichte/Qualität → Fuhre direkt mit Status "fertig" anlegen.
-//  • modus 'offen' (Abfahrer-Selbsterfassung, mobil): nur Schlag/Sorte wählen
-//    (Abfahrer = angemeldeter Nutzer) → offene Fuhre starten, danach im Tab
-//    "Offen" wiegen. Ersetzt die frühere Drescher-Zuweisung.
+//  • modus 'abschluss' (Admin/Silomeister, Waage-Tablet): Herkunft wählen
+//    (Ernte / Zukauf extern / Umlagerung), Details + Gewichte → direkt abschließen.
+//    Zukauf extern verzweigt in Getreide/Ölsaaten (→ Fuhre, Lieferant + Einkaufs-
+//    kontrakt) und Dünger/Kalk (→ Fremdzukauf-Liste, Düngerart + Freitext-Lieferant).
+//  • modus 'offen' (Abfahrer-Selbsterfassung, mobil): nur Schlag/Sorte wählen.
 
 const WID = 'waage';
 let _container = null;
 let _lockAbfahrer = null;   // feste Abfahrer-ID (Selbsterfassung) oder null = Auswahl
 let _modus = 'abschluss';
+let _herkunft = 'ernte';    // 'ernte' | 'zukauf' | 'umlagerung' (nur Abschluss-Modus)
+let _zukaufTyp = 'getreide'; // 'getreide' | 'duenger'
 
 // Läuft gerade eine (angefangene) Erfassung in dieser Maske? Wird von den
 // Realtime-/Polling-Updates geprüft, damit ein Hintergrund-Neurender die
-// halbfertige Eingabe des Abfahrers nicht wegwirft (auch ohne Feld-Fokus).
+// halbfertige Eingabe nicht wegwirft (auch ohne Feld-Fokus).
 export function erfassungInProgress() {
   const val = id => { const e = document.getElementById(id); return e && String(e.value || '').trim(); };
-  if(val('we-feld')) return true;                 // Schlag/Quelle gewählt
+  if(val('we-feld')) return true;                 // Schlag/Quelle/Lieferant gewählt
+  if(val('we-duengerart') || val('we-dg-lieferant')) return true; // Dünger-Zukauf begonnen
   if(val('voll-' + WID) || val('leer-' + WID)) return true;  // Gewicht eingegeben
-  if(val('we-kennzeichen')) return true;
+  if(val('we-kennzeichen') || val('we-ekontrakt')) return true;
   return [...document.querySelectorAll('[id^="qual-"][id$="-' + WID + '"]')].some(i => String(i.value || '').trim());
 }
 
@@ -76,60 +79,20 @@ function renderQualGrid() {
   ).join('');
 }
 
-function formHTML() {
-  const aktiv = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') === 'schlag').sort((a,b)=>a.name.localeCompare(b.name,'de'));
-  // Spezialquellen: Umlagerung zwischen Lagern + aktivierte Zukauf-Lieferanten
-  const spezial = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') !== 'schlag')
-    .sort((a,b) => a.typ === b.typ ? a.name.localeCompare(b.name,'de') : (a.typ === 'umlagerung' ? -1 : 1));
-  const spezialOptions = spezial.map(f =>
-    `<option value="${f.id}">${f.typ==='umlagerung' ? '🔄 Umlagerung zwischen Lagern' : '🚚 Zukauf: ' + escapeHtml(f.name)}</option>`).join('');
-  const feldOptions = spezialOptions + aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
-  const gesamt = aktiv.length + spezial.length;
-  const warn = gesamt ? '' : `<div class="alert alert-warn">&#9888; Keine aktiven Schläge – bitte zuerst Schläge aktivieren.</div>`;
-
-  let abfahrerBlock;
+// Abfahrer-Auswahl bzw. fester Abfahrer (Selbsterfassung)
+function abfahrerBlockHTML() {
   if(_lockAbfahrer != null) {
     const name = state.users.find(u=>u.id===_lockAbfahrer)?.name || '';
-    abfahrerBlock = `<div class="form-group"><label>Abfahrer</label><div class="fruchtart-fixed">${escapeHtml(name)}</div></div>`;
-  } else {
-    const abfOptions = state.users.filter(u=>u.role==='abfahrer').map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
-    abfahrerBlock = `<div class="form-group"><label>Abfahrer</label><select id="we-abf"><option value="">— Abfahrer wählen —</option>${abfOptions}</select></div>`;
+    return `<div class="form-group"><label>Abfahrer</label><div class="fruchtart-fixed">${escapeHtml(name)}</div></div>`;
   }
+  const abfOptions = state.users.filter(u=>u.role==='abfahrer').map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+  return `<div class="form-group"><label>Abfahrer</label><select id="we-abf"><option value="">— Abfahrer wählen —</option>${abfOptions}</select></div>`;
+}
 
-  const kopf = _modus==='offen'
-    ? `<div class="card-title">🚛 Fuhre erfassen</div><div class="card-sub">Schlag &amp; Sorte wählen – danach im Tab „Offen" wiegen</div>`
-    : `<div class="card-title">⚖ Fuhre an der Waage erfassen</div><div class="card-sub">Schlag, Sorte, Abfahrer + Gewichte/Qualität – direkt abschließen</div>`;
-
-  const oben = `${warn}
-    <div class="card-header"><div>${kopf}</div></div>
-    <div class="form-group">
-      <label>Schlag (${aktiv.length} aktiv)</label>
-      <select id="we-feld" onchange="weFeldWahl()" ${!gesamt?'disabled':''}>
-        <option value="">— Schlag wählen —</option>${feldOptions}
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Fruchtart</label>
-      <div class="fruchtart-fixed" id="we-fruchtart-display">— wird automatisch gesetzt —</div>
-    </div>
-    <div id="we-sorte-group" style="display:none" class="form-group">
-      <label>Partie / Sorte</label>
-      <select id="we-sorte" onchange="weSorteWahl()"><option value="">Konsum</option></select>
-    </div>
-    ${abfahrerBlock}
-    <div id="we-kennzeichen-group" style="display:none" class="form-group">
-      <label>Kennzeichen (Anlieferung)</label>
-      <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase">
-    </div>`;
-
-  if(_modus === 'offen') {
-    return `${oben}
-      <button class="btn btn-primary btn-full" id="we-btn" onclick="weStarten()" ${!gesamt?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#9654; Fuhre starten</button>`;
-  }
-
+// Gewichts-Block (Voll/Leer + Waage-Widget + Netto)
+function gewichteHTML() {
   const waageWidget = window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(WID) : '';
-  return `${oben}
-    <div class="section-label">Gewichte</div>
+  return `<div class="section-label">Gewichte</div>
     ${waageWidget}
     <div class="gewicht-grid">
       <div class="form-group">
@@ -145,10 +108,106 @@ function formHTML() {
         </div>
       </div>
     </div>
-    <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
+    <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>`;
+}
+
+// Segmentierte Umschalter
+function segBtn(onclickFn, active, icon, label, small) {
+  const pad = small ? '10px 6px' : '12px 6px';
+  const fs = small ? '12px' : '13px';
+  return `<button type="button" onclick="${onclickFn}" style="flex:1;min-width:0;padding:${pad};border-radius:var(--radius-md);border:2px solid ${active?'var(--gold)':'var(--color-border)'};background:${active?'var(--gold)':'var(--color-surface)'};color:${active?'#1a1400':'var(--color-text)'};font-family:inherit;font-weight:700;font-size:${fs};cursor:pointer;line-height:1.3">${icon} ${label}</button>`;
+}
+function zukaufTypSel() {
+  return `<div style="display:flex;gap:8px;margin-bottom:14px">
+    ${segBtn("weSetZukaufTyp('getreide')", _zukaufTyp==='getreide', '🌾', 'Getreide/Ölsaaten', true)}
+    ${segBtn("weSetZukaufTyp('duenger')", _zukaufTyp==='duenger', '🧪', 'Dünger/Kalk', true)}
+  </div>`;
+}
+
+function formHTML() {
+  const aktiv = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') === 'schlag').sort((a,b)=>a.name.localeCompare(b.name,'de'));
+
+  // ── Offen-Modus (Abfahrer-Selbsterfassung): unverändert Schlag/Sorte ──
+  if(_modus === 'offen') {
+    const spezial = state.felder.filter(f => f.status === 'aktiv' && (f.typ||'schlag') !== 'schlag')
+      .sort((a,b) => a.typ === b.typ ? a.name.localeCompare(b.name,'de') : (a.typ === 'umlagerung' ? -1 : 1));
+    const spezialOptions = spezial.map(f =>
+      `<option value="${f.id}">${f.typ==='umlagerung' ? '🔄 Umlagerung zwischen Lagern' : '🚚 Zukauf: ' + escapeHtml(f.name)}</option>`).join('');
+    const feldOptions = spezialOptions + aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
+    const gesamt = aktiv.length + spezial.length;
+    const warn = gesamt ? '' : `<div class="alert alert-warn">&#9888; Keine aktiven Schläge – bitte zuerst Schläge aktivieren.</div>`;
+    return `${warn}
+      <div class="card-header"><div><div class="card-title">🚛 Fuhre erfassen</div><div class="card-sub">Schlag &amp; Sorte wählen – danach im Tab „Offen" wiegen</div></div></div>
+      <div class="form-group"><label>Schlag (${aktiv.length} aktiv)</label>
+        <select id="we-feld" onchange="weFeldWahl()" ${!gesamt?'disabled':''}><option value="">— Schlag wählen —</option>${feldOptions}</select></div>
+      <div class="form-group"><label>Fruchtart</label><div class="fruchtart-fixed" id="we-fruchtart-display">— wird automatisch gesetzt —</div></div>
+      <div id="we-sorte-group" style="display:none" class="form-group"><label>Partie / Sorte</label><select id="we-sorte" onchange="weSorteWahl()"><option value="">Konsum</option></select></div>
+      ${abfahrerBlockHTML()}
+      <button class="btn btn-primary btn-full" id="we-btn" onclick="weStarten()" ${!gesamt?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#9654; Fuhre starten</button>`;
+  }
+
+  // ── Abschluss-Modus (Waage-Tablet): Herkunft-Verzweigung ──
+  const kopf = `<div class="card-header"><div><div class="card-title">⚖ Ware an der Waage annehmen</div><div class="card-sub">Herkunft wählen → Details → Gewichte</div></div></div>`;
+  const herkunftSel = `<div style="display:flex;gap:8px;margin-bottom:14px">
+    ${segBtn("weSetHerkunft('ernte')", _herkunft==='ernte', '🌾', 'Ernte')}
+    ${segBtn("weSetHerkunft('zukauf')", _herkunft==='zukauf', '🚚', 'Zukauf extern')}
+    ${segBtn("weSetHerkunft('umlagerung')", _herkunft==='umlagerung', '🔄', 'Umlagerung')}
+  </div>`;
+
+  // ─ ZUKAUF · DÜNGER/KALK → eigene Zukauf-Liste ─
+  if(_herkunft === 'zukauf' && _zukaufTyp === 'duenger') {
+    const arten = ['Kalk','Kalkammonsalpeter (KAS)','Harnstoff','Schwefelsaurer Ammoniak (SSA)','DAP','NPK-Dünger','Kali','Gülle','Gärrest','Kompost','Sonstiges'];
+    return `${kopf}${herkunftSel}${zukaufTypSel()}
+      <div class="form-group"><label>Düngerart / Artikel</label>
+        <input id="we-duengerart" list="dl-duengerarten" placeholder="z.B. Kalk" autocomplete="off">
+        <datalist id="dl-duengerarten">${arten.map(a=>`<option value="${escapeHtml(a)}"></option>`).join('')}</datalist></div>
+      <div class="form-group"><label>Lieferant (Freitext)</label>
+        <input id="we-dg-lieferant" placeholder="z.B. Raiffeisen / Spedition"></div>
+      <div class="form-group"><label>Kennzeichen (optional)</label>
+        <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>
+      ${gewichteHTML()}
+      <button class="btn btn-green btn-full" id="we-btn" onclick="weDuengerSpeichern()">&#10003; Zukauf speichern</button>`;
+  }
+
+  // ─ ERNTE / UMLAGERUNG / ZUKAUF-GETREIDE (alle → Fuhre) ─
+  let quelleBlock = '';
+  if(_herkunft === 'ernte') {
+    const opts = aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
+    quelleBlock = `<div class="form-group"><label>Schlag (${aktiv.length} aktiv)</label>
+      <select id="we-feld" onchange="weFeldWahl()" ${!aktiv.length?'disabled':''}><option value="">— Schlag wählen —</option>${opts}</select>
+      ${aktiv.length?'':'<div style="font-size:11px;color:var(--amber);margin-top:4px">Keine aktiven Schläge.</div>'}</div>`;
+  } else if(_herkunft === 'umlagerung') {
+    const uml = state.felder.filter(f => f.status==='aktiv' && f.typ==='umlagerung');
+    const opts = uml.map(f => `<option value="${f.id}">🔄 ${escapeHtml(f.name)}</option>`).join('');
+    quelleBlock = `<div class="form-group"><label>Umlagerung zwischen Lagern</label>
+      <select id="we-feld" onchange="weFeldWahl()" ${!uml.length?'disabled':''}><option value="">— wählen —</option>${opts}</select></div>`;
+  } else { // zukauf getreide/ölsaaten
+    const lief = state.felder.filter(f => f.status==='aktiv' && f.typ==='lieferant').sort((a,b)=>a.name.localeCompare(b.name,'de'));
+    const opts = lief.map(f => `<option value="${f.id}">🚚 ${escapeHtml(f.name)}</option>`).join('');
+    const ekOpts = state.kontrakte.filter(k => (k.richtung||'verkauf')==='einkauf' && k.nummer)
+      .map(k => `<option value="${escapeHtml(k.nummer)}"></option>`).join('');
+    quelleBlock = `${zukaufTypSel()}
+      <div class="form-group"><label>Lieferant</label>
+        <select id="we-feld" onchange="weFeldWahl()" ${!lief.length?'disabled':''}><option value="">— Lieferant wählen —</option>${opts}</select>
+        ${lief.length?'':'<div style="font-size:11px;color:var(--amber);margin-top:4px">Keine Zukauf-Lieferanten aktiviert – unter „Kunden/Lieferanten" freischalten.</div>'}</div>
+      <div class="form-group"><label>Einkaufskontrakt <span style="font-size:10px;color:var(--text2);font-weight:400">– optional, wählbar oder Freitext</span></label>
+        <input id="we-ekontrakt" list="dl-ekontrakte" placeholder="Kontrakt-Nr. (optional)" autocomplete="off">
+        <datalist id="dl-ekontrakte">${ekOpts}</datalist></div>`;
+  }
+
+  const kzVisible = _herkunft === 'zukauf';
+  const extraBlock = `
+    <div class="form-group"><label>Fruchtart</label><div class="fruchtart-fixed" id="we-fruchtart-display">— wird automatisch gesetzt —</div></div>
+    <div id="we-sorte-group" style="display:none" class="form-group"><label>Partie / Sorte</label><select id="we-sorte" onchange="weSorteWahl()"><option value="">Konsum</option></select></div>
+    ${abfahrerBlockHTML()}
+    <div id="we-kennzeichen-group" style="display:${kzVisible?'block':'none'}" class="form-group"><label>Kennzeichen (Anlieferung)</label>
+      <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>`;
+
+  return `${kopf}${herkunftSel}${quelleBlock}${extraBlock}
+    ${gewichteHTML()}
     <div class="section-label">Qualität <span style="font-size:10px;color:var(--text2);font-weight:400">– optional, fehlende werden abgefragt</span></div>
     <div class="gewicht-grid" id="we-qual-grid"></div>
-    <button class="btn btn-green btn-full" id="we-btn" onclick="weAbschliessen()" ${!gesamt?'disabled style="opacity:.5;cursor:not-allowed"':''}>&#10003; Fuhre abschließen</button>`;
+    <button class="btn btn-green btn-full" id="we-btn" onclick="weAbschliessen()">&#10003; Fuhre abschließen</button>`;
 }
 
 export function renderWaageErfassungInto(el, opts = {}) {
@@ -158,6 +217,17 @@ export function renderWaageErfassungInto(el, opts = {}) {
   _modus = opts.modus || 'abschluss';
   el.innerHTML = `<div class="card" style="max-width:560px;margin:0 auto">${formHTML()}</div>`;
   erfasseGPS(8000); // GPS schon beim Öffnen anwärmen (Ergebnis wird gecacht)
+}
+
+// Herkunft/Zukauf-Typ umschalten → Maske neu aufbauen
+export function weSetHerkunft(h) {
+  _herkunft = h;
+  if(h === 'zukauf' && !_zukaufTyp) _zukaufTyp = 'getreide';
+  if(_container) renderWaageErfassungInto(_container, { abfahrerId: _lockAbfahrer, modus: _modus });
+}
+export function weSetZukaufTyp(t) {
+  _zukaufTyp = t;
+  if(_container) renderWaageErfassungInto(_container, { abfahrerId: _lockAbfahrer, modus: _modus });
 }
 
 function reRenderOrClose() {
@@ -177,17 +247,14 @@ export function weFeldWahl() {
   if(!feldId) {
     el.textContent = '— wird automatisch gesetzt —'; el.style.color = 'var(--text3)';
     if(sorteGroup) sorteGroup.style.display = 'none';
-    if(kzGroup) kzGroup.style.display = 'none';
+    if(kzGroup && _herkunft !== 'zukauf') kzGroup.style.display = 'none';
     renderQualGrid();
     return;
   }
   const feld = getFeld(feldId);
-  // Kennzeichen-Feld nur bei externer Anlieferung (Zukauf-Lieferant), am Waage-Abschluss
-  if(kzGroup) kzGroup.style.display = (feld.typ === 'lieferant' && _modus !== 'offen') ? 'block' : 'none';
+  // Kennzeichen-Feld bei externer Anlieferung (Zukauf-Lieferant)
+  if(kzGroup) kzGroup.style.display = (feld.typ === 'lieferant' && _modus !== 'offen') ? 'block' : (_herkunft==='zukauf'?'block':'none');
   // Umlagerung/Zukauf: Fruchtart je Fuhre wählbar (kein fester Anbau).
-  // Immer die vollständige eigene Kulturliste anbieten, damit externe Fuhren
-  // wie eigene einsortiert werden können. Lieferantenspezifische Extras
-  // (z.B. "Bio Hafer") werden zusätzlich angehängt, damit nichts verloren geht.
   if((feld.typ || 'schlag') !== 'schlag') {
     const eigene = [...new Set(state.felder
       .filter(x => (x.typ||'schlag')==='schlag' && x.fruchtart)
@@ -199,7 +266,6 @@ export function weFeldWahl() {
     </select>`;
     el.style.color = 'var(--gold2)';
     if(sorteGroup) { sorteGroup.style.display = 'none'; if(sorteSelect) sorteSelect.value = ''; }
-    // Standard-Abfahrer voreinstellen (falls konfiguriert und Abfahrer wählbar)
     if(feld.zukaufAbfahrerId) { const abf = document.getElementById('we-abf'); if(abf) abf.value = String(feld.zukaufAbfahrerId); }
     renderQualGrid();
     return;
@@ -254,7 +320,6 @@ export async function weStarten() {
   const sorte = sorteEl ? (sorteEl.value || null) : null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   if((getFeld(feldId).typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
-  // Fuhren-Nummer wird serverseitig vergeben (nutzerunabhängig eindeutig).
   const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
     lat: _gpsPos?.lat ?? null, lon: _gpsPos?.lon ?? null, zeit: new Date().toISOString() };
   const btn = document.getElementById('we-btn');
@@ -270,13 +335,38 @@ export async function weStarten() {
   }
 }
 
-// Waage-Tablet / Abfahrer: prüft Eingaben und zeigt ein Bestätigungs-Popup mit
-// allen Werten ("Speichern" / "Bearbeiten") – erst danach wird gespeichert.
-let _gpsFuerFuhre = null; // in weAbschliessen erfasst, in weAbschliessenSpeichern gespeichert
+// ── Dünger/Kalk-Zukauf speichern (Fremdzukauf-Liste, keine Fuhre) ────────────
+export async function weDuengerSpeichern() {
+  const artikel = (document.getElementById('we-duengerart')?.value || '').trim();
+  if(!artikel) { alert('Bitte Düngerart / Artikel angeben.'); return; }
+  const lieferant = (document.getElementById('we-dg-lieferant')?.value || '').trim();
+  const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
+  const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
+  if(!v || !l || v <= l) { alert('Bitte gültige Gewichte eingeben (Vollgew. > Leergew.).'); return; }
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+  const btn = document.getElementById('we-btn');
+  if(btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
+  try {
+    const saved = await db.insertFremdzukauf({
+      kategorie: 'duenger', artikel, lieferant: lieferant || null,
+      vollgewicht: v, leergewicht: l, mengeKg: v - l,
+      kennzeichen: kennzeichen || null, erstelltVon: state.currentUser?.id || null
+    });
+    if(saved) state.fremdzukauf.unshift(saved);
+    showToast(`✓ Zukauf gespeichert · ${escapeHtml(artikel)} · ${kg2t(v-l)}`);
+    reRenderOrClose();
+  } catch(e) {
+    if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Zukauf speichern'; }
+    showToast('⚠ Fehler: ' + e.message, 'error');
+  }
+}
+
+// Waage-Tablet: prüft Eingaben und zeigt ein Bestätigungs-Popup ("Speichern"/"Bearbeiten").
+let _gpsFuerFuhre = null;
 export async function weAbschliessen() {
   const feldId = parseInt(document.getElementById('we-feld')?.value);
   const abfahrerId = leseAbfahrerId();
-  if(!feldId || !abfahrerId) { alert('Bitte Schlag und Abfahrer wählen.'); return; }
+  if(!feldId || !abfahrerId) { alert('Bitte Herkunft/Schlag und Abfahrer wählen.'); return; }
   const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
   const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
   if(!v || !l || v <= l) { alert('Bitte gültige Gewichte eingeben (Vollgew. > Leergew.).'); return; }
@@ -292,9 +382,9 @@ export async function weAbschliessen() {
   });
   const abfName = state.users.find(u=>u.id===abfahrerId)?.name || '';
   const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
-  // GPS-Position bestimmen (kurzer Timeout; blockiert nie – ohne Empfang gibt es einfach keinen Standort)
+  const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
   _gpsFuerFuhre = await erfasseGPS(4000);
-  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows, gps: _gpsFuerFuhre, kennzeichen });
+  zeigeBestaetigung({ feld, fruchtart, sorte, abfName, v, l, qRows, gps: _gpsFuerFuhre, kennzeichen, einkaufskontrakt });
 }
 
 // Tatsächliches Speichern (nach Bestätigung im Popup).
@@ -310,16 +400,17 @@ async function weAbschliessenSpeichern() {
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   const feld = getFeld(feldId);
   const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+  const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
   const lieferscheinDrucke = feld.typ === 'lieferant' && document.getElementById('we-conf-ls')?.checked;
   const qf = getQualitaetsfelder(fruchtart);
   const q = {};
   for(const key of Object.keys(qf)) { const el = document.getElementById('qual-'+key+'-'+WID); q[key] = el ? (parseFloat(el.value)||null) : null; }
-  // Fuhren-Nummer wird serverseitig vergeben (nutzerunabhängig eindeutig).
   const newFuhre = {
     status:'fertig', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
     vollgewicht: v, leergewicht: l,
     feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null,
     kennzeichen: kennzeichen || null,
+    einkaufskontrakt: (feld.typ === 'lieferant' && einkaufskontrakt) ? einkaufskontrakt : null,
     lat: _gpsFuerFuhre?.lat ?? null, lon: _gpsFuerFuhre?.lon ?? null,
     zeit: new Date().toISOString()
   };
@@ -338,8 +429,6 @@ async function weAbschliessenSpeichern() {
 }
 
 // Lieferschein/Wiegeschein für eine externe Anlieferung (Zukauf) drucken.
-// Nutzt die Firmen-Vorlage; der Lieferant steht als Gegenpartei, die Wiegedaten
-// als Beleg für den Fahrer. Keine Nachhaltigkeits-Zeile (kein Verkauf).
 function druckeWareneingangLieferschein(feld, fruchtart, voll, leer, kennzeichen, nr) {
   const netto = voll - leer;
   const kontakt = feld.kontaktId ? state.kontakte.find(c => c.id === feld.kontaktId) : null;
@@ -392,6 +481,7 @@ function zeigeBestaetigung(d) {
       ${row((d.feld.typ||'schlag')!=='schlag' ? 'Herkunft' : 'Schlag', escapeHtml(d.feld.name||'–'))}
       ${row('Fruchtart', escapeHtml(d.fruchtart||'–'))}
       ${artZeile}
+      ${istLieferant && d.einkaufskontrakt ? row('Einkaufskontrakt', escapeHtml(d.einkaufskontrakt)) : ''}
       ${istLieferant && d.kennzeichen ? row('Kennzeichen', escapeHtml(d.kennzeichen)) : ''}
       ${row('Abfahrer', escapeHtml(d.abfName||'–'))}
       ${row('Vollgewicht', d.v.toLocaleString('de-DE') + ' kg')}
@@ -439,7 +529,6 @@ export function closeWaageErfassung() {
 }
 
 // ── Hängerzug-Auswahl: festes Leergewicht per Antippen übernehmen ────────────
-// Admin & Silomeister können Hängerzüge direkt in der Auswahl anlegen/ändern/löschen.
 function renderHaengerzugWahl(editId = null) {
   let ov = document.getElementById('we-hz-overlay');
   if(!ov) { ov = document.createElement('div'); ov.id = 'we-hz-overlay'; document.body.appendChild(ov); }
@@ -480,7 +569,6 @@ function renderHaengerzugWahl(editId = null) {
   </div>`;
 }
 
-// Zielfeld der Auswahl – die Waage nutzt den Picker aus mehreren Masken heraus
 let _hzTarget = WID;
 export function openHaengerzugWahl(targetWid) { _hzTarget = targetWid || WID; renderHaengerzugWahl(); }
 export function closeHaengerzugWahl() { document.getElementById('we-hz-overlay')?.remove(); }

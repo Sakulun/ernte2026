@@ -1,11 +1,11 @@
-import { state } from './state.js?v=98';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=98';
-import { getSiloFill, getSiloKultur } from './silo.js?v=98';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=98';
+import { state } from './state.js?v=99';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=99';
+import { getSiloFill, getSiloKultur } from './silo.js?v=99';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=99';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=98';
+} from './config.js?v=99';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -293,6 +293,33 @@ export async function exportMengenuebersichtExcel() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Mengenübersicht');
   XLSX.writeFile(wb, 'Ernte2026_Mengenuebersicht.xlsx');
+  showToast('✓ Excel exportiert');
+}
+
+// Zukauf-Liste (fremde Artikel: Dünger/Kalk/Sonstiges) als Excel.
+export async function exportFremdzukaufExcel() {
+  try { await ensureXLSX(); } catch(e) { showToast('Excel-Bibliothek konnte nicht geladen werden.', 'error'); return; }
+  const XLSX = window.XLSX;
+  const list = (state.fremdzukauf || []).slice().sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
+  if(!list.length) { showToast('Keine Zukauf-Daten vorhanden.', 'error'); return; }
+  const r3 = n => Math.round(n * 1000) / 1000;
+  const head = ['Datum','Uhrzeit','Artikel','Lieferant','Kennzeichen','Vollgew_kg','Leergew_kg','Netto_t','Notiz'];
+  const aoa = [head];
+  let sum = 0;
+  list.forEach(x => {
+    const d = new Date(x.erstellt_am);
+    aoa.push([ d.toLocaleDateString('de-DE'), d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}),
+      x.artikel||'', x.lieferant||'', x.kennzeichen||'',
+      x.vollgewicht!=null?Number(x.vollgewicht):null, x.leergewicht!=null?Number(x.leergewicht):null,
+      x.menge_kg!=null?r3(Number(x.menge_kg)/1000):null, x.notiz||'' ]);
+    sum += Number(x.menge_kg)||0;
+  });
+  aoa.push(['Gesamt','','','','','','', r3(sum/1000), '']);
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:11},{wch:8},{wch:20},{wch:22},{wch:12},{wch:12},{wch:12},{wch:10},{wch:20}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Zukauf');
+  XLSX.writeFile(wb, 'Ernte2026_Zukauf.xlsx');
   showToast('✓ Excel exportiert');
 }
 

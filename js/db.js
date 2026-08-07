@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=98';
+import { SB_URL, SB_KEY } from './config.js?v=99';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -117,6 +117,7 @@ export const db = {
       lat: f.lat != null ? parseFloat(f.lat) : null,
       lon: f.lon != null ? parseFloat(f.lon) : null,
       quelleLagerId: f.quelle_lager_id || null,
+      einkaufskontrakt: f.einkaufskontrakt || null,
       zeit: f.zeit,
       verifiziert: f.verifiziert || false,
       verifiziertVon: f.verifiziert_von || null,
@@ -151,7 +152,7 @@ export const db = {
       vollgewicht: f.vollgewicht ?? null, leergewicht: f.leergewicht ?? null,
       feuchte: f.feuchte ?? null, protein: f.protein ?? null, gluten: f.gluten ?? null,
       hl_gewicht: f.hlGewicht ?? null, oelgehalt: f.oelgehalt ?? null, fallzahl: f.fallzahl ?? null,
-      kennzeichen: f.kennzeichen || null,
+      kennzeichen: f.kennzeichen || null, einkaufskontrakt: f.einkaufskontrakt || null,
       lat: f.lat ?? null, lon: f.lon ?? null,
       zeit: f.zeit
     }).select().single();
@@ -297,7 +298,7 @@ export const db = {
       lieferung_bis:k.lieferungBis||null, paritaet:k.paritaet||null,
       bio:k.bio||false, zert_nachhaltig:k.zertNachhaltig||false, zert_gmp:k.zertGmp||false,
       notiz:k.notiz||null, pdf_name:k.pdfName||null,
-      pdf_text:k.pdfText||null, status:'aktiv'
+      pdf_text:k.pdfText||null, status:'aktiv', richtung: k.richtung || 'verkauf'
     }).select().single();
     if(error) throw error; return data;
   },
@@ -314,6 +315,31 @@ export const db = {
   },
   async deleteKontrakt(id) {
     const { error } = await sb.from('kontrakte').delete().eq('id', id);
+    if(error) throw error;
+  },
+  // ── Fremdzukauf: fremde Artikel (Dünger/Kalk/Sonstiges) über die Waage ──
+  async getFremdzukauf() {
+    const { data, error } = await sb.from('fremdzukauf').select('*').order('erstellt_am', {ascending:false});
+    if(error) throw error;
+    return data || [];
+  },
+  async insertFremdzukauf(o) {
+    const { data, error } = await sb.from('fremdzukauf').insert({
+      kategorie: o.kategorie || 'duenger',
+      artikel: o.artikel,
+      lieferant: o.lieferant || null,
+      vollgewicht: o.vollgewicht ?? null,
+      leergewicht: o.leergewicht ?? null,
+      menge_kg: o.mengeKg ?? null,
+      kennzeichen: o.kennzeichen || null,
+      notiz: o.notiz || null,
+      erstellt_von: o.erstelltVon || null
+    }).select().single();
+    if(error) throw error;
+    return data;
+  },
+  async deleteFremdzukauf(id) {
+    const { error } = await sb.from('fremdzukauf').delete().eq('id', id);
     if(error) throw error;
   },
   async getWarenbewegungen() {
@@ -417,6 +443,7 @@ export const db = {
       .on('postgres_changes', {event:'*', schema:'public', table:'kontrakte'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'waage_live'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'umlauf'}, onChange)
+      .on('postgres_changes', {event:'*', schema:'public', table:'fremdzukauf'}, onChange)
       .on('postgres_changes', {event:'*', schema:'public', table:'app_control'}, onChange)
       .subscribe((status, err) => {
         const dot = document.getElementById('topbar-sync');

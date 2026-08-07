@@ -1,5 +1,5 @@
-import { db } from './db.js?v=98';
-import { getSb } from './db.js?v=98';
+import { db } from './db.js?v=99';
+import { getSb } from './db.js?v=99';
 
 let appReady = false;
 
@@ -43,6 +43,7 @@ export const state = {
   warenbewegungen: [],
   kontakte: [],
   kontrakte: [],
+  fremdzukauf: [],
   haengerzuege: [],
   umlauf: [],
   waageLive: null,
@@ -109,6 +110,7 @@ export async function loadAppData() {
     state.warenbewegungen = await db.getWarenbewegungen().catch(e => { console.warn('getWarenbewegungen:', e); return []; });
     state.kontakte = await db.getKontakte().catch(e => { console.warn('getKontakte:', e); return []; });
     state.kontrakte = await db.getKontrakte().catch(e => { console.warn('getKontrakte:', e); return []; });
+    state.fremdzukauf = await db.getFremdzukauf().catch(e => { console.warn('getFremdzukauf:', e); return []; });
     state.haengerzuege = await db.getHaengerzuege().catch(e => { console.warn('getHaengerzuege:', e); return []; });
     state.umlauf = await db.getUmlauf().catch(e => { console.warn('getUmlauf:', e); return []; });
     const sb = getSb();
@@ -178,6 +180,7 @@ export async function loadAppData() {
         if(tbl === 'artikel') { state.artikel = await db.getArtikel().catch(()=>[]); return; }
         if(tbl === 'kontakte') { state.kontakte = await db.getKontakte().catch(()=>[]); return; }
         if(tbl === 'kontrakte') { state.kontrakte = await db.getKontrakte().catch(()=>[]); return; }
+        if(tbl === 'fremdzukauf') { state.fremdzukauf = await db.getFremdzukauf().catch(()=>[]); return; }
         if(tbl === 'waage_live') {
           try { const { data } = await sb.from('waage_live').select('*').eq('id',1).single(); state.waageLive = data || null; } catch(e) {}
           if(window.updateWaageWidget) window.updateWaageWidget();

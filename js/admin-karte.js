@@ -1,6 +1,6 @@
-import { state } from './state.js?v=98';
-import { db } from './db.js?v=98';
-import { getUser, netto } from './helpers.js?v=98';
+import { state } from './state.js?v=99';
+import { db } from './db.js?v=99';
+import { getUser, netto } from './helpers.js?v=99';
 
 let _mapInstance = null;
 let _gpsWatcher = null;

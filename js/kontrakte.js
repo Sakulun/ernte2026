@@ -1,6 +1,6 @@
-import { state } from './state.js?v=98';
-import { db } from './db.js?v=98';
-import { showToast, escapeHtml } from './helpers.js?v=98';
+import { state } from './state.js?v=99';
+import { db } from './db.js?v=99';
+import { showToast, escapeHtml } from './helpers.js?v=99';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -11,6 +11,9 @@ let _pdfImport = { name: '', text: '' };
 let _kFilterFruchtart = '';
 let _kFilterKunde = '';
 let _kSuche = '';
+let _kRichtung = 'verkauf'; // 'verkauf' | 'einkauf' – getrennte Ansicht/Anlage
+
+export function setKontraktRichtung(r) { _kRichtung = r; renderKontrakte(); }
 
 // Fruchtart-/Artikelname eines Kontrakts (für Anzeige + Filter + Suche).
 function kontraktFruchtart(k) {
@@ -180,12 +183,14 @@ function fruchtartUebersichtHTML() {
 }
 
 export function renderKontrakte() {
-  const aktiv    = state.kontrakte.filter(k=>k.status==='aktiv');
-  const erfuellt = state.kontrakte.filter(k=>k.status==='erfuellt');
-  const stornier = state.kontrakte.filter(k=>k.status==='storniert');
+  const alle     = state.kontrakte.filter(k => (k.richtung||'verkauf') === _kRichtung);
+  const einkauf  = _kRichtung === 'einkauf';
+  const aktiv    = alle.filter(k=>k.status==='aktiv');
+  const erfuellt = alle.filter(k=>k.status==='erfuellt');
+  const stornier = alle.filter(k=>k.status==='storniert');
   // Summen/Übersicht über alle nicht-stornierten Kontrakte (aktiv + erfüllt),
   // damit bereits erfüllte Lieferungen (z.B. Raps) nicht fehlen.
-  const offen    = state.kontrakte.filter(k=>k.status!=='storniert');
+  const offen    = alle.filter(k=>k.status!=='storniert');
   const gesamtT  = offen.reduce((s,k)=>s+(k.menge_t||0),0);
   const geliefT  = offen.reduce((s,k)=>s+getKontraktGeliefertKg(k.id)/1000,0);
 
@@ -194,8 +199,8 @@ export function renderKontrakte() {
   const fAktiv    = aktiv.filter(kontraktPasst);
   const fErfuellt = erfuellt.filter(kontraktPasst);
   const fStornier = stornier.filter(kontraktPasst);
-  const fruchtarten = [...new Set(state.kontrakte.map(kontraktFruchtart).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
-  const kunden      = [...new Set(state.kontrakte.map(kontraktKundeName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
+  const fruchtarten = [...new Set(alle.map(kontraktFruchtart).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
+  const kunden      = [...new Set(alle.map(kontraktKundeName).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
   const fruchtartOpts = fruchtarten.map(f=>`<option value="${escapeHtml(f)}" ${_kFilterFruchtart===f?'selected':''}>${escapeHtml(f)}</option>`).join('');
   const kundeOpts     = kunden.map(k=>`<option value="${escapeHtml(k)}" ${_kFilterKunde===k?'selected':''}>${escapeHtml(k)}</option>`).join('');
 
@@ -247,8 +252,12 @@ export function renderKontrakte() {
     </div>`;
   };
 
+  const richtBtn = (r, label) => `<button type="button" onclick="setKontraktRichtung('${r}')" style="flex:1;padding:10px;border-radius:var(--radius-md);border:2px solid ${_kRichtung===r?'var(--gold)':'var(--color-border)'};background:${_kRichtung===r?'var(--gold)':'var(--color-surface)'};color:${_kRichtung===r?'#1a1400':'var(--color-text)'};font-family:inherit;font-weight:700;font-size:13px;cursor:pointer">${label}</button>`;
   let html = `
-    <div id="kontrakt-dropzone"
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      ${richtBtn('verkauf','🡒 Verkaufskontrakte')}${richtBtn('einkauf','🡐 Einkaufskontrakte')}
+    </div>
+    ${einkauf ? '' : `<div id="kontrakt-dropzone"
       style="border:2px dashed var(--border2);border-radius:var(--radius);padding:28px;text-align:center;margin-bottom:16px;cursor:pointer;transition:border-color .2s;background:var(--bg2)"
       ondragover="event.preventDefault();this.style.borderColor='var(--gold)'"
       ondragleave="this.style.borderColor='var(--border2)'"
@@ -258,7 +267,7 @@ export function renderKontrakte() {
       <div style="font-size:11px;color:var(--text3)">Kernfelder werden automatisch erkannt · danach zur Prüfung anzeigen</div>
       <input type="file" id="kontrakt-file-input" accept=".pdf" style="display:none" onchange="kontraktPDFDatei(this)">
       <button class="btn btn-sm btn-outline" style="margin-top:12px" onclick="document.getElementById('kontrakt-file-input').click()">Datei wählen</button>
-    </div>
+    </div>`}
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
       <div class="stat-box"><div class="stat-val" style="font-size:22px">${aktiv.length}</div><div class="stat-label">aktive Kontrakte</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${gesamtT.toFixed(0)}</div><div class="stat-label">t kontraktiert</div></div>
@@ -481,6 +490,7 @@ export async function kontraktSpeichern(id) {
     notiz: document.getElementById('kk-notiz')?.value.trim()||null,
     pdfName: _pdfImport.name || null,
     pdfText: (_pdfImport.text || '').slice(0, 5000) || null,
+    richtung: _kRichtung,
   };
   try {
     if(id) {
