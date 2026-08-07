@@ -1,10 +1,10 @@
-import { state } from './state.js?v=100';
-import { db } from './db.js?v=100';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=100';
-import { isBioFeld } from './bio.js?v=100';
-import { getQualitaetsfelder } from './quality.js?v=100';
-import { parseGewicht } from './abfahrer.js?v=100';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=100';
+import { state } from './state.js?v=102';
+import { db } from './db.js?v=102';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=102';
+import { isBioFeld } from './bio.js?v=102';
+import { getQualitaetsfelder } from './quality.js?v=102';
+import { parseGewicht } from './abfahrer.js?v=102';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=102';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -148,10 +148,11 @@ function formHTML() {
 
   // ── Abschluss-Modus (Waage-Tablet): Herkunft-Verzweigung ──
   const kopf = `<div class="card-header"><div><div class="card-title">⚖ Ware an der Waage annehmen</div><div class="card-sub">Herkunft wählen → Details → Gewichte</div></div></div>`;
+  // Umlagerung ist Teil der Ernte-Schlagauswahl (kein eigener Button mehr).
+  if(_herkunft === 'umlagerung') _herkunft = 'ernte';
   const herkunftSel = `<div style="display:flex;gap:8px;margin-bottom:14px">
-    ${segBtn("weSetHerkunft('ernte')", _herkunft==='ernte', '🌾', 'Ernte')}
+    ${segBtn("weSetHerkunft('ernte')", _herkunft!=='zukauf', '🌾', 'Ernte')}
     ${segBtn("weSetHerkunft('zukauf')", _herkunft==='zukauf', '🚚', 'Zukauf extern')}
-    ${segBtn("weSetHerkunft('umlagerung')", _herkunft==='umlagerung', '🔄', 'Umlagerung')}
   </div>`;
 
   // ─ ZUKAUF · DÜNGER/KALK → eigene Zukauf-Liste ─
@@ -174,16 +175,14 @@ function formHTML() {
 
   // ─ ERNTE / UMLAGERUNG / ZUKAUF-GETREIDE (alle → Fuhre) ─
   let quelleBlock = '';
-  if(_herkunft === 'ernte') {
+  if(_herkunft !== 'zukauf') { // Ernte – inkl. Umlagerung zwischen Lagern (über die Schlagauswahl)
+    // Umlagerung ist ein virtuelles Feld – Status egal, immer als Option anbieten.
+    const umlOpts = state.felder.filter(f => f.typ==='umlagerung')
+      .map(f => `<option value="${f.id}">🔄 Umlagerung zwischen Lagern</option>`).join('');
     const opts = aktiv.map(f => `<option value="${f.id}">${escapeHtml(f.name)} · ${escapeHtml(f.fruchtart)} (${f.flaeche} ha)</option>`).join('');
-    quelleBlock = `<div class="form-group"><label>Schlag (${aktiv.length} aktiv)</label>
-      <select id="we-feld" onchange="weFeldWahl()" ${!aktiv.length?'disabled':''}><option value="">— Schlag wählen —</option>${opts}</select>
+    quelleBlock = `<div class="form-group"><label>Schlag${umlOpts?' / Umlagerung':''} (${aktiv.length} aktiv)</label>
+      <select id="we-feld" onchange="weFeldWahl()" ${(!aktiv.length && !umlOpts)?'disabled':''}><option value="">— Schlag wählen —</option>${umlOpts}${opts}</select>
       ${aktiv.length?'':'<div style="font-size:11px;color:var(--amber);margin-top:4px">Keine aktiven Schläge.</div>'}</div>`;
-  } else if(_herkunft === 'umlagerung') {
-    const uml = state.felder.filter(f => f.status==='aktiv' && f.typ==='umlagerung');
-    const opts = uml.map(f => `<option value="${f.id}">🔄 ${escapeHtml(f.name)}</option>`).join('');
-    quelleBlock = `<div class="form-group"><label>Umlagerung zwischen Lagern</label>
-      <select id="we-feld" onchange="weFeldWahl()" ${!uml.length?'disabled':''}><option value="">— wählen —</option>${opts}</select></div>`;
   } else { // zukauf getreide/ölsaaten
     const lief = state.felder.filter(f => f.status==='aktiv' && f.typ==='lieferant').sort((a,b)=>a.name.localeCompare(b.name,'de'));
     const opts = lief.map(f => `<option value="${f.id}">🚚 ${escapeHtml(f.name)}</option>`).join('');
