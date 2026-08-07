@@ -1,10 +1,10 @@
-import { state } from './state.js?v=99';
-import { db } from './db.js?v=99';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=99';
-import { isBioFeld } from './bio.js?v=99';
-import { getQualitaetsfelder } from './quality.js?v=99';
-import { parseGewicht } from './abfahrer.js?v=99';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=99';
+import { state } from './state.js?v=100';
+import { db } from './db.js?v=100';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=100';
+import { isBioFeld } from './bio.js?v=100';
+import { getQualitaetsfelder } from './quality.js?v=100';
+import { parseGewicht } from './abfahrer.js?v=100';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=100';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -166,7 +166,10 @@ function formHTML() {
       <div class="form-group"><label>Kennzeichen (optional)</label>
         <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>
       ${gewichteHTML()}
-      <button class="btn btn-green btn-full" id="we-btn" onclick="weDuengerSpeichern()">&#10003; Zukauf speichern</button>`;
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1;min-width:0" onclick="weInUmlauf()" title="Mit nur einem Gewicht in den Umlaufspeicher">🅿 In Umlauf</button>
+        <button class="btn btn-green" style="flex:2;min-width:0" id="we-btn" onclick="weDuengerSpeichern()">&#10003; Speichern</button>
+      </div>`;
   }
 
   // ─ ERNTE / UMLAGERUNG / ZUKAUF-GETREIDE (alle → Fuhre) ─
@@ -207,7 +210,10 @@ function formHTML() {
     ${gewichteHTML()}
     <div class="section-label">Qualität <span style="font-size:10px;color:var(--text2);font-weight:400">– optional, fehlende werden abgefragt</span></div>
     <div class="gewicht-grid" id="we-qual-grid"></div>
-    <button class="btn btn-green btn-full" id="we-btn" onclick="weAbschliessen()">&#10003; Fuhre abschließen</button>`;
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" style="flex:1;min-width:0" onclick="weInUmlauf()" title="Mit nur einem Gewicht in den Umlaufspeicher – zweite Wiegung später">🅿 In Umlauf</button>
+      <button class="btn btn-green" style="flex:2;min-width:0" id="we-btn" onclick="weAbschliessen()">&#10003; Abschließen</button>
+    </div>`;
 }
 
 export function renderWaageErfassungInto(el, opts = {}) {
@@ -357,6 +363,148 @@ export async function weDuengerSpeichern() {
     reRenderOrClose();
   } catch(e) {
     if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Zukauf speichern'; }
+    showToast('⚠ Fehler: ' + e.message, 'error');
+  }
+}
+
+// ── In den (gemeinsamen) Umlaufspeicher schicken – mit nur EINEM Gewicht ──────
+// Zweite Wiegung erfolgt später über den Umlauf-Bereich.
+export async function weInUmlauf() {
+  const duenger = _herkunft === 'zukauf' && _zukaufTyp === 'duenger';
+  const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
+  const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
+  const anzahl = (v ? 1 : 0) + (l ? 1 : 0);
+  if(anzahl === 0) { alert('Bitte ein Gewicht (Voll ODER Leer) für den Umlauf eingeben.'); return; }
+  if(anzahl === 2) { alert('Beide Gewichte vorhanden – dann bitte direkt „Abschließen". Für den Umlauf nur ein Gewicht.'); return; }
+  const erstgewicht = v || l;
+  const erstTyp = v ? 'voll' : 'leer';
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+
+  let payload;
+  if(duenger) {
+    const artikel = (document.getElementById('we-duengerart')?.value || '').trim();
+    if(!artikel) { alert('Bitte Düngerart / Artikel angeben.'); return; }
+    payload = { kategorie: 'duenger', artikel, lieferant: (document.getElementById('we-dg-lieferant')?.value || '').trim() || null };
+  } else {
+    const feldId = parseInt(document.getElementById('we-feld')?.value);
+    if(!feldId) { alert('Bitte Herkunft/Schlag wählen.'); return; }
+    const abfahrerId = leseAbfahrerId();
+    if(!abfahrerId) { alert('Bitte Abfahrer wählen.'); return; }
+    const sorte = document.getElementById('we-sorte')?.value || null;
+    const fruchtart = fruchtartFuerSorte(feldId, sorte);
+    const feld = getFeld(feldId);
+    if((feld.typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
+    const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
+    payload = { feldId, fruchtart: fruchtart || '', sorte, abfahrerId, herkunftName: feld.name || '',
+      einkaufskontrakt: (feld.typ === 'lieferant' && einkaufskontrakt) ? einkaufskontrakt : null };
+  }
+
+  const btn = document.getElementById('we-btn');
+  if(btn) btn.disabled = true;
+  try {
+    const saved = await db.insertUmlauf({
+      richtung: 'eingang', kennzeichen: kennzeichen || null,
+      erstgewicht, erstTyp, payload, erstelltVon: state.currentUser?.id || null
+    });
+    state.umlauf = state.umlauf || [];
+    if(saved) state.umlauf.push(saved);
+    showToast(`🅿 ${kennzeichen || 'Fahrzeug'} in den Umlauf · ${erstTyp==='voll'?'Voll':'Leer'} ${erstgewicht.toLocaleString('de-DE')} kg`);
+    if(document.getElementById('we-overlay')) { closeWaageErfassung(); return; }
+    if(window.waUmlaufListe) window.waUmlaufListe(); else reRenderOrClose();
+  } catch(e) {
+    if(btn) btn.disabled = false;
+    showToast('⚠ Fehler: ' + e.message, 'error');
+  }
+}
+
+// ── Zweitwiegung: einen wartenden Eingangs-Umlauf abschließen ─────────────────
+let _umlaufEntry = null;
+export function renderUmlaufEingangAbschluss(el, u) {
+  if(!el) return;
+  _umlaufEntry = u;
+  const p = u.payload || {};
+  const duenger = p.kategorie === 'duenger';
+  const erst = Number(u.erstgewicht || 0);
+  const erstVoll = u.erst_typ === 'voll';
+  const zweitId = erstVoll ? 'leer-' + WID : 'voll-' + WID;
+  const artikelBez = duenger ? (p.artikel || 'Dünger') : (p.fruchtart || '–');
+  const herkunft = duenger ? (p.lieferant ? 'Lieferant: ' + p.lieferant : 'Zukauf Dünger') : (p.herkunftName || 'Wareneingang');
+  const widget = window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(WID) : '';
+  const row = (k, val) => `<tr><td style="padding:5px 4px;color:var(--text2);width:44%">${escapeHtml(k)}</td><td style="padding:5px 4px;font-weight:600">${val}</td></tr>`;
+  el.innerHTML = `<div class="card">
+    <div class="card-header"><div>
+      <div class="card-title">↓ Zweitwiegung · 🚚 ${escapeHtml(u.kennzeichen || '—')}</div>
+      <div class="card-sub">${duenger ? 'Dünger-Zukauf' : 'Wareneingang'} abschließen</div></div>
+      <button onclick="waUmlaufListe()" title="Zurück zur Liste" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-muted)">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:10px">
+      ${row(duenger ? 'Artikel' : 'Fruchtart', escapeHtml(artikelBez))}
+      ${row('Herkunft', escapeHtml(herkunft))}
+      ${row(erstVoll ? 'Vollgewicht (1. Wiegung)' : 'Leergewicht (1. Wiegung)', '<b>' + erst.toLocaleString('de-DE') + '</b> kg')}
+    </table>
+    <div class="section-label">${erstVoll ? 'Leergewicht (kg)' : 'Vollgewicht (kg)'} – 2. Wiegung</div>
+    ${widget}
+    <div class="form-group" style="display:flex;gap:6px">
+      <input type="text" inputmode="numeric" id="${zweitId}" placeholder="Gewicht (kg)" style="font-size:20px;font-weight:700;letter-spacing:0.5px;flex:1;min-width:0" oninput="fmtGewicht(this);weUmlaufNetto()">
+      ${erstVoll ? `<button type="button" onclick="openHaengerzugWahl('${WID}')" title="Hängerzug wählen" style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>` : ''}
+    </div>
+    <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-outline" style="flex-shrink:0" onclick="waUmlaufStornieren(${u.id})" title="Aus dem Umlauf nehmen">✕</button>
+      <button class="btn btn-green btn-full" id="we-btn" onclick="weUmlaufAbschliessen(${u.id})">&#10003; Abschließen</button>
+    </div>
+  </div>`;
+}
+
+export function weUmlaufNetto() {
+  const el = document.getElementById('netto-' + WID);
+  if(!el || !_umlaufEntry) return;
+  const erst = Number(_umlaufEntry.erstgewicht || 0);
+  const erstVoll = _umlaufEntry.erst_typ === 'voll';
+  const zweit = parseGewicht(document.getElementById(erstVoll ? 'leer-' + WID : 'voll-' + WID)?.value);
+  const voll = erstVoll ? erst : zweit;
+  const leer = erstVoll ? zweit : erst;
+  if(voll && leer && voll > leer) { el.textContent = (voll - leer).toLocaleString('de-DE'); el.style.color = 'var(--green2)'; }
+  else { el.textContent = '—'; el.style.color = 'var(--text3)'; }
+}
+
+export async function weUmlaufAbschliessen(id) {
+  const u = (_umlaufEntry && _umlaufEntry.id === id) ? _umlaufEntry : (state.umlauf || []).find(x => x.id === id);
+  if(!u) { showToast('⚠ Umlauf-Eintrag nicht gefunden', 'error'); return; }
+  const p = u.payload || {};
+  const erst = Number(u.erstgewicht || 0);
+  const erstVoll = u.erst_typ === 'voll';
+  const zweit = parseGewicht(document.getElementById(erstVoll ? 'leer-' + WID : 'voll-' + WID)?.value);
+  if(!zweit || zweit <= 0) { alert('Bitte das zweite Gewicht eingeben.'); return; }
+  const voll = erstVoll ? erst : zweit;
+  const leer = erstVoll ? zweit : erst;
+  if(!(voll > leer)) { alert('Vollgewicht muss größer als Leergewicht sein.'); return; }
+  const btn = document.getElementById('we-btn');
+  if(btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
+  try {
+    if(p.kategorie === 'duenger') {
+      const saved = await db.insertFremdzukauf({ kategorie: 'duenger', artikel: p.artikel, lieferant: p.lieferant || null,
+        vollgewicht: voll, leergewicht: leer, mengeKg: voll - leer, kennzeichen: u.kennzeichen || null, erstelltVon: state.currentUser?.id || null });
+      if(saved) state.fremdzukauf.unshift(saved);
+      showToast(`✓ Zukauf gespeichert · ${escapeHtml(p.artikel || '')} · ${kg2t(voll - leer)}`);
+    } else {
+      const res = await db.insertFuhreKomplett({
+        status: 'fertig', drescherId: state.currentUser?.role === 'abfahrer' ? null : (state.currentUser?.id ?? null),
+        abfahrerId: p.abfahrerId || null, feldId: p.feldId, fruchtart: p.fruchtart || '', sorte: p.sorte || null,
+        vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null,
+        einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString()
+      });
+      state.fuhren.push({ id: res.id, nr: res.nr, status: 'fertig', feldId: p.feldId, fruchtart: p.fruchtart || '', sorte: p.sorte || null,
+        abfahrerId: p.abfahrerId || null, vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null,
+        einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString() });
+      showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(voll - leer)}`);
+    }
+    await db.umlaufErledigt(id);
+    state.umlauf = (state.umlauf || []).filter(x => x.id !== id);
+    _umlaufEntry = null;
+    if(window.waUmlaufListe) window.waUmlaufListe();
+  } catch(e) {
+    if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Abschließen'; }
     showToast('⚠ Fehler: ' + e.message, 'error');
   }
 }

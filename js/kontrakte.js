@@ -1,6 +1,6 @@
-import { state } from './state.js?v=99';
-import { db } from './db.js?v=99';
-import { showToast, escapeHtml } from './helpers.js?v=99';
+import { state } from './state.js?v=100';
+import { db } from './db.js?v=100';
+import { showToast, escapeHtml } from './helpers.js?v=100';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut

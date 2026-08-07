@@ -1,10 +1,10 @@
-import { state } from './state.js?v=99';
-import { db } from './db.js?v=99';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=99';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=99';
-import { parseGewicht } from './abfahrer.js?v=99';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=99';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=99';
+import { state } from './state.js?v=100';
+import { db } from './db.js?v=100';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=100';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=100';
+import { parseGewicht } from './abfahrer.js?v=100';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=100';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=100';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -15,19 +15,29 @@ import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?
 //         änderbar, zusätzlich das Vollgewicht → bucht und druckt in einem Schritt.
 
 const WID = 'wa';            // Feld-Suffix (voll-wa / leer-wa)
-let _modus = null;           // null | 'eingang' | 'ausgang'
-let _ausgangView = 'neu';    // 'neu' = Leerwiegung, 'umlauf' = wartende Fahrzeuge
-let _offenesFahrzeug = null; // umlauf.id, dessen Vollwiegung gerade offen ist
+let _modus = null;           // null | 'eingang' | 'ausgang' | 'umlauf'
+let _offenesFahrzeug = null; // umlauf.id (Ausgang), dessen Vollwiegung offen ist
+let _offeneEingangUmlauf = null; // umlauf-Eintrag (Eingang), der abgeschlossen wird
 let _container = null;
 
 export function setWaageModus(m) {
   _modus = m;
+  _offenesFahrzeug = null;
+  _offeneEingangUmlauf = null;
   if(_container) renderWaageTab(_container);
 }
 
+// Zurück zur Umlauf-Liste (aus einer offenen Zweitwiegung).
 export function setAusgangView(v) {
-  _ausgangView = v;
-  if(v !== 'umlauf') _offenesFahrzeug = null;
+  _offenesFahrzeug = null;
+  _offeneEingangUmlauf = null;
+  _modus = (v === 'umlauf') ? 'umlauf' : 'ausgang';
+  if(_container) renderWaageTab(_container);
+}
+export function waUmlaufListe() {
+  _offenesFahrzeug = null;
+  _offeneEingangUmlauf = null;
+  _modus = 'umlauf';
   if(_container) renderWaageTab(_container);
 }
 
@@ -36,26 +46,29 @@ function wartende() {
 }
 
 function umschalter() {
-  const btn = (m, icon, label, farbe) => {
+  const n = wartende().length;
+  const btn = (m, icon, label, farbe, badge) => {
     const aktiv = _modus === m;
+    const b = (badge !== '' && badge != null)
+      ? ` <span style="background:${aktiv?'rgba(255,255,255,.3)':'var(--gold)'};color:${aktiv?'#fff':'#1a1400'};border-radius:8px;padding:0 6px;font-size:11px">${badge}</span>` : '';
     return `<button onclick="setWaageModus('${m}')" style="
       flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;
-      padding:16px 10px;cursor:pointer;border-radius:var(--radius-md);
+      padding:14px 6px;cursor:pointer;border-radius:var(--radius-md);
       border:2px solid ${aktiv ? farbe : 'var(--color-border)'};
       background:${aktiv ? farbe : 'var(--color-surface)'};
       color:${aktiv ? '#fff' : 'var(--color-text)'};font-family:inherit">
-      <span style="font-size:22px;line-height:1">${icon}</span>
-      <span style="font-size:13px;font-weight:700;letter-spacing:.5px">${label}</span>
+      <span style="font-size:20px;line-height:1">${icon}</span>
+      <span style="font-size:12px;font-weight:700;letter-spacing:.3px">${label}${b}</span>
     </button>`;
   };
-  return `<div style="display:flex;gap:10px;margin-bottom:16px">
-    ${btn('eingang', '↓', 'Wareneingang', 'var(--green)')}
-    ${btn('ausgang', '↑', 'Warenausgang', 'var(--amber)')}
+  return `<div style="display:flex;gap:8px;margin-bottom:16px">
+    ${btn('eingang', '↓', 'Wareneingang', 'var(--green)', '')}
+    ${btn('ausgang', '↑', 'Warenausgang', 'var(--amber)', '')}
+    ${btn('umlauf', '🅿', 'Umlauf', 'var(--blue-500)', n || '')}
   </div>`;
 }
 
-// Eigenständige Ansicht für die Benutzer-Rolle "Waage" (Waagen-Terminal):
-// zeigt NUR die Waagenmaske (Warenein-/-ausgang), keine Sidebar/Tabs.
+// Eigenständige Ansicht für die Benutzer-Rolle "Waage" (Waagen-Terminal).
 export function renderWaage() {
   const mc = document.getElementById('main-content');
   if(!mc) return;
@@ -75,42 +88,32 @@ export function renderWaageTab(el) {
     renderWaageErfassungInto(body, { modus: 'abschluss' });
   } else if(_modus === 'ausgang') {
     renderAusgang(body);
+  } else if(_modus === 'umlauf') {
+    renderUmlaufShared(body);
   } else {
     body.innerHTML = `<div class="card" style="text-align:center;padding:30px 18px">
       <div style="font-size:32px;margin-bottom:8px">⚖</div>
       <div style="font-size:15px;font-weight:700;color:var(--color-text);margin-bottom:4px">Waage</div>
-      <div style="font-size:13px;color:var(--color-text-muted)">Bitte oben Wareneingang oder Warenausgang wählen.</div>
+      <div style="font-size:13px;color:var(--color-text-muted)">Bitte oben Wareneingang, Warenausgang oder Umlauf wählen.</div>
     </div>`;
   }
 }
 
-// ── Warenausgang ─────────────────────────────────────────────────────────────
-
-function renderAusgang(body) {
-  const n = wartende().length;
-  const tab = (v, label) => {
-    const aktiv = _ausgangView === v;
-    return `<button onclick="setAusgangView('${v}')" style="
-      flex:1;padding:10px 8px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;
-      border:none;border-bottom:3px solid ${aktiv ? 'var(--amber)' : 'transparent'};
-      background:none;color:${aktiv ? 'var(--color-text)' : 'var(--color-text-muted)'}">${label}</button>`;
-  };
-  body.innerHTML = `
-    <div style="display:flex;border-bottom:1px solid var(--color-border);margin-bottom:14px">
-      ${tab('neu', '① Leerwiegung')}
-      ${tab('umlauf', `② Umlauf${n ? ' · ' + n : ''}`)}
-    </div>
-    <div id="wa-view"></div>`;
-  const view = document.getElementById('wa-view');
-  const offen = _offenesFahrzeug != null ? wartende().find(u => u.id === _offenesFahrzeug) : null;
-
-  if(_ausgangView === 'umlauf' && !offen) {
-    view.innerHTML = umlaufListeHTML();
-  } else {
-    // Gleiche Maske für beide Schritte – bei der Vollwiegung vorbelegt.
-    view.innerHTML = `<div class="card">${formHTML(offen)}</div>`;
-    vorbelegen(offen);
+// ── Gemeinsamer Umlaufspeicher (Ein- & Ausgang) ──────────────────────────────
+function renderUmlaufShared(body) {
+  if(_offeneEingangUmlauf) {
+    if(window.renderUmlaufEingangAbschluss) window.renderUmlaufEingangAbschluss(body, _offeneEingangUmlauf);
+    else body.innerHTML = '<div class="card">Eingangs-Abschluss nicht verfügbar.</div>';
+    return;
   }
+  body.innerHTML = umlaufListeHTML();
+}
+
+// ── Warenausgang ─────────────────────────────────────────────────────────────
+function renderAusgang(body) {
+  const offen = _offenesFahrzeug != null ? wartende().find(u => u.id === _offenesFahrzeug && u.richtung !== 'eingang') : null;
+  body.innerHTML = `<div class="card">${formHTML(offen)}</div>`;
+  vorbelegen(offen);
 }
 
 function lagerOptionen() {
@@ -350,6 +353,7 @@ export async function waZwischenspeichern() {
   if(btn) { btn.disabled = true; btn.textContent = 'Wird gespeichert…'; }
   try {
     const saved = await db.insertUmlauf({
+      richtung: 'ausgang', erstgewicht: d.leer, erstTyp: 'leer',
       kennzeichen: d.kennzeichen, spedition: d.spedition, leergewicht: d.leer,
       kontaktId: d.kundeId, kontraktId: d.kontraktId, siloVonId: d.lagerId,
       artikelId: d.artikelId, sonstigeAngaben: d.sonstiges,
@@ -358,8 +362,8 @@ export async function waZwischenspeichern() {
     state.umlauf = state.umlauf || [];
     state.umlauf.push(saved);
     showToast(`💾 ${d.kennzeichen} zwischengespeichert · Tara ${d.leer.toLocaleString('de-DE')} kg`);
-    _ausgangView = 'umlauf';
     _offenesFahrzeug = null;
+    _modus = 'umlauf';
     if(_container) renderWaageTab(_container);
   } catch(e) {
     if(btn) { btn.disabled = false; btn.innerHTML = '&#128190; Zwischenspeichern'; }
@@ -378,35 +382,51 @@ function umlaufListeHTML() {
     </div>`;
   }
   return liste.map(u => {
-    const kunde = state.kontakte.find(c => c.id === u.kontakt_id);
-    const kontr = state.kontrakte.find(k => k.id === u.kontrakt_id);
-    const art   = state.artikel.find(a => a.id === u.artikel_id);
+    const eingang = u.richtung === 'eingang';
     const seit  = new Date(u.erstwiegung);
     const zeit  = isNaN(seit) ? '' : seit.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
-    return `<div class="card" style="margin-bottom:8px;padding:0;overflow:hidden;border-left:4px solid var(--amber)">
+    const g     = Number(u.erstgewicht ?? u.leergewicht ?? 0);
+    const gTyp  = eingang ? (u.erst_typ === 'voll' ? 'Voll' : 'Leer') : 'Tara';
+    const border = eingang ? 'var(--green)' : 'var(--amber)';
+    let sub2 = '';
+    let sub1 = '';
+    if(eingang) {
+      const p = u.payload || {};
+      sub1 = `<span style="color:var(--green);font-weight:700">↓ Eingang</span> · ${escapeHtml(p.artikel || p.fruchtart || '–')}`;
+      sub2 = `${p.lieferant ? escapeHtml(p.lieferant) : (p.herkunftName ? escapeHtml(p.herkunftName) : '')}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
+    } else {
+      const kunde = state.kontakte.find(c => c.id === u.kontakt_id);
+      const kontr = state.kontrakte.find(k => k.id === u.kontrakt_id);
+      const art   = state.artikel.find(a => a.id === u.artikel_id);
+      sub1 = `<span style="color:var(--amber);font-weight:700">↑ Ausgang</span> · ${escapeHtml(kunde?.name || '–')}${kontr ? ' · Kontrakt ' + escapeHtml(kontr.nummer) : ''}`;
+      sub2 = `${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
+    }
+    return `<div class="card" style="margin-bottom:8px;padding:0;overflow:hidden;border-left:4px solid ${border}">
       <div onclick="waUmlaufOeffnen(${u.id})" style="cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
         <div style="min-width:0;flex:1">
-          <div style="font-size:15px;font-weight:700;color:var(--color-text)">🚚 ${escapeHtml(u.kennzeichen)}</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">
-            ${escapeHtml(kunde?.name || '–')}${kontr ? ' · Kontrakt ' + escapeHtml(kontr.nummer) : ''}
-          </div>
-          <div style="font-size:11px;color:var(--text3);margin-top:1px">
-            ${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}
-          </div>
+          <div style="font-size:15px;font-weight:700;color:var(--color-text)">🚚 ${escapeHtml(u.kennzeichen || '—')}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${sub1}</div>
+          ${sub2 ? `<div style="font-size:11px;color:var(--text3);margin-top:1px">${sub2}</div>` : ''}
         </div>
         <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:15px;font-weight:700;color:var(--gold)">${Number(u.leergewicht).toLocaleString('de-DE')} kg</div>
-          <div style="font-size:10px;color:var(--text3)">Tara · seit ${zeit}</div>
-          <div style="font-size:11px;color:var(--amber);margin-top:3px">Vollwiegung ›</div>
+          <div style="font-size:15px;font-weight:700;color:var(--gold)">${g.toLocaleString('de-DE')} kg</div>
+          <div style="font-size:10px;color:var(--text3)">${gTyp} · seit ${zeit}</div>
+          <div style="font-size:11px;color:${border};margin-top:3px">${eingang ? 'Zweitwiegung' : 'Vollwiegung'} ›</div>
         </div>
       </div>
     </div>`;
   }).join('');
 }
 
+// Umlauf-Eintrag öffnen – nach Richtung ins passende Abschluss-Formular routen.
 export function waUmlaufOeffnen(id) {
-  _offenesFahrzeug = id;
-  _ausgangView = 'umlauf';
+  const u = wartende().find(x => x.id === id);
+  if(!u) return;
+  if(u.richtung === 'eingang') {
+    _offeneEingangUmlauf = u; _offenesFahrzeug = null; _modus = 'umlauf';
+  } else {
+    _offenesFahrzeug = id; _offeneEingangUmlauf = null; _modus = 'ausgang';
+  }
   if(_container) renderWaageTab(_container);
 }
 
@@ -452,7 +472,7 @@ export async function waAbschliessen(id) {
     await db.umlaufAbschliessen(id, saved.id);
     state.umlauf = state.umlauf.filter(x => x.id !== id);
     _offenesFahrzeug = null;
-    _ausgangView = 'neu';
+    _modus = 'umlauf';
 
     showToast(`✓ Ausgang gebucht · ${kg2t(netto)} · Lieferschein ${saved.lieferschein_nr || ''}`);
     const ew = new Date(u.erstwiegung);

@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=99';
+import { SB_URL, SB_KEY } from './config.js?v=100';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -397,16 +397,26 @@ export const db = {
     const { data, error } = await sb.from('umlauf').insert({
       kennzeichen: u.kennzeichen,
       spedition: u.spedition || null,
-      leergewicht: u.leergewicht,
+      leergewicht: u.leergewicht ?? null,
       kontakt_id: u.kontaktId || null,
       kontrakt_id: u.kontraktId || null,
       silo_von_id: u.siloVonId || null,
       artikel_id: u.artikelId || null,
       sonstige_angaben: u.sonstigeAngaben || null,
-      erstellt_von: u.erstelltVon || null
+      erstellt_von: u.erstelltVon || null,
+      richtung: u.richtung || 'ausgang',
+      erstgewicht: u.erstgewicht ?? null,
+      erst_typ: u.erstTyp || null,
+      payload: u.payload || null
     }).select().single();
     if(error) throw error;
     return data;
+  },
+  // Umlauf-Eintrag ohne Warenbewegung abschließen (z.B. Wareneingang → Fuhre).
+  async umlaufErledigt(id) {
+    const { error } = await sb.from('umlauf')
+      .update({ status:'erledigt', erledigt_am:new Date().toISOString() }).eq('id', id);
+    if(error) throw error;
   },
   // Kein Löschen: der Eintrag bleibt als Nachweis stehen und wechselt nur den Status.
   async umlaufAbschliessen(id, warenbewegungId) {
