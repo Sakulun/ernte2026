@@ -1,11 +1,11 @@
-import { state } from './state.js?v=102';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=102';
-import { getSiloFill, getSiloKultur } from './silo.js?v=102';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=102';
+import { state } from './state.js?v=103';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=103';
+import { getSiloFill, getSiloKultur } from './silo.js?v=103';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=103';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=102';
+} from './config.js?v=103';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -271,23 +271,23 @@ export async function exportMengenuebersichtExcel() {
   const aoa = [head];
   const byFa = {};
   data.forEach(d => { (byFa[d.fruchtart] = byFa[d.fruchtart] || []).push(d); });
-  let gRoh = 0, gAbs = 0, gFla = 0;
+  let gRoh = 0, gAbs = 0, gFla = 0, gGer = 0;
   Object.keys(byFa).sort((a,b) => a.localeCompare(b,'de')).forEach(fa => {
-    let sRoh = 0, sAbs = 0, sFla = 0;
+    let sRoh = 0, sAbs = 0, sFla = 0, sGer = 0;
     byFa[fa].forEach(d => {
       const dtha = d.flaeche > 0 ? d.rohKg / 100 / d.flaeche : null;
       const p = d.rohKg > 0 ? d.absiebeKg / d.rohKg * 100 : null;
       aoa.push([fa, d.sorte, r1(d.flaeche), r1(d.rohKg / 1000),
-        dtha != null ? r1(dtha) : '', r1((d.rohKg - d.absiebeKg) / 1000), r1(d.absiebeKg / 1000),
+        dtha != null ? r1(dtha) : '', r1(d.gereinigtKg / 1000), r1(d.absiebeKg / 1000),
         p != null ? r1(p) : '', d.rohSilo || '', d.saatSilo || '']);
-      sRoh += d.rohKg; sAbs += d.absiebeKg; sFla += d.flaeche;
+      sRoh += d.rohKg; sAbs += d.absiebeKg; sFla += d.flaeche; sGer += d.gereinigtKg;
     });
     aoa.push(['Summe ' + fa, '', r1(sFla), r1(sRoh / 1000), sFla > 0 ? r1(sRoh / 100 / sFla) : '',
-      r1((sRoh - sAbs) / 1000), r1(sAbs / 1000), sRoh > 0 ? r1(sAbs / sRoh * 100) : '', '', '']);
-    gRoh += sRoh; gAbs += sAbs; gFla += sFla;
+      r1(sGer / 1000), r1(sAbs / 1000), sRoh > 0 ? r1(sAbs / sRoh * 100) : '', '', '']);
+    gRoh += sRoh; gAbs += sAbs; gFla += sFla; gGer += sGer;
   });
   aoa.push(['Gesamt', '', r1(gFla), r1(gRoh / 1000), gFla > 0 ? r1(gRoh / 100 / gFla) : '',
-    r1((gRoh - gAbs) / 1000), r1(gAbs / 1000), gRoh > 0 ? r1(gAbs / gRoh * 100) : '', '', '']);
+    r1(gGer / 1000), r1(gAbs / 1000), gRoh > 0 ? r1(gAbs / gRoh * 100) : '', '', '']);
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   ws['!cols'] = [{wch:22},{wch:16},{wch:10},{wch:11},{wch:12},{wch:12},{wch:10},{wch:11},{wch:18},{wch:18}];
   const wb = XLSX.utils.book_new();

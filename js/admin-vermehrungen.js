@@ -1,8 +1,8 @@
-import { state } from './state.js?v=102';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=102';
-import { getFruchtFarbe } from './frucht.js?v=102';
-import { getQualitaetsfelder } from './quality.js?v=102';
-import { lagerLabel } from './silo.js?v=102';
+import { state } from './state.js?v=103';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=103';
+import { getFruchtFarbe } from './frucht.js?v=103';
+import { getQualitaetsfelder } from './quality.js?v=103';
+import { lagerLabel } from './silo.js?v=103';
 
 // ── Übersicht: Vermehrungen ──────────────────────────────────────────────────
 // Alle Vermehrungssorten mit Status (geerntet/in Ernte/offen), Mengen & Ø-Qualität.
@@ -101,6 +101,9 @@ export function mengenUebersichtDaten() {
     return {
       fruchtart: faOf[sorte] || '—', sorte,
       rohKg: roh[sorte], absiebeKg: absiebe[sorte] || 0, flaeche: flaecheOf[sorte] || 0,
+      // Saatware entsteht erst durch die Reinigung: ungereinigt = 0 (nicht die Rohware).
+      gereinigtKg: cleaned ? Math.max(0, roh[sorte] - (absiebe[sorte] || 0)) : 0,
+      cleaned,
       rohSilo: cleaned ? siloStr(rohSet[sorte]) : siloStr(aktSet[sorte]),
       saatSilo: cleaned ? siloStr(aktSet[sorte]) : '',
     };
@@ -116,7 +119,7 @@ function mengenUebersicht() {
   const kulturen = {};
   data.forEach(d => {
     flaecheOf[d.sorte] = d.flaeche;
-    (kulturen[d.fruchtart] = kulturen[d.fruchtart] || []).push({ sorte: d.sorte, roh: d.rohKg, absiebe: d.absiebeKg, rohSilo: d.rohSilo, saatSilo: d.saatSilo });
+    (kulturen[d.fruchtart] = kulturen[d.fruchtart] || []).push({ sorte: d.sorte, roh: d.rohKg, absiebe: d.absiebeKg, gereinigt: d.gereinigtKg, cleaned: d.cleaned, rohSilo: d.rohSilo, saatSilo: d.saatSilo });
   });
   const faSorted = Object.keys(kulturen).sort((a,b) => a.localeCompare(b,'de'));
 
@@ -127,13 +130,14 @@ function mengenUebersicht() {
   const dtHa = (kg,ha) => ha > 0 ? (kg/100/ha).toFixed(1) : '–';
   const siloTd = v => `<td style="padding:6px 10px;text-align:left;font-size:12px;color:var(--text2);white-space:nowrap">${escapeHtml(v || '–')}</td>`;
 
-  let gRoh = 0, gAbs = 0, gFla = 0;
+  let gRoh = 0, gAbs = 0, gFla = 0, gGer = 0;
   const body = faSorted.map(fa => {
     const list = kulturen[fa].sort((a,b) => a.sorte.localeCompare(b.sorte,'de'));
     const sRoh = list.reduce((s,x) => s + x.roh, 0);
     const sAbs = list.reduce((s,x) => s + x.absiebe, 0);
+    const sGer = list.reduce((s,x) => s + x.gereinigt, 0);
     const sFla = list.reduce((s,x) => s + (flaecheOf[x.sorte] || 0), 0);
-    gRoh += sRoh; gAbs += sAbs; gFla += sFla;
+    gRoh += sRoh; gAbs += sAbs; gFla += sFla; gGer += sGer;
     const farbe = getFruchtFarbe(fa);
     const zeilen = list.map(x => {
       const p = pct(x.absiebe, x.roh);
@@ -141,7 +145,7 @@ function mengenUebersicht() {
         <td style="padding:6px 10px 6px 24px;text-align:left;color:var(--text)">🌱 ${escapeHtml(x.sorte)}</td>
         ${numTd(t(x.roh))}
         ${numTd(dtHa(x.roh, flaecheOf[x.sorte] || 0), 'color:var(--blue)')}
-        ${numTd('<b>'+t(x.roh - x.absiebe)+'</b>')}
+        ${numTd(x.cleaned ? '<b>'+t(x.gereinigt)+'</b>' : '<span style="color:var(--text3)">0</span>')}
         ${numTd(x.absiebe > 0 ? t(x.absiebe) : '–')}
         ${numTd(x.absiebe > 0 ? p.toFixed(1)+' %' : '–', 'color:'+pctCol(p))}
         ${siloTd(x.rohSilo)}${siloTd(x.saatSilo)}
@@ -152,7 +156,7 @@ function mengenUebersicht() {
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe.dot};margin-right:6px"></span>${escapeHtml(fa)}</td></tr>`;
     const summe = `<tr style="background:var(--neutral-200);font-weight:700;border-top:1px solid var(--color-border)">
       <td style="padding:6px 10px;text-align:left;color:var(--text2)">Σ ${escapeHtml(fa)}</td>
-      ${numTd(t(sRoh))}${numTd(dtHa(sRoh, sFla), 'color:var(--blue)')}${numTd(t(sRoh - sAbs))}${numTd(t(sAbs))}
+      ${numTd(t(sRoh))}${numTd(dtHa(sRoh, sFla), 'color:var(--blue)')}${numTd(t(sGer))}${numTd(t(sAbs))}
       ${numTd(pct(sAbs,sRoh).toFixed(1)+' %', 'color:'+pctCol(pct(sAbs,sRoh)))}<td></td><td></td></tr>`;
     return kopf + zeilen + summe;
   }).join('');
@@ -160,7 +164,7 @@ function mengenUebersicht() {
   const th = 'padding:8px 10px;text-align:right;font-size:11px;color:var(--text2);font-weight:600;border-bottom:2px solid var(--color-border);letter-spacing:.3px';
   const gesamt = `<tr style="font-weight:800;border-top:2px solid var(--color-primary)">
     <td style="padding:9px 10px;text-align:left;color:var(--text)">Gesamt · alle Kulturen</td>
-    ${numTd(t(gRoh))}${numTd(dtHa(gRoh, gFla), 'color:var(--blue)')}${numTd(t(gRoh - gAbs))}${numTd(t(gAbs))}
+    ${numTd(t(gRoh))}${numTd(dtHa(gRoh, gFla), 'color:var(--blue)')}${numTd(t(gGer))}${numTd(t(gAbs))}
     ${numTd(pct(gAbs,gRoh).toFixed(1)+' %', 'color:'+pctCol(pct(gAbs,gRoh)))}<td></td><td></td></tr>`;
 
   return `<div class="card">

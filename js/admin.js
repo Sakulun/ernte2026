@@ -1,4 +1,4 @@
-import { state } from './state.js?v=102';
+import { state } from './state.js?v=103';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
