@@ -1,7 +1,7 @@
-import { state } from './state.js?v=103';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=103';
-import { renderLieferschein } from './lieferschein.js?v=103';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=103';
+import { state } from './state.js?v=104';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=104';
+import { renderLieferschein } from './lieferschein.js?v=104';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=104';
 
 // Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
 // "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
@@ -60,6 +60,12 @@ function kontaktZuBewegung(w) {
   return state.kontakte.find(c => c.name === w.empfaenger) || null;
 }
 
+// THG-Pflichtangaben auf Raps-Lieferscheinen (immer, direkt bei der Nachhaltigkeit).
+const RAPS_THG = [
+  { label: 'THG Wert',   nr: '362 GCO2eq/kg' },
+  { label: 'Berechnung', nr: 'Standardwert NUTS1 DEE0' },
+];
+
 export function lieferscheinDaten(w, override = {}) {
   const kontrakt = state.kontrakte.find(x => x.id === w.kontrakt_id);
   const kontakt  = kontaktZuBewegung(w);
@@ -68,6 +74,16 @@ export function lieferscheinDaten(w, override = {}) {
   const netto = Number(w.menge_kg) || 0;
   const voll  = w.vollgewicht != null ? Number(w.vollgewicht) : null;
   const leer  = w.leergewicht != null ? Number(w.leergewicht) : null;
+  const artikelName = lieferscheinArtikelName(artikel?.name || kontrakt?.fruchtart_text || '');
+
+  // Zertifikatszeilen aus den Siegel-Flags des Kontrakts; bei Raps zusätzlich die
+  // THG-Angaben direkt hinter das Nachhaltigkeits-Zertifikat einfügen.
+  const zertifikate = kontraktZertifikate(kontrakt);
+  if(/raps/i.test(artikelName)) {
+    const idx = zertifikate.findIndex(z => /nachhaltig|redcert/i.test(z.label));
+    if(idx >= 0) zertifikate.splice(idx + 1, 0, ...RAPS_THG.map(z => ({ ...z })));
+    else zertifikate.push(...RAPS_THG.map(z => ({ ...z })));
+  }
 
   return {
     ls_nummer: w.lieferschein_nr || '',
@@ -77,7 +93,7 @@ export function lieferscheinDaten(w, override = {}) {
     empf_strasse: adr.strasse,
     empf_plz_ort: adr.plzOrt,
     empf_land:    '',
-    artikel:  lieferscheinArtikelName(artikel?.name || kontrakt?.fruchtart_text || ''),
+    artikel:  artikelName,
     kontrakt: kontrakt?.nummer || '',
     herkunft: HERKUNFT_STANDARD,
     einheit:  't',
@@ -92,8 +108,7 @@ export function lieferscheinDaten(w, override = {}) {
     spedition:   w.spedition || '',
     kennzeichen: w.kennzeichen || '',
     sonstige_angaben: w.sonstige_angaben || '',
-    // Zertifikatszeilen aus den Siegel-Flags des Kontrakts
-    zertifikate: kontraktZertifikate(kontrakt),
+    zertifikate,
     ...override,
   };
 }
