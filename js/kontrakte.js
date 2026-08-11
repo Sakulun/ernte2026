@@ -1,6 +1,6 @@
-import { state } from './state.js?v=104';
-import { db } from './db.js?v=104';
-import { showToast, escapeHtml } from './helpers.js?v=104';
+import { state } from './state.js?v=105';
+import { db } from './db.js?v=105';
+import { showToast, escapeHtml } from './helpers.js?v=105';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -114,7 +114,7 @@ function kontraktDetailHTML(k) {
         <div style="font-size:12px;color:var(--text)"><b>LS ${escapeHtml(w.lieferschein_nr||'–')}</b> · ${escapeHtml(datum)}<span style="color:var(--text3)"> · ${escapeHtml(art?.name||'–')}</span></div>
         <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}${w.sonstige_angaben?` · <span style="color:var(--gold);font-weight:600" title="Freitexteingabe">📝 ${escapeHtml(w.sonstige_angaben)}</span>`:''}</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
         <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
         ${abHof?'':`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput(w.id,'fracht_nr',w.fracht_nr,'Nummer')}</div>`}
