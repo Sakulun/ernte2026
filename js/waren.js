@@ -1,8 +1,8 @@
-import { state } from './state.js?v=105';
-import { db } from './db.js?v=105';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=105';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=105';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=105';
+import { state } from './state.js?v=107';
+import { db } from './db.js?v=107';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=107';
+import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=107';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=107';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -221,14 +221,38 @@ export function waageWidgetHTML(targetField) {
   </div>`;
 }
 
+// Dauerhaftes Live-Banner (Kopf des Waage-Tabs) – reine Anzeige, immer sichtbar.
+export function waageLiveBannerHTML() {
+  const w = state.waageLive;
+  const isStable = w && w.status === 'stable';
+  const isOnline = w && w.status !== 'offline';
+  const dotColor = isStable ? 'var(--green2)' : isOnline ? 'var(--amber)' : 'var(--text3)';
+  const dotChar  = isStable ? '●' : isOnline ? '◉' : '○';
+  const gewichtStr = isOnline ? Math.round(w.gewicht_kg).toLocaleString('de-DE') : '– – –';
+  const label = isStable ? 'STABIL · bereit zum Übernehmen' : isOnline ? 'IN BEWEGUNG' : 'NICHT VERBUNDEN';
+  return `<div id="waage-live-banner" style="display:flex;align-items:center;gap:12px;background:var(--bg3);border:1px solid var(--border2);border-left:4px solid ${dotColor};border-radius:10px;padding:10px 16px;margin-bottom:12px;font-family:var(--mono)">
+    <span style="color:${dotColor};font-size:16px">${dotChar}</span>
+    <div style="flex:1;min-width:0;display:flex;align-items:baseline;gap:6px">
+      <span style="font-size:26px;font-weight:800;color:var(--text);letter-spacing:0.5px;line-height:1">${gewichtStr}</span>
+      <span style="font-size:13px;color:var(--text3)">${isOnline ? 'kg' : ''}</span>
+    </div>
+    <span style="font-size:9px;letter-spacing:1.2px;color:${dotColor};text-align:right;max-width:120px">${label}</span>
+  </div>`;
+}
+
 export function updateWaageWidget() {
+  const banner = document.getElementById('waage-live-banner');
+  if(banner) banner.outerHTML = waageLiveBannerHTML();
   ['leer','voll'].forEach(field => {
     const el = document.getElementById('waage-live-widget-'+field);
     if(el) el.outerHTML = waageWidgetHTML(field);
   });
   document.querySelectorAll('[id^="waage-fuhre-widget-"]').forEach(el => {
-    const fuhreId = parseInt(el.id.replace('waage-fuhre-widget-',''));
-    if(fuhreId) el.outerHTML = waageFuhreWidgetHTML(fuhreId);
+    // fuhreId kann numerisch (alter Warenausgang) ODER String 'waage' (Waage-Tab)
+    // sein – daher NICHT parseInt. felder-Kontext aus data-Attribut erhalten.
+    const fuhreId = el.id.replace('waage-fuhre-widget-','');
+    const felder = el.getAttribute('data-felder') || 'beide';
+    if(fuhreId) el.outerHTML = waageFuhreWidgetHTML(fuhreId, felder);
   });
 }
 
@@ -282,7 +306,7 @@ export function waageFuhreWidgetHTML(fuhreId, felder = 'beide') {
   const btnStyle   = isStable
     ? 'background:var(--green);color:#fff;border:none;cursor:pointer;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:1px'
     : 'background:var(--bg3);color:var(--text3);border:1px solid var(--border2);cursor:not-allowed;border-radius:6px;padding:6px 10px;font-size:11px';
-  return `<div id="waage-fuhre-widget-${fuhreId}" style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-family:var(--mono);flex-wrap:wrap">
+  return `<div id="waage-fuhre-widget-${fuhreId}" data-felder="${felder}" style="display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-family:var(--mono);flex-wrap:wrap">
     <span style="color:${dotColor}">${dotChar}</span>
     <span style="font-size:13px;font-weight:700;color:var(--text);flex:1">${gewichtStr}</span>
     <span style="font-size:9px;letter-spacing:1.5px;color:${dotColor}">${label}</span>

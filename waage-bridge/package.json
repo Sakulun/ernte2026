@@ -1,12 +1,18 @@
 {
   "name": "waage-bridge",
-  "version": "1.0.0",
-  "description": "Schenck Disomat Opus → Supabase Live-Gewicht Bridge",
+  "version": "1.1.0",
+  "description": "Waage → Supabase Live-Gewicht Bridge (TCP oder Bildschirm-OCR)",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "bildschirm": "node screen-ocr.js",
+    "kalibrieren": "node screen-ocr.js kalibrieren",
+    "test-ocr": "node screen-ocr.js test"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2"
+    "@supabase/supabase-js": "^2",
+    "screenshot-desktop": "^1.15.0",
+    "jimp": "^0.22.12",
+    "tesseract.js": "^5.1.0"
   }
 }
