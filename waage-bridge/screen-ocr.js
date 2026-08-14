@@ -56,15 +56,24 @@ const SB_URL        = cfg.SUPABASE_URL;
 const SB_KEY        = cfg.SUPABASE_KEY;
 
 // ── OCR-Text -> Gewicht in kg ──────────────────────────────────────────────────
-// Robust gegen Tausender-/Dezimaltrenner: wir ziehen die längste Ziffernfolge
-// heraus und setzen das Komma per fester Stellenzahl (DEZIMALSTELLEN). Das ist
-// eindeutig – egal ob die Anzeige "40.500", "40500" oder "40,5" liefert.
+// Das Komma wird per fester Stellenzahl (DEZIMALSTELLEN) gesetzt – eindeutig,
+// egal ob die Anzeige "40,50", "40.500" oder "40500" liefert. Bei DEZIMALSTELLEN>0
+// bevorzugen wir eine Zahl mit GENAU so vielen Nachkommastellen (z.B. "0,00 t"),
+// damit z.B. ein versehentlich mitgelesenes "t" oder eine Einheit nicht stört.
 function parseGewicht(raw) {
   if (!raw) return null;
   const neg = /-\s*\d/.test(raw) || /\d\s*-/.test(raw);
-  const runs = (raw.match(/\d+/g) || []);
-  if (!runs.length) return null;
-  let digits = runs.join('');              // alle Ziffern zusammen
+  let digits = null;
+  if (DEZIMALSTELLEN > 0) {
+    const re = new RegExp('(\\d+)[.,](\\d{' + DEZIMALSTELLEN + '})(?!\\d)');
+    const m = re.exec(raw);
+    if (m) digits = m[1] + m[2];
+  }
+  if (digits == null) {
+    const runs = (raw.match(/\d+/g) || []);
+    if (!runs.length) return null;
+    digits = runs.join('');              // Fallback: alle Ziffern zusammen
+  }
   if (!digits.length) return null;
   if (digits.length > 9) digits = digits.slice(0, 9); // Ausreißer kappen
   let wert = parseInt(digits, 10);
@@ -151,6 +160,47 @@ async function modusKalibrieren() {
   console.log('Werte in .env eintragen, dann:  node screen-ocr.js test');
 }
 
+// ── Modus: finde (Auto-Kalibrierung) ───────────────────────────────────────────
+// Sucht die große Gewichtszahl (Format je nach DEZIMALSTELLEN, z.B. "0,00") per
+// OCR auf dem ganzen Bildschirm und schlägt passende REGION_*-Werte vor.
+async function modusFinde() {
+  const buf = await vollbild();
+  const { createWorker } = require('tesseract.js');
+  const w = await createWorker('eng');
+  const { data } = await w.recognize(buf);
+  await w.terminate();
+  const dez = DEZIMALSTELLEN > 0 ? DEZIMALSTELLEN : 2;
+  const re = new RegExp('^\\d+[.,]\\d{' + dez + '}$');
+  const treffer = (data.words || [])
+    .filter(x => x && x.bbox && x.text && re.test(x.text.trim()))
+    .map(x => ({ text: x.text.trim(), b: x.bbox, h: x.bbox.y1 - x.bbox.y0 }));
+  const Jimp = require('jimp');
+  const img = await Jimp.read(buf);
+  await img.writeAsync(path.join(__dirname, 'bildschirm.png'));
+
+  if (!treffer.length) {
+    console.log('Keine Zahl im Format ' + '0'.padStart(1,'0') + ',' + '0'.repeat(dez) + ' gefunden.');
+    console.log('Vollbild gespeichert: ' + path.join(__dirname, 'bildschirm.png'));
+    console.log('Bitte manuell kalibrieren (siehe ANLEITUNG-BILDSCHIRM.md).');
+    return;
+  }
+  treffer.sort((a, b) => b.h - a.h); // größte Schrift = Hauptanzeige
+  const best = treffer[0];
+  const bw = best.b.x1 - best.b.x0, bh = best.b.y1 - best.b.y0;
+  const padX = Math.max(6, Math.round(bw * 0.12)), padY = Math.max(6, Math.round(bh * 0.35));
+  const rx = Math.max(0, best.b.x0 - padX), ry = Math.max(0, best.b.y0 - padY);
+  const rw = bw + padX * 2, rh = bh + padY * 2;
+
+  console.log(`Gefunden: "${best.text}"  (Schrifthöhe ${bh}px)`);
+  if (treffer.length > 1) console.log(`(weitere Kandidaten: ${treffer.slice(1).map(t => '"'+t.text+'"').join(', ')})`);
+  console.log('\nVorschlag für die .env:');
+  console.log(`  REGION_X=${rx}`);
+  console.log(`  REGION_Y=${ry}`);
+  console.log(`  REGION_W=${rw}`);
+  console.log(`  REGION_H=${rh}`);
+  console.log('\nDiese Werte eintragen, dann:  node screen-ocr.js test');
+}
+
 // ── Modus: test (einmal) ───────────────────────────────────────────────────────
 async function modusTest() {
   const buf = await vollbild();
@@ -226,6 +276,7 @@ const modus = (process.argv[2] || '').toLowerCase();
 (async () => {
   try {
     if (modus === 'kalibrieren' || modus === 'calibrate') await modusKalibrieren();
+    else if (modus === 'finde' || modus === 'auto') await modusFinde();
     else if (modus === 'test') await modusTest();
     else await modusLive();
   } catch (e) {

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node index.js",
     "bildschirm": "node screen-ocr.js",
+    "finde": "node screen-ocr.js finde",
     "kalibrieren": "node screen-ocr.js kalibrieren",
     "test-ocr": "node screen-ocr.js test"
   },

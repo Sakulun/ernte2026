@@ -21,28 +21,47 @@ Läuft komplett auf dem Waagen-PC (der hat Internet). Kein Zugriff auf die Waage
 
 ---
 
-## Den richtigen Bildschirmausschnitt finden (Kalibrieren)
+## Den richtigen Bildschirmausschnitt finden
 
-Das Tool muss wissen, **wo** auf dem Bildschirm die Gewichtszahl steht.
+Das Tool muss wissen, **wo** auf dem Bildschirm die große Gewichtszahl steht.
+Wichtig: Nur die **große Zahl** (z. B. „0,00") erfassen – **nicht** die kleine Zeile
+darunter („e=0,02 t · Min 0,4 t · Max 50 t"), sonst liest die OCR deren Zahlen mit.
 
-1. Das **Bitzer-Tool** öffnen, sodass die Gewichtszahl sichtbar ist.
-2. Im `waage-bridge`-Ordner ausführen:
+### Am einfachsten: automatisch finden
+
+1. Das **Bitzer-Fenster** so hinstellen, dass die Zahl „0,00 t" gut sichtbar ist.
+2. Im `waage-bridge`-Ordner:
 
    ```
-   node screen-ocr.js kalibrieren
+   node screen-ocr.js finde
    ```
 
-   Das legt eine Datei **`bildschirm.png`** an (Vollbild-Screenshot) und listet die
-   Bildschirme auf (bei mehreren Monitoren die passende Nummer in `.env` als
-   `MONITOR=` eintragen).
-3. `bildschirm.png` in **Paint** öffnen. Paint zeigt unten links die Pixel-Position
-   der Maus.
-   - Maus auf die **linke obere Ecke** der Gewichtszahl → das sind **`REGION_X`** und **`REGION_Y`**.
-   - Maus auf die **rechte untere Ecke** der Zahl → Breite/Höhe berechnen:
-     `REGION_W = x_rechts − REGION_X`, `REGION_H = y_unten − REGION_Y`.
-   - Etwas Rand lassen, aber möglichst nur die Zahl (keine Beschriftung „kg" nebenan
-     nötig – stört aber auch nicht).
-4. Diese 4 Werte in `.env` eintragen.
+   Das Tool sucht die große Zahl selbst und gibt fertige Werte aus, z. B.:
+
+   ```
+   Gefunden: "0,00"  (Schrifthöhe 34px)
+   Vorschlag für die .env:
+     REGION_X=905
+     REGION_Y=168
+     REGION_W=150
+     REGION_H=60
+   ```
+
+   Diese 4 Zeilen in die `.env` übernehmen. Fertig → weiter mit „OCR testen".
+   (Bei mehreren Monitoren vorher `MONITOR=` in `.env` setzen; die Nummern zeigt
+   `node screen-ocr.js kalibrieren`.)
+
+### Falls „finde" nichts findet: manuell
+
+1. `node screen-ocr.js kalibrieren` → legt **`bildschirm.png`** an.
+2. `bildschirm.png` in **Paint** öffnen (Paint zeigt unten links die Maus-Pixel).
+   - Maus auf die **linke obere Ecke** der großen Zahl → **`REGION_X` / `REGION_Y`**.
+   - Maus auf die **rechte untere Ecke** → `REGION_W = x_rechts − REGION_X`,
+     `REGION_H = y_unten − REGION_Y`.
+3. Die 4 Werte in `.env` eintragen.
+
+> Für die Bitzer-Waage in Beesenstedt ist `ANZEIGE_EINHEIT=t` und `DEZIMALSTELLEN=2`
+> bereits voreingestellt (Anzeige „0,00 t").
 
 ---
 
@@ -59,11 +78,12 @@ OCR-Rohtext:       "40.500"
 Erkanntes Gewicht: 40.500 kg
 ```
 
-- Zeigt `ausschnitt.png` **nur die Zahl** und stimmt der Wert? → fertig.
+- Zeigt `ausschnitt.png` **nur die große Zahl** (ohne die Min/Max-Zeile) und stimmt
+  der Wert? → fertig.
 - Falsch/leer? → `REGION_*` nachjustieren und erneut `test`.
-- Helle Schrift auf dunklem Grund? → `OCR_INVERTIEREN=ja`.
+- Wird die Min/Max-Zeile mitgelesen (Wert springt/zu groß)? → `REGION_H` kleiner.
 - Zahl zu klein/unscharf? → `OCR_SCALE=4`.
-- Anzeige in Tonnen (z. B. „40,500")? → `ANZEIGE_EINHEIT=t` und `DEZIMALSTELLEN=3`.
+- Helle Schrift auf dunklem Grund? → `OCR_INVERTIEREN=ja` (bei „0,00 t" nicht nötig).
 
 ---
 
