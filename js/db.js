@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=109';
+import { SB_URL, SB_KEY } from './config.js?v=110';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -389,6 +389,12 @@ export const db = {
     if(u.klaeren !== undefined)      map.klaeren = !!u.klaeren;
     if(u.bemerkung !== undefined)    map.bemerkung = u.bemerkung || null;
     const { error } = await sb.from('warenbewegungen').update(map).eq('id', id);
+    if(error) throw error;
+  },
+  // Quelle (Herkunfts-Silo) einer Auslieferung nachtragen – z.B. für Abfahrer-
+  // Selbstlieferungen, die ohne Lager gebucht wurden. Reduziert den Silobestand.
+  async updateWarenbewegungQuelle(id, siloVonId) {
+    const { error } = await sb.from('warenbewegungen').update({ silo_von_id: siloVonId || null }).eq('id', id);
     if(error) throw error;
   },
   // ── Umlaufspeicher: leer verwogene Fahrzeuge, die auf Beladung warten ──

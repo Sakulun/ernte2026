@@ -1,10 +1,10 @@
-import { state } from './state.js?v=109';
-import { db } from './db.js?v=109';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=109';
-import { getFruchtFarbe } from './frucht.js?v=109';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=109';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=109';
-import { isBioFuhre, bioBadge } from './bio.js?v=109';
+import { state } from './state.js?v=110';
+import { db } from './db.js?v=110';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=110';
+import { getFruchtFarbe } from './frucht.js?v=110';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=110';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=110';
+import { isBioFuhre, bioBadge } from './bio.js?v=110';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
@@ -104,11 +104,76 @@ function sorteEditFeld(f) {
   return `<label style="font-size:11px;color:var(--text2)">Sorte/Partie<select id="ef-sorte-${f.id}" class="input">${opts}</select></label>`;
 }
 
+// ── Abfahrer-Selbstlieferungen auf Verkaufskontrakt ──────────────────────────
+// Diese werden als warenbewegung (typ 'ausgang', kontrakt_id) OHNE Herkunfts-Silo
+// gebucht. Hier im Fuhren-Tab kann der Admin die Quelle (Silo) nachtragen –
+// dadurch wird der Bestand ausgebucht. Ohne Quelle zuerst.
+function abfahrerLieferungen() {
+  const abfIds = new Set(state.users.filter(u => u.role === 'abfahrer').map(u => u.id));
+  return state.warenbewegungen
+    .filter(w => w.typ === 'ausgang' && w.kontrakt_id && abfIds.has(w.erstellt_von))
+    .sort((a,b) => (a.silo_von_id?1:0) - (b.silo_von_id?1:0)
+                || new Date(b.erstellt_am||0) - new Date(a.erstellt_am||0));
+}
+
+function lieferungRow(w) {
+  const k     = state.kontrakte.find(x => x.id === w.kontrakt_id);
+  const kunde = state.kontakte.find(c => c.id === (k?.kontakt_id));
+  const art   = state.artikel.find(a => a.id === w.artikel_id);
+  const abf   = getUser(w.erstellt_von);
+  const nettoKg = Number(w.menge_kg) || 0;
+  const d = w.erstellt_am ? new Date(w.erstellt_am) : null;
+  const datum = d ? d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+  const hasQuelle = !!w.silo_von_id;
+  const opts = '<option value="">— Quelle wählen —</option>' + alleLagerOrte()
+    .map(o => `<option value="${escapeHtml(o.id)}" ${o.id===w.silo_von_id?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+  const border = hasQuelle ? 'var(--green)' : 'var(--amber)';
+  return `<div class="card" style="margin-bottom:10px;border-color:${border};border-left:4px solid ${border}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div style="min-width:0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">🡒 Verkauf${w.lieferschein_nr?' · LS '+escapeHtml(w.lieferschein_nr):''} · ${escapeHtml(datum)}${k?.bio?bioBadge(true):''}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${escapeHtml(kunde?.name||w.empfaenger||'–')}${k?' · Kontrakt '+escapeHtml(k.nummer):''}</div>
+        <div style="font-size:11px;color:var(--text3)">${escapeHtml(art?.name||'–')}${w.kennzeichen?' · 🚚 '+escapeHtml(w.kennzeichen):''} · erfasst von ${escapeHtml(abf.name||'?')}</div>
+      </div>
+      <div style="flex-shrink:0;text-align:right">
+        <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--text)">${kg2t(nettoKg)}</div>
+        <div style="font-size:10px;color:var(--text2)">netto</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:10px;flex-wrap:wrap">
+      <label style="font-size:11px;color:var(--text2);flex:1;min-width:170px">Quelle (Silo/Lager)${hasQuelle?'':' <span style="color:var(--amber);font-weight:700">– bitte angeben</span>'}
+        <select id="lief-quelle-${w.id}" class="input">${opts}</select></label>
+      <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="setLieferungQuelle(${w.id})">💾 Quelle speichern</button>
+    </div>
+  </div>`;
+}
+
+// Quelle-Silo einer Abfahrer-Lieferung setzen (bucht den Bestand aus).
+export async function setLieferungQuelle(id) {
+  const sel = document.getElementById('lief-quelle-'+id);
+  const w = state.warenbewegungen.find(x => x.id === id);
+  if(!sel || !w) return;
+  const siloVonId = sel.value || null;
+  const prev = w.silo_von_id;
+  w.silo_von_id = siloVonId;   // optimistisch
+  renderAdminFuhren();
+  try {
+    await db.updateWarenbewegungQuelle(id, siloVonId);
+    showToast(siloVonId ? '✓ Quelle gesetzt · ' + lagerLabel(siloVonId) + ' (ausgebucht)' : 'Quelle entfernt');
+  } catch(e) {
+    w.silo_von_id = prev;
+    renderAdminFuhren();
+    showToast('⚠ ' + e.message, 'error');
+  }
+}
+
 export function renderAdminFuhren() {
   const fertig = state.fuhren.filter(f=>f.status==='fertig'&&fuhreImFilter(f)).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
   const offen = state.fuhren.filter(f=>f.status==='offen'&&fuhreImFilter(f));
   const pending = fertig.filter(f=>!f.verifiziert);
   const verified = fertig.filter(f=>f.verifiziert);
+  const lieferungen = abfahrerLieferungen();
+  const lieferungenOffen = lieferungen.filter(w => !w.silo_von_id).length;
   const filterAktiv = !!(_fFilterHerkunft || _fFilterDatum);
   // Herkünfte für die Auswahl (alle Fuhren, alphabetisch)
   const herkuenfte = [...new Set(state.fuhren.map(herkunftVonFuhre))].sort((a,b)=>a.localeCompare(b,'de'));
@@ -228,6 +293,9 @@ export function renderAdminFuhren() {
       <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="exportGefilterteFuhrenExcel()">📊 Excel (Filter)</button>
     </div>
 
+    ${lieferungen.length ? `<div class="section-label" style="color:var(--gold)">🡒 Abfahrer-Verkaufslieferungen (${lieferungen.length}${lieferungenOffen?` · <span style="color:var(--amber)">${lieferungenOffen} ohne Quelle</span>`:''})</div>
+      <div style="font-size:11px;color:var(--text3);margin:-4px 0 8px">Vom Abfahrer selbst zum Kunden gefahren – bitte Quelle (Silo) zuweisen; damit wird der Bestand ausgebucht.</div>
+      ${lieferungen.map(lieferungRow).join('')}` : ''}
     ${filterAktiv && !fertig.length && !offen.length ? '<div class="empty-state">Keine Fuhren für diesen Filter.</div>' : ''}
     ${pending.length ? `<div class="section-label" style="color:var(--text)">⚠ Zu bestätigen (${pending.length})</div>${pending.map(f=>fuhreRow(f,true)).join('')}` : ''}
     ${verified.length ? `<div class="section-label" style="margin-top:8px">✓ Bestätigt (${verified.length})</div>${verified.map(f=>fuhreRow(f,true)).join('')}` : ''}

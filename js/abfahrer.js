@@ -1,9 +1,9 @@
-import { state } from './state.js?v=109';
-import { db } from './db.js?v=109';
-import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge } from './helpers.js?v=109';
-import { isBioFuhre, bioBadge } from './bio.js?v=109';
-import { getFruchtFarbe } from './frucht.js?v=109';
-import { getQualitaetsfelder } from './quality.js?v=109';
+import { state } from './state.js?v=110';
+import { db } from './db.js?v=110';
+import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=110';
+import { isBioFuhre, bioBadge } from './bio.js?v=110';
+import { getFruchtFarbe } from './frucht.js?v=110';
+import { getQualitaetsfelder } from './quality.js?v=110';
 
 export let aTab = 'erfassen';
 export function setATab(tab) { aTab = tab; renderAbfahrer(); }
@@ -138,17 +138,43 @@ export async function fuhreSpeichern(fId) {
   catch(e) { Object.assign(f, prevState); showToast('⚠ Speicherfehler: '+e.message, 'error'); renderAbfahrer(); }
 }
 
+// Selbst gefahrene Verkaufslieferung (warenbewegung auf Kontrakt) als Karte.
+function abfLieferungCard(w) {
+  const k     = state.kontrakte.find(x => x.id === w.kontrakt_id);
+  const kunde = state.kontakte.find(c => c.id === (k?.kontakt_id));
+  const art   = state.artikel.find(a => a.id === w.artikel_id);
+  const n     = Number(w.menge_kg) || 0;
+  const d     = w.erstellt_am ? new Date(w.erstellt_am) : null;
+  const zeit  = d ? d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+  return `<div class="fuhre-item" style="border-left:4px solid var(--amber)">
+    <div class="fuhre-top"><span class="fuhre-nr">🡒 ${zeit}${w.lieferschein_nr?' · LS '+escapeHtml(w.lieferschein_nr):''}</span><span class="badge badge-fertig">GELIEFERT</span></div>
+    <div class="fuhre-info">
+      <div class="fuhre-kv"><span class="fk">Kunde </span><span class="fv">${escapeHtml(kunde?.name||w.empfaenger||'–')}</span></div>
+      <div class="fuhre-kv"><span class="fk">Kontrakt </span><span class="fv">${escapeHtml(k?.nummer||'–')}</span></div>
+      <div class="fuhre-kv"><span class="fk">Artikel </span><span class="fv">${escapeHtml(art?.name||'–')}</span></div>
+      <div class="fuhre-kv"><span class="fk">Netto </span><span class="fv">${n?kg2t(n):'–'}</span></div>
+      ${w.kennzeichen?`<div class="fuhre-kv"><span class="fk">Kennz. </span><span class="fv">${escapeHtml(w.kennzeichen)}</span></div>`:''}
+    </div></div>`;
+}
+
 function renderAbfahrerFertig() {
+  const uid = state.currentUser.id;
   const nrNum2 = f => parseInt((f.nr||'').replace('F-',''))||0;
-  const fuhren=state.fuhren.filter(f=>f.abfahrerId===state.currentUser.id&&f.status==='fertig').sort((a,b)=>nrNum2(b)-nrNum2(a));
-  const totalKg = fuhren.reduce((s,f)=>s+(netto(f)||0),0);
-  const totalT = (totalKg/1000).toFixed(1);
-  const summaryHtml = `<div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;text-align:center">
+  const fuhren=state.fuhren.filter(f=>f.abfahrerId===uid&&f.status==='fertig').sort((a,b)=>nrNum2(b)-nrNum2(a));
+  // Selbst gefahrene Verkaufslieferungen (Kontrakt) dieses Abfahrers
+  const lieferungen = state.warenbewegungen
+    .filter(w => w.typ==='ausgang' && w.kontrakt_id && w.erstellt_von===uid)
+    .sort((a,b)=>new Date(b.erstellt_am||0)-new Date(a.erstellt_am||0));
+  const totalT = (fuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000).toFixed(1);
+  const liefT  = (lieferungen.reduce((s,w)=>s+(Number(w.menge_kg)||0),0)/1000).toFixed(1);
+
+  const summaryHtml = fuhren.length ? `<div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;text-align:center">
     <div style="font-size:var(--text-sm);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Deine Gesamtleistung</div>
     <div style="font-family:var(--font-display);font-size:40px;font-weight:700;color:var(--color-text)">${totalT} t</div>
     <div style="font-size:var(--text-md);color:var(--color-text-muted);margin-top:4px">${fuhren.length} Fuhren abgeschlossen</div>
-  </div>`;
-  document.getElementById('atab').innerHTML=fuhren.length?(summaryHtml+fuhren.map(f=>{
+  </div>` : '';
+
+  const fuhrenHtml = fuhren.map(f=>{
     const n=netto(f);
     const fr=getFruchtFarbe(f.fruchtart);
     return `<div class="fuhre-item" style="border-left:4px solid ${fr.dot}">
@@ -161,7 +187,16 @@ function renderAbfahrerFertig() {
         <div class="fuhre-kv"><span class="fk">Feuchte </span><span class="fv">${f.feuchte?f.feuchte+'%':'–'}</span></div>
         ${f.protein?`<div class="fuhre-kv"><span class="fk">Protein </span><span class="fv">${f.protein}%</span></div>`:''}
       </div></div>`;
-  }).join('')):'<div class="empty-state">Noch keine abgeschlossenen Fuhren.</div>';
+  }).join('');
+
+  const lieferungenHtml = lieferungen.length
+    ? `<div class="section-label" style="margin-top:14px;color:var(--amber)">🡒 Verkaufslieferungen (${lieferungen.length} · ${liefT} t)</div>`
+      + lieferungen.map(abfLieferungCard).join('')
+    : '';
+
+  document.getElementById('atab').innerHTML = (fuhren.length || lieferungen.length)
+    ? (summaryHtml + fuhrenHtml + lieferungenHtml)
+    : '<div class="empty-state">Noch keine abgeschlossenen Fuhren.</div>';
 }
 
 function renderAbfahrerSchlagsuche() {

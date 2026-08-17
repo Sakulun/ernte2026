@@ -1,8 +1,8 @@
-import { state } from './state.js?v=109';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=109';
-import { getFruchtFarbe } from './frucht.js?v=109';
-import { getQualitaetsfelder } from './quality.js?v=109';
-import { lagerLabel } from './silo.js?v=109';
+import { state } from './state.js?v=110';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=110';
+import { getFruchtFarbe } from './frucht.js?v=110';
+import { getQualitaetsfelder } from './quality.js?v=110';
+import { lagerLabel } from './silo.js?v=110';
 
 // ── Übersicht: Vermehrungen ──────────────────────────────────────────────────
 // Alle Vermehrungssorten mit Status (geerntet/in Ernte/offen), Mengen & Ø-Qualität.
