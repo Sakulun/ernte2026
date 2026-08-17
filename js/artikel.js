@@ -1,6 +1,6 @@
-import { state } from './state.js?v=111';
-import { db } from './db.js?v=111';
-import { showToast, escapeHtml } from './helpers.js?v=111';
+import { state } from './state.js?v=112';
+import { db } from './db.js?v=112';
+import { showToast, escapeHtml } from './helpers.js?v=112';
 
 export function renderArtikel() {
   const kategorien = ['getreide','betriebsmittel','saatgut','sonstige'];

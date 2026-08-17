@@ -1,8 +1,8 @@
-import { state } from './state.js?v=111';
-import { db } from './db.js?v=111';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=111';
-import { getSiloBestand, getSiloKultur, lagerLabel } from './silo.js?v=111';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=111';
+import { state } from './state.js?v=112';
+import { db } from './db.js?v=112';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=112';
+import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=112';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=112';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -315,6 +315,93 @@ export function waageFuhreWidgetHTML(fuhreId, felder = 'beide') {
   </div>`;
 }
 
+// ── Einzelne Warenbewegung bearbeiten (Inline-Formular) ──────────────────────
+let _wbEditOpen = null;
+
+function wbEditFormHTML(w) {
+  const isAus = w.typ === 'ausgang';
+  const artOpts = state.artikel
+    .map(a => `<option value="${a.id}" ${a.id===w.artikel_id?'selected':''}>${escapeHtml(a.name)}</option>`).join('');
+  const kontraktOpts = state.kontrakte.map(k => {
+    const kt = state.kontakte.find(c => c.id === k.kontakt_id);
+    return `<option value="${k.id}" ${k.id===w.kontrakt_id?'selected':''}>${escapeHtml(k.nummer)}${kt?' · '+escapeHtml(kt.name):''}</option>`;
+  }).join('');
+  const lagerOpts = '<option value="">— kein Silo —</option>' + alleLagerOrte()
+    .map(o => `<option value="${escapeHtml(o.id)}" ${o.id===w.silo_von_id?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+  const lab = (t, inner) => `<label style="font-size:11px;color:var(--text2)">${t}${inner}</label>`;
+  return `<div style="margin-top:10px;padding:12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--card)">
+    <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:8px">✏ Warenbewegung bearbeiten</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${lab('Artikel', `<select id="wbe-art-${w.id}" class="input"><option value="">—</option>${artOpts}</select>`)}
+      ${lab('Kontrakt', `<select id="wbe-kontrakt-${w.id}" class="input"><option value="">— kein Kontrakt —</option>${kontraktOpts}</select>`)}
+      ${isAus ? lab('Quelle-Silo', `<select id="wbe-silo-${w.id}" class="input">${lagerOpts}</select>`) : ''}
+      ${lab('Empfänger', `<input id="wbe-empf-${w.id}" class="input" value="${escapeHtml(w.empfaenger||'')}">`)}
+      ${lab('Vollgew. (kg)', `<input id="wbe-voll-${w.id}" class="input" type="number" value="${w.vollgewicht??''}">`)}
+      ${lab('Leergew. (kg)', `<input id="wbe-leer-${w.id}" class="input" type="number" value="${w.leergewicht??''}">`)}
+      ${lab('Menge (t)', `<input id="wbe-menge-${w.id}" class="input" type="number" step="0.001" value="${((w.menge_kg||0)/1000).toFixed(3)}">`)}
+      ${lab('Kennzeichen', `<input id="wbe-kz-${w.id}" class="input" value="${escapeHtml(w.kennzeichen||'')}" style="text-transform:uppercase">`)}
+      ${lab('Spedition', `<input id="wbe-sped-${w.id}" class="input" value="${escapeHtml(w.spedition||'')}">`)}
+      ${lab('Beleg-Nr.', `<input id="wbe-beleg-${w.id}" class="input" value="${escapeHtml(w.beleg_nr||'')}">`)}
+      ${lab('Lieferschein-Nr.', `<input id="wbe-ls-${w.id}" class="input" value="${escapeHtml(w.lieferschein_nr||'')}">`)}
+      ${lab('Notiz', `<input id="wbe-notiz-${w.id}" class="input" value="${escapeHtml(w.notiz||'')}">`)}
+      <label style="font-size:11px;color:var(--text2);display:flex;align-items:center;gap:6px;align-self:end;padding-bottom:6px">
+        <input type="checkbox" id="wbe-bio-${w.id}" ${w.bio?'checked':''} style="width:16px;height:16px;accent-color:var(--gold)"> Bio-Ware</label>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">Menge = Voll − Leer, wenn beide gesetzt; sonst zählt das Menge-Feld.</div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="wbEditSpeichern(${w.id})">💾 Speichern</button>
+      <button class="btn btn-sm btn-outline" onclick="wbEditToggle(${w.id})">Abbrechen</button>
+    </div>
+  </div>`;
+}
+
+export function wbEditToggle(id) {
+  _wbEditOpen = (_wbEditOpen === id) ? null : id;
+  renderWarenausgang();
+}
+
+export async function wbEditSpeichern(id) {
+  const w = state.warenbewegungen.find(x => x.id === id);
+  if(!w) return;
+  const el  = sfx => document.getElementById('wbe-'+sfx+'-'+id);
+  const num = e => { const n = parseFloat(e?.value); return isNaN(n) ? null : n; };
+  const txt = e => { const v = (e?.value||'').trim(); return v || null; };
+  const voll = num(el('voll')), leer = num(el('leer')), mengeT = num(el('menge'));
+  let mengeKg;
+  if(voll != null && leer != null && voll > leer) mengeKg = Math.round(voll - leer);
+  else if(mengeT != null) mengeKg = Math.round(mengeT * 1000);
+  else mengeKg = w.menge_kg;
+  if(!mengeKg || mengeKg <= 0) { showToast('Bitte gültige Menge oder Gewichte angeben', 'error'); return; }
+  const siloEl = el('silo');
+  const upd = {
+    artikelId: parseInt(el('art')?.value) || null,
+    kontraktId: parseInt(el('kontrakt')?.value) || null,
+    mengeKg, vollgewicht: voll, leergewicht: leer,
+    empfaenger: txt(el('empf')),
+    kennzeichen: (el('kz')?.value||'').trim().toUpperCase() || null,
+    spedition: txt(el('sped')),
+    belegNr: txt(el('beleg')),
+    lieferscheinNr: txt(el('ls')),
+    notiz: txt(el('notiz')),
+    bio: el('bio')?.checked || false,
+  };
+  if(siloEl) upd.siloVonId = siloEl.value || null;
+  // optimistisch in den State übernehmen
+  Object.assign(w, {
+    artikel_id: upd.artikelId, kontrakt_id: upd.kontraktId, menge_kg: upd.mengeKg,
+    vollgewicht: upd.vollgewicht, leergewicht: upd.leergewicht, empfaenger: upd.empfaenger,
+    kennzeichen: upd.kennzeichen, spedition: upd.spedition, beleg_nr: upd.belegNr,
+    lieferschein_nr: upd.lieferscheinNr, notiz: upd.notiz, bio: upd.bio,
+  });
+  if(siloEl) w.silo_von_id = upd.siloVonId;
+  _wbEditOpen = null;
+  renderWarenausgang();
+  try {
+    await db.updateWarenbewegungFelder(id, upd);
+    showToast('✓ Warenbewegung gespeichert');
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
 export function renderWarenausgang() {
   // Reinigungsabgänge sind interne Umbuchungen (Reduktion des Ziel-Silos, dem ein
   // Reinigungsabgang-Fuhre gegenübersteht) – nicht als Warenausgang listen.
@@ -352,9 +439,13 @@ export function renderWarenausgang() {
       +(w.lieferschein_nr?'<div style="font-size:10px;color:var(--text3)">LS '+escapeHtml(w.lieferschein_nr)+'</div>':'')
       +'<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">'
       +(isAus?'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:3px 8px" title="Lieferschein drucken" onclick="lieferscheinDialog('+w.id+')">🖨</button>':'')
+      +'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--text2);padding:3px 8px" title="Bearbeiten" onclick="wbEditToggle('+w.id+')">✏</button>'
       +'<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red);padding:3px 8px" onclick="deleteWarenbewegung('+w.id+')">✕</button>'
       +'</div>'
-      +'</div></div></div>';
+      +'</div>'
+      +'</div>'
+      +(_wbEditOpen===w.id ? wbEditFormHTML(w) : '')
+      +'</div>';
   };
 
   document.getElementById('admintab').innerHTML = ''

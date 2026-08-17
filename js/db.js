@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=111';
+import { SB_URL, SB_KEY } from './config.js?v=112';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -395,6 +395,19 @@ export const db = {
   // Selbstlieferungen, die ohne Lager gebucht wurden. Reduziert den Silobestand.
   async updateWarenbewegungQuelle(id, siloVonId) {
     const { error } = await sb.from('warenbewegungen').update({ silo_von_id: siloVonId || null }).eq('id', id);
+    if(error) throw error;
+  },
+  // Einzelne Warenbewegung bearbeiten (Warenbewegungen-Ansicht). Nur gesetzte
+  // Felder werden geschrieben.
+  async updateWarenbewegungFelder(id, u) {
+    const map = {};
+    const set = (k, dbk) => { if(u[k] !== undefined) map[dbk] = u[k]; };
+    set('artikelId','artikel_id');   set('kontraktId','kontrakt_id'); set('siloVonId','silo_von_id');
+    set('mengeKg','menge_kg');        set('vollgewicht','vollgewicht'); set('leergewicht','leergewicht');
+    set('empfaenger','empfaenger');   set('belegNr','beleg_nr');       set('notiz','notiz');
+    set('bio','bio');                 set('spedition','spedition');    set('kennzeichen','kennzeichen');
+    set('lieferscheinNr','lieferschein_nr'); set('sonstigeAngaben','sonstige_angaben');
+    const { error } = await sb.from('warenbewegungen').update(map).eq('id', id);
     if(error) throw error;
   },
   // ── Umlaufspeicher: leer verwogene Fahrzeuge, die auf Beladung warten ──
