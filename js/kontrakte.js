@@ -1,6 +1,6 @@
-import { state } from './state.js?v=107';
-import { db } from './db.js?v=107';
-import { showToast, escapeHtml } from './helpers.js?v=107';
+import { state } from './state.js?v=108';
+import { db } from './db.js?v=108';
+import { showToast, escapeHtml } from './helpers.js?v=108';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -78,6 +78,23 @@ function istRapsKontrakt(k) {
 export function toggleKontraktDetail(id) {
   _offenerKontrakt = (_offenerKontrakt === id) ? null : id;
   renderKontrakte();
+}
+
+// Verkaufskontrakt für die Abfahrer-Selbstlieferung freischalten/sperren.
+export async function kontraktAbfahrerFrei(id, frei) {
+  const k = state.kontrakte.find(x => x.id === id);
+  if(!k) return;
+  const prev = k.abfahrer_frei;
+  k.abfahrer_frei = frei;              // optimistisch
+  renderKontrakte();
+  try {
+    await db.setKontraktAbfahrerFrei(id, frei);
+    showToast(frei ? '🚛 Für Abfahrer freigeschaltet' : 'Abfahrer-Freigabe entfernt');
+  } catch(e) {
+    k.abfahrer_frei = prev;
+    renderKontrakte();
+    showToast('⚠ ' + e.message, 'error');
+  }
 }
 
 // Ein Abrechnungsfeld einer Auslieferung speichern (Gutschrift-Nr., Fracht-Nr., Quali-Nr., Klären, Bemerkung).
@@ -226,6 +243,7 @@ export function renderKontrakte() {
               ${k.zert_nachhaltig?'<span class="badge" style="background:var(--green-100,#e6f2e6);color:var(--green2)">♻ Nachhaltig</span>':''}
               ${k.zert_gmp?'<span class="badge" style="background:var(--neutral-200);color:var(--text)">GMP+</span>':''}
               ${k.bio?'<span class="badge badge-aktiv">🌿 EU-Öko</span>':''}
+              ${k.abfahrer_frei?'<span class="badge" style="background:var(--gold);color:#1a1400">🚛 Abfahrer</span>':''}
               <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
@@ -244,6 +262,7 @@ export function renderKontrakte() {
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="kontraktBearbeiten(${k.id})">✏ Bearbeiten</button>
+        ${(k.richtung||'verkauf')==='verkauf' && k.status==='aktiv' ? `<button class="btn btn-sm" style="background:${k.abfahrer_frei?'var(--gold)':'none'};border:1px solid var(--border2);color:${k.abfahrer_frei?'#1a1400':'var(--text2)'}" onclick="kontraktAbfahrerFrei(${k.id},${k.abfahrer_frei?'false':'true'})" title="Abfahrer dürfen selbst auf diesen Kontrakt liefern (Reiter „Kontrakt“ in der Fuhre-erfassen-Maske)">🚛 ${k.abfahrer_frei?'Für Abfahrer: frei':'Für Abfahrer freischalten'}</button>` : ''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--gold)" onclick="kontraktStatus(${k.id},'erfuellt')">✓ Als erfüllt markieren</button>`:''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktStatus(${k.id},'storniert')">✕ Stornieren</button>`:''}
         ${fuhren.length===0?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktLoeschen(${k.id})" title="Nur möglich, solange keine Fuhren hinterlegt sind">🗑 Löschen</button>`:''}

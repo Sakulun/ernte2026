@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=107';
+import { SB_URL, SB_KEY } from './config.js?v=108';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -315,6 +315,11 @@ export const db = {
   },
   async deleteKontrakt(id) {
     const { error } = await sb.from('kontrakte').delete().eq('id', id);
+    if(error) throw error;
+  },
+  // Verkaufskontrakt für die Abfahrer-Selbstlieferung freischalten (oder sperren)
+  async setKontraktAbfahrerFrei(id, frei) {
+    const { error } = await sb.from('kontrakte').update({ abfahrer_frei: !!frei }).eq('id', id);
     if(error) throw error;
   },
   // ── Fremdzukauf: fremde Artikel (Dünger/Kalk/Sonstiges) über die Waage ──

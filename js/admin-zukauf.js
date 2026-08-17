@@ -1,6 +1,6 @@
-import { state } from './state.js?v=107';
-import { showToast, escapeHtml, fmtDate, fmtTime } from './helpers.js?v=107';
-import { db } from './db.js?v=107';
+import { state } from './state.js?v=108';
+import { showToast, escapeHtml, fmtDate, fmtTime } from './helpers.js?v=108';
+import { db } from './db.js?v=108';
 
 // ── Zukauf-Liste: fremde Artikel (Dünger/Kalk/Sonstiges) über die Waage ──────
 // Erfasst wird an der Waage (Zukauf extern → Dünger). Hier: Übersicht + Export.
