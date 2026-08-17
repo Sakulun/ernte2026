@@ -150,20 +150,26 @@ function formHTML() {
   const kopf = `<div class="card-header"><div><div class="card-title">⚖ Ware an der Waage annehmen</div><div class="card-sub">Herkunft wählen → Details → Gewichte</div></div></div>`;
   // Umlagerung ist Teil der Ernte-Schlagauswahl (kein eigener Button mehr).
   if(_herkunft === 'umlagerung') _herkunft = 'ernte';
-  // Reiter "Kontrakt" nur für den Abfahrer (Selbstlieferung) und nur, wenn der
-  // Admin Verkaufskontrakte dafür freigeschaltet hat.
+  // Herkunft-Karten:
+  //  • Abfahrer (Selbsterfassung): nur „Ernte" + „Verkauf" (kein Zukauf extern).
+  //  • Waage-Tablet/Admin: „Ernte" + „Zukauf extern" (kein Verkauf-Reiter).
   const abfahrerModus = _lockAbfahrer != null;
-  const freigeschaltet = abfahrerModus
-    ? state.kontrakte.filter(k => k.abfahrer_frei && k.status === 'aktiv' && (k.richtung||'verkauf') === 'verkauf')
-    : [];
-  if(_herkunft === 'kontrakt' && !freigeschaltet.length) _herkunft = 'ernte';
-  const herkunftSel = `<div style="display:flex;gap:8px;margin-bottom:14px">
-    ${segBtn("weSetHerkunft('ernte')", _herkunft==='ernte', '🌾', 'Ernte')}
-    ${segBtn("weSetHerkunft('zukauf')", _herkunft==='zukauf', '🚚', 'Zukauf extern')}
-    ${freigeschaltet.length ? segBtn("weSetHerkunft('kontrakt')", _herkunft==='kontrakt', '📄', 'Kontrakt') : ''}
-  </div>`;
+  const freigeschaltet = state.kontrakte.filter(k => k.abfahrer_frei && k.status === 'aktiv' && (k.richtung||'verkauf') === 'verkauf');
+  if(abfahrerModus && _herkunft === 'zukauf') _herkunft = 'ernte';   // Abfahrer kennt kein Zukauf
+  if(!abfahrerModus && _herkunft === 'kontrakt') _herkunft = 'ernte'; // andere kennen kein Verkauf
+  const herkunftSel = abfahrerModus
+    ? `<div style="display:flex;gap:8px;margin-bottom:14px">
+        ${segBtn("weSetHerkunft('ernte')", _herkunft==='ernte', '🌾', 'Ernte')}
+        ${segBtn("weSetHerkunft('kontrakt')", _herkunft==='kontrakt', '🡒', 'Verkauf')}
+      </div>`
+    : `<div style="display:flex;gap:8px;margin-bottom:14px">
+        ${segBtn("weSetHerkunft('ernte')", _herkunft==='ernte', '🌾', 'Ernte')}
+        ${segBtn("weSetHerkunft('zukauf')", _herkunft==='zukauf', '🚚', 'Zukauf extern')}
+      </div>`;
 
-  // ─ KONTRAKT · Abfahrer liefert selbst an den Kunden → Menge auf den Kontrakt ─
+  // ─ VERKAUF · Abfahrer liefert selbst an den Kunden → Menge auf den Kontrakt ─
+  // Kontrakt wie einen Schlag auswählen; die offene Kontraktmenge wird bewusst
+  // NICHT angezeigt.
   if(_herkunft === 'kontrakt') {
     const opts = freigeschaltet.map(k => {
       const kt  = state.kontakte.find(c => c.id === k.kontakt_id);
@@ -171,14 +177,16 @@ function formHTML() {
       const bez = [kt?.name, art?.name || k.fruchtart_text].filter(Boolean).join(' · ');
       return `<option value="${k.id}">${escapeHtml(k.nummer)}${bez ? ' · ' + escapeHtml(bez) : ''}</option>`;
     }).join('');
-    return `${kopf}${herkunftSel}
-      <div class="form-group"><label>Kontrakt (Lieferung an Kunde)</label>
-        <select id="we-kontrakt" onchange="weKontraktWahl()"><option value="">— Kontrakt wählen —</option>${opts}</select></div>
-      <div id="we-kontrakt-info" style="display:none;font-size:12px;color:var(--gold);margin:-6px 0 12px;line-height:1.5"></div>
-      <div class="form-group"><label>Kennzeichen</label>
-        <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>
-      ${gewichteHTML()}
-      <button class="btn btn-green btn-full" id="we-btn" onclick="weKontraktAbschliessen()">&#10003; Abschließen</button>`;
+    const body = freigeschaltet.length
+      ? `<div class="form-group"><label>Verkaufskontrakt</label>
+          <select id="we-kontrakt" onchange="weKontraktWahl()"><option value="">— Kontrakt wählen —</option>${opts}</select></div>
+        <div id="we-kontrakt-info" style="display:none;font-size:12px;color:var(--gold);margin:-6px 0 12px;line-height:1.5"></div>
+        <div class="form-group"><label>Kennzeichen</label>
+          <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>
+        ${gewichteHTML()}
+        <button class="btn btn-green btn-full" id="we-btn" onclick="weKontraktAbschliessen()">&#10003; Abschließen</button>`
+      : `<div class="alert alert-warn">Zurzeit sind keine Verkaufskontrakte freigeschaltet.</div>`;
+    return `${kopf}${herkunftSel}${body}`;
   }
 
   // ─ ZUKAUF · DÜNGER/KALK → eigene Zukauf-Liste ─
@@ -392,18 +400,18 @@ export async function weDuengerSpeichern() {
   }
 }
 
-// ── Kontrakt-Selbstlieferung (Abfahrer): Rest-Info anzeigen ──────────────────
+// ── Kontrakt-Selbstlieferung (Abfahrer): kurze Bestätigung (Kunde/Artikel) ────
+// Die offene Kontraktmenge wird dem Abfahrer bewusst NICHT angezeigt.
 export function weKontraktWahl() {
   const id = parseInt(document.getElementById('we-kontrakt')?.value);
   const info = document.getElementById('we-kontrakt-info');
   if(!info) return;
   const k = state.kontrakte.find(x => x.id === id);
   if(!k) { info.style.display = 'none'; return; }
-  const geliefKg = window.getKontraktGeliefertKg ? window.getKontraktGeliefertKg(k.id) : 0;
-  const restT = Math.max(0, (parseFloat(k.menge_t)||0) - geliefKg/1000);
   const art = state.artikel.find(a => a.id === k.artikel_id);
+  const kt  = state.kontakte.find(c => c.id === k.kontakt_id);
   info.style.display = 'block';
-  info.innerHTML = `${escapeHtml(art?.name || k.fruchtart_text || '')}${k.bio ? ' · <span style="color:var(--color-success);font-weight:700">🌿 BIO</span>' : ''}<br>Rest offen: <b>${restT.toFixed(1)} t</b>`;
+  info.innerHTML = `${escapeHtml(kt?.name || '')}${art ? ' · ' + escapeHtml(art.name) : ''}${k.bio ? ' · <span style="color:var(--color-success);font-weight:700">🌿 BIO</span>' : ''}`;
 }
 
 // ── Kontrakt-Selbstlieferung abschließen: Menge auf den Kontrakt buchen ───────
