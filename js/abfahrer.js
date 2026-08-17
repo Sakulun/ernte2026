@@ -1,19 +1,23 @@
-import { state } from './state.js?v=110';
-import { db } from './db.js?v=110';
-import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=110';
-import { isBioFuhre, bioBadge } from './bio.js?v=110';
-import { getFruchtFarbe } from './frucht.js?v=110';
-import { getQualitaetsfelder } from './quality.js?v=110';
+import { state } from './state.js?v=111';
+import { db } from './db.js?v=111';
+import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=111';
+import { isBioFuhre, bioBadge } from './bio.js?v=111';
+import { getFruchtFarbe } from './frucht.js?v=111';
+import { getQualitaetsfelder } from './quality.js?v=111';
 
 export let aTab = 'erfassen';
 export function setATab(tab) { aTab = tab; renderAbfahrer(); }
+// Unter-Umschalter im Tab "Abgeschlossene Fuhren": 'ernte' | 'ausgang'
+let _fertigTab = 'ernte';
+export function setAbfFertigTab(t) { _fertigTab = t; renderAbfahrerFertig(); }
 let _navMap = null;
 let _navLayers = {};
 let _navHighlight = null;
 
 export function renderAbfahrer() {
   const uid=state.currentUser.id;
-  const fertigAnz=state.fuhren.filter(f=>f.abfahrerId===uid&&f.status==='fertig').length;
+  const fertigAnz=state.fuhren.filter(f=>f.abfahrerId===uid&&f.status==='fertig').length
+    + state.warenbewegungen.filter(w=>w.typ==='ausgang'&&w.kontrakt_id&&w.erstellt_von===uid).length;
   document.getElementById('main-content').innerHTML=`
     <div class="tabs">
       <button class="tab ${aTab==='erfassen'?'active':''}" onclick="setATab('erfassen')">&#9878; Fuhre erfassen</button>
@@ -168,35 +172,50 @@ function renderAbfahrerFertig() {
   const totalT = (fuhren.reduce((s,f)=>s+(netto(f)||0),0)/1000).toFixed(1);
   const liefT  = (lieferungen.reduce((s,w)=>s+(Number(w.menge_kg)||0),0)/1000).toFixed(1);
 
-  const summaryHtml = fuhren.length ? `<div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;text-align:center">
-    <div style="font-size:var(--text-sm);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Deine Gesamtleistung</div>
-    <div style="font-family:var(--font-display);font-size:40px;font-weight:700;color:var(--color-text)">${totalT} t</div>
-    <div style="font-size:var(--text-md);color:var(--color-text-muted);margin-top:4px">${fuhren.length} Fuhren abgeschlossen</div>
-  </div>` : '';
+  // Umschalter Ernte / Warenausgang ganz oben
+  const tabBtn = (id, label, active) =>
+    `<button onclick="setAbfFertigTab('${id}')" style="flex:1;min-width:0;padding:11px 8px;border-radius:var(--radius-md);border:2px solid ${active?'var(--gold)':'var(--color-border)'};background:${active?'var(--gold)':'var(--color-surface)'};color:${active?'#1a1400':'var(--color-text)'};font-family:inherit;font-weight:700;font-size:13px;cursor:pointer;line-height:1.3">${label}</button>`;
+  const umschalter = `<div style="display:flex;gap:8px;margin-bottom:14px">
+    ${tabBtn('ernte',   `🌾 Ernte${fuhren.length?' ('+fuhren.length+')':''}`,          _fertigTab==='ernte')}
+    ${tabBtn('ausgang', `🡒 Warenausgang${lieferungen.length?' ('+lieferungen.length+')':''}`, _fertigTab==='ausgang')}
+  </div>`;
 
-  const fuhrenHtml = fuhren.map(f=>{
-    const n=netto(f);
-    const fr=getFruchtFarbe(f.fruchtart);
-    return `<div class="fuhre-item" style="border-left:4px solid ${fr.dot}">
-      <div class="fuhre-top"><span class="fuhre-nr">${f.nr} · ${fmtTime(f.zeit)}</span><span class="badge badge-fertig">FERTIG</span></div>
-      ${f.sorte?`<div style="padding:2px 0 4px">${sorteBadge(f)}</div>`:''}
-      <div class="fuhre-info">
-        <div class="fuhre-kv"><span class="fk">Schlag </span><span class="fv">${getFeld(f.feldId).name||'–'}</span></div>
-        <div class="fuhre-kv"><span class="fk">Fruchtart </span><span class="fv">${f.fruchtart||'–'}</span></div>
-        <div class="fuhre-kv"><span class="fk">Netto </span><span class="fv">${n?kg2t(n):'–'}</span></div>
-        <div class="fuhre-kv"><span class="fk">Feuchte </span><span class="fv">${f.feuchte?f.feuchte+'%':'–'}</span></div>
-        ${f.protein?`<div class="fuhre-kv"><span class="fk">Protein </span><span class="fv">${f.protein}%</span></div>`:''}
-      </div></div>`;
-  }).join('');
+  let inhalt;
+  if(_fertigTab === 'ausgang') {
+    const summary = lieferungen.length ? `<div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;text-align:center">
+      <div style="font-size:var(--text-sm);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Deine Warenausgänge</div>
+      <div style="font-family:var(--font-display);font-size:36px;font-weight:700;color:var(--color-text)">${liefT} t</div>
+      <div style="font-size:var(--text-md);color:var(--color-text-muted);margin-top:4px">${lieferungen.length} Lieferung${lieferungen.length===1?'':'en'} auf Kontrakt</div>
+    </div>` : '';
+    inhalt = lieferungen.length
+      ? summary + lieferungen.map(abfLieferungCard).join('')
+      : '<div class="empty-state">Noch keine Warenausgänge auf Kontrakt.</div>';
+  } else {
+    const summaryHtml = fuhren.length ? `<div style="background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;text-align:center">
+      <div style="font-size:var(--text-sm);color:var(--color-text-muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:4px">Deine Gesamtleistung</div>
+      <div style="font-family:var(--font-display);font-size:40px;font-weight:700;color:var(--color-text)">${totalT} t</div>
+      <div style="font-size:var(--text-md);color:var(--color-text-muted);margin-top:4px">${fuhren.length} Fuhren abgeschlossen</div>
+    </div>` : '';
+    const fuhrenHtml = fuhren.map(f=>{
+      const n=netto(f);
+      const fr=getFruchtFarbe(f.fruchtart);
+      return `<div class="fuhre-item" style="border-left:4px solid ${fr.dot}">
+        <div class="fuhre-top"><span class="fuhre-nr">${f.nr} · ${fmtTime(f.zeit)}</span><span class="badge badge-fertig">FERTIG</span></div>
+        ${f.sorte?`<div style="padding:2px 0 4px">${sorteBadge(f)}</div>`:''}
+        <div class="fuhre-info">
+          <div class="fuhre-kv"><span class="fk">Schlag </span><span class="fv">${getFeld(f.feldId).name||'–'}</span></div>
+          <div class="fuhre-kv"><span class="fk">Fruchtart </span><span class="fv">${f.fruchtart||'–'}</span></div>
+          <div class="fuhre-kv"><span class="fk">Netto </span><span class="fv">${n?kg2t(n):'–'}</span></div>
+          <div class="fuhre-kv"><span class="fk">Feuchte </span><span class="fv">${f.feuchte?f.feuchte+'%':'–'}</span></div>
+          ${f.protein?`<div class="fuhre-kv"><span class="fk">Protein </span><span class="fv">${f.protein}%</span></div>`:''}
+        </div></div>`;
+    }).join('');
+    inhalt = fuhren.length
+      ? summaryHtml + fuhrenHtml
+      : '<div class="empty-state">Noch keine abgeschlossenen Ernte-Fuhren.</div>';
+  }
 
-  const lieferungenHtml = lieferungen.length
-    ? `<div class="section-label" style="margin-top:14px;color:var(--amber)">🡒 Verkaufslieferungen (${lieferungen.length} · ${liefT} t)</div>`
-      + lieferungen.map(abfLieferungCard).join('')
-    : '';
-
-  document.getElementById('atab').innerHTML = (fuhren.length || lieferungen.length)
-    ? (summaryHtml + fuhrenHtml + lieferungenHtml)
-    : '<div class="empty-state">Noch keine abgeschlossenen Fuhren.</div>';
+  document.getElementById('atab').innerHTML = umschalter + inhalt;
 }
 
 function renderAbfahrerSchlagsuche() {
