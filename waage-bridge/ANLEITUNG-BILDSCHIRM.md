@@ -1,9 +1,20 @@
 # Waage vom Bildschirm ablesen (Bitzer-Anzeige → App)
 
+> **Einfachster Weg (empfohlen): direkt in der App.**
+> In der App unter **„Waage"** gibt es das Feld **„🖥 Waage vom Bildschirm lesen"**.
+> Dort auf **„Bildschirm freigeben"** klicken, das **Bitzer-Fenster** auswählen –
+> die App liest das Gewicht dann selbst per OCR aus. Keine Installation, kein Node,
+> keine Kalibrierung. Alternativ kann dort ein Screenshot eingefügt (Strg+V) oder
+> als Datei hochgeladen werden. **Diese Anleitung hier ist nur nötig, wenn das
+> Ablesen ohne offene App / im Autostart laufen soll.**
+
+---
+
 Die Waage ist per Netzwerk/IP nicht erreichbar, aber das **Bitzer-Tool** zeigt das
-Gewicht auf dem Bildschirm des Waagen-PCs an. Dieses Tool liest den Zahlenwert
-direkt vom Bildschirm ab (OCR) und schreibt ihn live nach Supabase. Die Ernte-App
-zeigt ihn dann unter **„Waage"** an – mit **Übernehmen**-Knopf.
+Gewicht auf dem Bildschirm des Waagen-PCs an. Dieses Tool (Node) liest den Zahlenwert
+direkt vom Bildschirm ab (OCR) und schreibt ihn live nach Supabase – für den
+**unbeaufsichtigten Dauerbetrieb** ohne offene App. Die Ernte-App zeigt ihn dann
+unter **„Waage"** an – mit **Übernehmen**-Knopf.
 
 Läuft komplett auf dem Waagen-PC (der hat Internet). Kein Zugriff auf die Waage nötig.
 

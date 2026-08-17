@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=108';
+import { SB_URL, SB_KEY } from './config.js?v=109';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -421,6 +421,14 @@ export const db = {
   async umlaufErledigt(id) {
     const { error } = await sb.from('umlauf')
       .update({ status:'erledigt', erledigt_am:new Date().toISOString() }).eq('id', id);
+    if(error) throw error;
+  },
+  // Live-Gewicht (waage_live, id=1) direkt aus der App setzen – Quelle ist die
+  // Bildschirm-OCR im Browser (js/waage-ocr.js). Gleiches Schema wie die Bridge.
+  async setWaageLive(gewicht_kg, status) {
+    const { error } = await sb.from('waage_live').upsert({
+      id: 1, gewicht_kg, status, einheit: 'kg', aktualisiert: new Date().toISOString()
+    });
     if(error) throw error;
   },
   // Kein Löschen: der Eintrag bleibt als Nachweis stehen und wechselt nur den Status.

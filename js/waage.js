@@ -1,10 +1,10 @@
-import { state } from './state.js?v=108';
-import { db } from './db.js?v=108';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=108';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=108';
-import { parseGewicht } from './abfahrer.js?v=108';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=108';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=108';
+import { state } from './state.js?v=109';
+import { db } from './db.js?v=109';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=109';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=109';
+import { parseGewicht } from './abfahrer.js?v=109';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=109';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=109';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -81,9 +81,11 @@ export function renderWaageTab(el) {
   _container = el;
   el.innerHTML = `<div style="max-width:560px;margin:0 auto">
     ${window.waageLiveBannerHTML ? window.waageLiveBannerHTML() : ''}
+    ${window.waageOcrPanelHTML ? window.waageOcrPanelHTML() : ''}
     ${umschalter()}
     <div id="waage-body"></div>
   </div>`;
+  if(window.aktualisierePanel) window.aktualisierePanel();
   const body = document.getElementById('waage-body');
   if(_modus === 'eingang') {
     renderWaageErfassungInto(body, { modus: 'abschluss' });
