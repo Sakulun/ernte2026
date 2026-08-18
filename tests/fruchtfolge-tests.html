@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Fruchtfolge – Parser-Tests</title>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; background: #1a1a17; color: #e8e0d0; padding: 24px; }
+  h1 { font-size: 18px; }
+  .ok { color: #7dc36b; } .fail { color: #e05d5d; }
+  li { margin: 3px 0; }
+  #summary { font-size: 16px; font-weight: bold; margin-top: 16px; }
+  #drop { border: 2px dashed #666; padding: 20px; margin-top: 24px; border-radius: 8px; }
+</style>
+</head>
+<body>
+<h1>Fruchtfolge – Import-Parser-Tests</h1>
+<ul id="results"></ul>
+<div id="summary">Tests laufen…</div>
+<div id="drop">Manueller Test: echtes Export-ZIP hierher ziehen → Parse-Ergebnis in der Konsole und unten.<br><input type="file" id="file" accept=".zip"></div>
+<pre id="manual"></pre>
+
+<script type="module">
+import { parseGmlSurface, polysToEwkt, parseFaXml, parseXlsxFlaechen, parseDbf, parseShp, parseAgrarantragZip }
+  from '../js/ff-import-parser.js';
+
+const results = [];
+function assert(name, cond, detail = '') {
+  results.push({ name, ok: !!cond, detail });
+}
+async function assertThrows(name, fn, msgPart) {
+  try { await fn(); results.push({ name, ok: false, detail: 'kein Fehler geworfen' }); }
+  catch (e) { results.push({ name, ok: !msgPart || String(e.message).includes(msgPart), detail: e.message }); }
+}
+
+// ── Fixtures ──────────────────────────────────────────────
+
+const GML = `<gml:Surface srsName='EPSG:25832' xmlns:gml="http://www.opengis.net/gml">
+<gml:patches><gml:PolygonPatch>
+<gml:exterior><gml:LinearRing><gml:posList srsDimension='2' count='5'>0 0 100 0 100 100 0 100 0 0</gml:posList></gml:LinearRing></gml:exterior>
+<gml:interior><gml:LinearRing><gml:posList srsDimension='2' count='5'>40 40 60 40 60 60 40 60 40 40</gml:posList></gml:LinearRing></gml:interior>
+</gml:PolygonPatch></gml:patches></gml:Surface>`;
+
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+const FA_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<fa:flaechenantrag xmlns:fa="http://www.data-experts.de/Flaechen">
+  <fa:antragsjahr>2026</fa:antragsjahr>
+  <fa:bnrzd>158650020018</fa:bnrzd>
+  <fa:gesamtparzellen>
+    <fa:gesamtparzelle>
+      <fa:geometrie>${esc(GML)}</fa:geometrie>
+      <fa:parzellenname>Testfeld</fa:parzellenname>
+      <fa:gp_nummer>471</fa:gp_nummer>
+      <fa:teilflaechen>
+        <fa:hauptnutzungsflaeche>
+          <fa:geometrie>${esc(GML)}</fa:geometrie>
+          <fa:groesse>157904</fa:groesse>
+          <fa:teilflaechennummer>471.01</fa:teilflaechennummer>
+          <fa:tf_parzellennummer_vorjahr>470</fa:tf_parzellennummer_vorjahr>
+          <fa:flik>DESTLI0504190020</fa:flik>
+          <fa:nutzung>171</fa:nutzung>
+          <fa:oekoRegelungen><fa:oekoRegelung>1a</fa:oekoRegelung></fa:oekoRegelungen>
+        </fa:hauptnutzungsflaeche>
+      </fa:teilflaechen>
+    </fa:gesamtparzelle>
+  </fa:gesamtparzellen>
+</fa:flaechenantrag>`;
+
+// Minimal-XLSX (Gesamtparzellen + leeres Nebennutzungen-Sheet) via JSZip bauen
+async function buildXlsx(nebenRows = []) {
+  const zip = new JSZip();
+  const sheet = (rows) => {
+    const cell = (r, c, v) => `<c r="${String.fromCharCode(65 + c)}${r}" t="inlineStr"><is><t>${v}</t></is></c>`;
+    const xml = rows.map((row, ri) => `<row r="${ri + 1}">` + row.map((v, ci) => cell(ri + 1, ci, v)).join('') + '</row>').join('');
+    return `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${xml}</sheetData></worksheet>`;
+  };
+  zip.file('xl/workbook.xml', `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Gesamtparzellen" sheetId="1" r:id="rId1"/><sheet name="Landschaftslemente" sheetId="2" r:id="rId2"/><sheet name="Nebennutzungen" sheetId="3" r:id="rId3"/></sheets></workbook>`);
+  zip.file('xl/_rels/workbook.xml.rels', `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="x" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="x" Target="worksheets/sheet3.xml"/></Relationships>`);
+  zip.file('xl/worksheets/sheet1.xml', sheet([
+    ['Flik', 'Parzellennummer', 'Parzellenname', 'Nettofläche (ha)', 'LE-Fläche (ha)', 'Nebennutzung (ha)', 'Bruttofläche (ha)', 'Nutzungscode', 'Nutzungsbezeichnung', 'Aktivierung DZ', 'ÖR Code [HNF]', 'Anpflanzjahr', 'Sorte', 'Bindungen'],
+    ['DESTLI0504190020', '471', 'Testfeld', '15.4321', '0.2', '0.1', '15.7904', '171.0', 'Mais (ohne Silomais NC 411)', '1.0', '1a', '', 'P8888', ''],
+  ]));
+  zip.file('xl/worksheets/sheet2.xml', sheet([['Flek', 'LE-Art']]));
+  zip.file('xl/worksheets/sheet3.xml', sheet([
+    ['Flik', 'Parzellennummer', 'Teilflächennummer', 'Fläche (ha)', 'Nutzungscode', 'Aktivierung DZ', 'ÖR-Code', 'Ansaat-/Anpflanzjahr', 'Sorte', 'Bindungen'],
+    ...nebenRows,
+  ]));
+  return zip.generateAsync({ type: 'arraybuffer' });
+}
+
+// Mini-DBF (cp1252) bauen
+function buildDbf(fields, rows) {
+  const enc = (s, len) => {
+    const out = new Uint8Array(len).fill(0x20);
+    for (let i = 0; i < Math.min(s.length, len); i++) {
+      const cp = s.charCodeAt(i);
+      out[i] = cp === 0xFC ? 0xFC : cp === 0xE4 ? 0xE4 : cp === 0xF6 ? 0xF6 : (cp < 256 ? cp : 0x3F);
+    }
+    return out;
+  };
+  const headerSize = 32 + fields.length * 32 + 1;
+  const recordSize = 1 + fields.reduce((s, f) => s + f.len, 0);
+  const buf = new ArrayBuffer(headerSize + rows.length * recordSize + 1);
+  const view = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+  view.setUint8(0, 0x03);
+  view.setUint32(4, rows.length, true);
+  view.setUint16(8, headerSize, true);
+  view.setUint16(10, recordSize, true);
+  fields.forEach((f, i) => {
+    const off = 32 + i * 32;
+    u8.set(enc(f.name, 11).map((b, j) => j < f.name.length ? b : 0), off);
+    view.setUint8(off + 11, 0x43); // 'C'
+    view.setUint8(off + 16, f.len);
+  });
+  view.setUint8(32 + fields.length * 32, 0x0d);
+  rows.forEach((row, r) => {
+    let off = headerSize + r * recordSize;
+    view.setUint8(off, 0x20);
+    off += 1;
+    fields.forEach((f) => { u8.set(enc(String(row[f.name] ?? ''), f.len), off); off += f.len; });
+  });
+  return buf;
+}
+
+// Mini-SHP (Typ 5) mit einem Rechteck + Loch bauen
+function buildShp(polys) {
+  // polys: Array je Datensatz → [[außenring(cw), loch(ccw)…]]
+  const recs = polys.map((poly) => {
+    const rings = poly.flat ? poly : poly; // [[ring…]]
+    const flatRings = rings;
+    const numPoints = flatRings.reduce((s, r) => s + r.length, 0);
+    const contentLen = 4 + 32 + 4 + 4 + flatRings.length * 4 + numPoints * 16;
+    return { rings: flatRings, numPoints, contentLen };
+  });
+  const total = 100 + recs.reduce((s, r) => s + 8 + r.contentLen, 0);
+  const buf = new ArrayBuffer(total);
+  const view = new DataView(buf);
+  view.setInt32(0, 9994);
+  view.setInt32(24, total / 2);
+  view.setInt32(28, 1000, true);
+  view.setInt32(32, 5, true);
+  let off = 100;
+  recs.forEach((rec, i) => {
+    view.setInt32(off, i + 1);
+    view.setInt32(off + 4, rec.contentLen / 2);
+    const base = off + 8;
+    view.setInt32(base, 5, true);
+    view.setInt32(base + 36, rec.rings.length, true);
+    view.setInt32(base + 40, rec.numPoints, true);
+    let pi = 0;
+    rec.rings.forEach((r, ri) => { view.setInt32(base + 44 + ri * 4, pi, true); pi += r.length; });
+    let po = base + 44 + rec.rings.length * 4;
+    rec.rings.forEach((r) => r.forEach(([x, y]) => { view.setFloat64(po, x, true); view.setFloat64(po + 8, y, true); po += 16; }));
+    off += 8 + rec.contentLen;
+  });
+  return buf;
+}
+
+// ── Tests ──────────────────────────────────────────────
+
+async function run() {
+  // GML
+  const polys = parseGmlSurface(GML);
+  assert('GML: 1 Polygon', polys.length === 1);
+  assert('GML: Außenring + Loch', polys[0].length === 2);
+  assert('GML: Ring geschlossen', polys[0][0][0].join() === polys[0][0][polys[0][0].length - 1].join());
+  const ewkt = polysToEwkt(polys);
+  assert('EWKT: SRID + MULTIPOLYGON', ewkt.startsWith('SRID=25832;MULTIPOLYGON((('));
+  assert('EWKT: Loch enthalten', ewkt.includes('),('));
+
+  // FA-XML (mit escaptem GML)
+  const fa = parseFaXml(FA_XML);
+  assert('XML: BNR', fa.bnr === '158650020018');
+  assert('XML: Jahr', fa.jahr === 2026);
+  assert('XML: 1 Parzelle', fa.parzellen.length === 1);
+  const p = fa.parzellen[0];
+  assert('XML: Nummer = gp_nummer', p.nummer === '471');
+  assert('XML: m²→ha', Math.abs(p.groesseHa - 15.7904) < 1e-9, String(p.groesseHa));
+  assert('XML: Vorjahresnummer', p.vorjahrNummer === '470');
+  assert('XML: ÖR-Code', p.oerCode === '1a');
+  assert('XML: NC', p.nutzungscode === 171);
+  assert('XML: Geometrie vorhanden', !!p.ewkt);
+
+  // XLSX
+  const xlsxBuf = await buildXlsx();
+  const xlsx = await parseXlsxFlaechen(await JSZip.loadAsync(xlsxBuf));
+  assert('XLSX: 1 Gesamtparzelle', xlsx.gesamt.length === 1, JSON.stringify(xlsx.gesamt));
+  assert('XLSX: Nettofläche', xlsx.gesamt[0]['Nettofläche (ha)'] === '15.4321');
+  assert('XLSX: leeres Nebennutzungen-Sheet', xlsx.nebennutzungen.length === 0);
+
+  // Komplettes ZIP: XML + XLSX
+  const zip1 = new JSZip();
+  zip1.file('158650020018.nn.xml', FA_XML);
+  zip1.file('158650020018_flaechenuebersicht.xlsx', xlsxBuf);
+  const r1 = await parseAgrarantragZip(await zip1.generateAsync({ type: 'arraybuffer' }));
+  assert('ZIP: Quelle XML', r1.quelle === 'xml');
+  assert('ZIP: Netto aus XLSX', r1.parzellen[0].nettoHa === 15.4321, String(r1.parzellen[0].nettoHa));
+  assert('ZIP: Brutto aus XLSX', r1.parzellen[0].bruttoHa === 15.7904);
+  assert('ZIP: Sorte aus XLSX', r1.parzellen[0].sorte === 'P8888');
+  assert('ZIP: Nutzungsbezeichnung', r1.parzellen[0].nutzBezeichnung === 'Mais (ohne Silomais NC 411)');
+  assert('ZIP: keine Nebennutzungen', r1.nebennutzungen.length === 0);
+
+  // ZIP mit Nebennutzung (Zwischenfrucht)
+  const zip2 = new JSZip();
+  zip2.file('158650020018.nn.xml', FA_XML);
+  zip2.file('158650020018_flaechenuebersicht.xlsx', await buildXlsx([
+    ['DESTLI0504190020', '471', '471.01', '15.4321', '52.0', '', '', '', '', ''],
+  ]));
+  const r2 = await parseAgrarantragZip(await zip2.generateAsync({ type: 'arraybuffer' }));
+  assert('ZIP: 1 Nebennutzung', r2.nebennutzungen.length === 1, JSON.stringify(r2.nebennutzungen));
+  assert('ZIP: Nebennutzung NC 52', r2.nebennutzungen[0]?.nutzungscode === 52);
+  assert('ZIP: Nebennutzung Parzelle 471', r2.nebennutzungen[0]?.parzellenNummer === '471');
+
+  // DBF cp1252
+  const dbfBuf = buildDbf(
+    [{ name: 'NUMMER', len: 10 }, { name: 'NAME', len: 20 }],
+    [{ NUMMER: '471', NAME: 'Grüne Wiese' }]
+  );
+  const dbfRows = parseDbf(dbfBuf);
+  assert('DBF: 1 Zeile', dbfRows.length === 1);
+  assert('DBF: cp1252-Umlaut', dbfRows[0].NAME === 'Grüne Wiese', dbfRows[0].NAME);
+
+  // SHP mit Loch (Außenring cw, Loch ccw)
+  const cw = [[0, 0], [0, 100], [100, 100], [100, 0], [0, 0]];
+  const ccw = [[40, 40], [60, 40], [60, 60], [40, 60], [40, 40]];
+  const shpShapes = parseShp(buildShp([[cw, ccw]]));
+  assert('SHP: 1 Shape', shpShapes.length === 1);
+  assert('SHP: Loch zugeordnet', shpShapes[0]?.[0]?.length === 2, JSON.stringify(shpShapes[0]?.map(r => r.length)));
+
+  // Shapefile-Fallback-ZIP (ohne XML)
+  const zip3 = new JSZip();
+  zip3.file('158650020018_teilflaechen.shp', buildShp([[cw, ccw]]));
+  zip3.file('158650020018_teilflaechen.dbf', buildDbf(
+    [{ name: 'NUMMER', len: 12 }, { name: 'ART', len: 4 }, { name: 'FLIK_FLEK', len: 16 }, { name: 'FLAECHE', len: 10 }, { name: 'CODE', len: 6 }, { name: 'OER', len: 6 }, { name: 'SORTE', len: 12 }],
+    [{ NUMMER: '471.01', ART: 'HNF', FLIK_FLEK: 'DESTLI0504190020', FLAECHE: '15.79', CODE: '171', OER: '1a', SORTE: 'P8888' }]
+  ));
+  zip3.file('158650020018_parzellen.dbf', buildDbf(
+    [{ name: 'NUMMER', len: 10 }, { name: 'NAME', len: 20 }],
+    [{ NUMMER: '471', NAME: 'Fallbackfeld' }]
+  ));
+  const r3 = await parseAgrarantragZip(await zip3.generateAsync({ type: 'arraybuffer' }));
+  assert('Fallback: Quelle shapefile', r3.quelle === 'shapefile');
+  assert('Fallback: 1 Parzelle', r3.parzellen.length === 1);
+  assert('Fallback: NC 171', r3.parzellen[0]?.nutzungscode === 171);
+  assert('Fallback: Name aus _parzellen', r3.parzellen[0]?.name === 'Fallbackfeld', r3.parzellen[0]?.name);
+  assert('Fallback: BNR aus Dateiname', r3.bnr === '158650020018');
+  assert('Fallback: Geometrie', !!r3.parzellen[0]?.ewkt);
+
+  // Fehlerfälle
+  await assertThrows('Leeres ZIP → Fehlermeldung', async () => {
+    const z = new JSZip();
+    z.file('readme.txt', 'leer');
+    await parseAgrarantragZip(await z.generateAsync({ type: 'arraybuffer' }));
+  }, 'weder Flächenantrag-XML');
+  await assertThrows('Kein ZIP → Fehlermeldung', async () => {
+    await parseAgrarantragZip(new TextEncoder().encode('kein zip').buffer);
+  }, 'kein lesbares ZIP');
+
+  render();
+}
+
+function render() {
+  const ul = document.getElementById('results');
+  ul.innerHTML = results.map(r =>
+    `<li class="${r.ok ? 'ok' : 'fail'}">${r.ok ? '✔' : '✘'} ${r.name}${r.ok ? '' : ' — ' + (r.detail || '')}</li>`).join('');
+  const fails = results.filter(r => !r.ok).length;
+  const sum = document.getElementById('summary');
+  sum.textContent = fails === 0 ? `Alle ${results.length} Tests bestanden ✔` : `${fails} von ${results.length} Tests FEHLGESCHLAGEN`;
+  sum.className = fails === 0 ? 'ok' : 'fail';
+}
+
+run().catch(e => {
+  document.getElementById('summary').textContent = 'Testlauf abgebrochen: ' + e.message;
+  document.getElementById('summary').className = 'fail';
+  render();
+  console.error(e);
+});
+
+// Manueller Drop-Test mit echten Export-ZIPs
+async function manual(file) {
+  try {
+    const r = await parseAgrarantragZip(file);
+    const sum = {
+      bnr: r.bnr, jahr: r.jahr, quelle: r.quelle,
+      parzellen: r.parzellen.length,
+      mitGeometrie: r.parzellen.filter(p => p.ewkt).length,
+      summeNettoHa: r.parzellen.reduce((s, p) => s + (p.nettoHa || 0), 0).toFixed(2),
+      nebennutzungen: r.nebennutzungen.length,
+      fehler: r.fehler,
+    };
+    console.log('Parse-Ergebnis', r);
+    document.getElementById('manual').textContent = JSON.stringify(sum, null, 2);
+  } catch (e) {
+    document.getElementById('manual').textContent = 'FEHLER: ' + e.message;
+  }
+}
+document.getElementById('file').addEventListener('change', (e) => e.target.files[0] && manual(e.target.files[0]));
+const drop = document.getElementById('drop');
+drop.addEventListener('dragover', (e) => e.preventDefault());
+drop.addEventListener('drop', (e) => { e.preventDefault(); e.dataTransfer.files[0] && manual(e.dataTransfer.files[0]); });
+</script>
+</body>
+</html>

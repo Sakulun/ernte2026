@@ -1,4 +1,4 @@
-# CLAUDE.md — Ernte 2026 · Nuscheler Unternehmensgruppe
+# CLAUDE.md — Landgut Nuscheler · Nuscheler Unternehmensgruppe
 
 ## Skills
 
@@ -48,10 +48,10 @@ Direkter Aufruf auch per Slash-Command möglich (z.B. `/frontend-design`).
 
 Dieses Repository gehört zur **Nuscheler Unternehmensgruppe** (Landwirtschaft/Agrarservice).
 
-**Anwendungsname:** Ernte 2026
-**Zweck:** Echtzeit-Ernteverwaltung — Koordination von Mähdreschern, Transportfahrzeugen, Silos und Administration während der Erntekampagne.
+**Anwendungsname:** Landgut Nuscheler (vormals „Ernte 2026")
+**Zweck:** Betriebs- & Ernteverwaltung — Koordination von Mähdreschern, Transportfahrzeugen, Silos und Administration während der Erntekampagne, plus betriebsübergreifendes Fruchtfolgemanagement (GAP-Agrarantrags-Import, geometrisches Jahres-Matching via PostGIS, Anbauplanung).
 
-Typische Aufgaben: Ernte-App, Datenverwaltung, Dokumentenerstellung, DATEV-Workflows.
+Typische Aufgaben: Ernte-App, Fruchtfolgeplanung, Datenverwaltung, Dokumentenerstellung, DATEV-Workflows.
 
 ---
 
@@ -88,7 +88,17 @@ ernteneu/
 │   ├── nachrichten.js      # In-App-Nachrichten, Push-Notifications
 │   ├── onboarding.js       # Onboarding-Wizard für neue Benutzer
 │   ├── erntejahr.js        # Neues Erntejahr: CSV/Excel/KML-Import
-│   └── export.js           # CSV-Export, Tagesbericht, Lieferungs-PDF
+│   ├── export.js           # CSV-Export, Tagesbericht, Lieferungs-PDF
+│   ├── fruchtfolge.js      # Fruchtfolge: Modul-Shell, ffState, Datenzugriff, Filter (nur Admin)
+│   ├── ff-import-parser.js # Parser Agrarantrags-ZIP (fa:-XML, GML, XLSX, DBF/SHP-Fallback cp1252)
+│   ├── ff-import.js        # Import-UI: Drag&Drop, Vorschau, NC-Quick-Add, Upsert je (Betrieb, Jahr)
+│   ├── ff-karte.js         # Fruchtfolge-Karte: Jahres-Umschalter, Legende, Flag-Umrandung, Historie
+│   ├── ff-matrix.js        # Fruchtfolge-Matrix: Leitjahr-Zeilen x Jahre, Zellen aus Matching
+│   ├── ff-tabelle.js       # Jahres-Tabelle mit Massenbearbeitung (nur Planjahre)
+│   ├── ff-dash.js          # Anbauverhältnis: Balken/Torte, Jahresvergleich, CSV
+│   ├── ff-flags.js         # Flag-Übersicht: Selbstfolge/Anbaupause, akzeptieren, CSV
+│   ├── ff-plan.js          # Planjahre: anlegen/löschen/neu aufbauen (RPCs)
+│   └── ff-stammdaten.js    # CRUD Kulturen/Kulturgruppen/Nutzungscodes/Betriebe
 ├── themes/
 │   ├── README.md           # Anleitung zum Theme-Wechsel
 │   ├── agrarmonitor.css    # Hell-Theme (Salbeigrün)
@@ -143,6 +153,16 @@ ernteneu/
 | `kontrakte` | Vertragsmanagement |
 | `warenbewegungen` | Lagerzu-/abgänge (Eingang & Ausgang) |
 | `nachrichten` | In-App-Benachrichtigungen |
+| `betriebe` | Fruchtfolge: Betriebe der Gruppe (BNR, Farbe) |
+| `jahre` | Fruchtfolge: Antrags- und Planjahre |
+| `kulturen` / `kulturgruppen` | Fruchtfolge: Kulturen-Stammdaten (Farben, Anbaupausen, Selbstfolge) |
+| `nutzungscodes` | Fruchtfolge: GAP-Nutzungscode → Kultur-Mapping (real verifiziert: 112=Winterdurum, 131=Wintergerste, 311=Winterraps) |
+| `parzellen` | Fruchtfolge: Parzellen je Betrieb+Jahr, Geometrien in EPSG:25832 + 4326 (PostGIS, Trigger transformiert) |
+| `parzellen_nebenkulturen` | Fruchtfolge: Zwischenfrüchte/Zweitkulturen |
+| `parzellen_matching` | Fruchtfolge: Cache der geometrischen Jahres-Verschneidung (RPC `ff_recompute_matching`) |
+| `flags` | Fruchtfolge: Selbstfolge-/Anbaupause-Konflikte (RPC `ff_recompute_flags`) |
+
+**Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → `nutzer.rolle='admin'`). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
 
 ---
 

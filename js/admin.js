@@ -1,4 +1,4 @@
-import { state } from './state.js?v=112';
+import { state } from './state.js?v=113';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -12,6 +12,7 @@ const NAV = [
   { section: 'Verwaltung',     items: [['schlaege','🌾','Schläge'],['fuhren','🚛','Fuhren'],['nutzer','👥','Nutzer']] },
   { section: 'Lager',          items: [['lager','📦','Lagerübersicht'],['silos','🏭','Silomanagement']] },
   { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Warenbewegungen'],['kontrakte','📋','Kontrakte'],['zukauf','🧪','Zukauf (Dünger)'],['kontakte','👔','Kunden/Lieferanten'],['artikel','🗂','Artikel']] },
+  { section: 'Flächen',        items: [['fruchtfolge','🌻','Fruchtfolge']] },
   { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
 ];
 // Rollen mit eingeschränkter Navigation. Silomeister sieht nur diese Bereiche.
@@ -50,7 +51,7 @@ export function renderAdmin() {
         <nav id="admin-sidebar" class="${sidebarCollapsed?'collapsed':''}">
           <button class="sidebar-toggle" onclick="toggleSidebar()">
             <span style="font-size:18px">${sidebarCollapsed?'☰':'✕'}</span>
-            <span class="sidebar-label" style="font-family:var(--font-display);color:var(--color-text-on-brand)">Ernte 2026</span>
+            <span class="sidebar-label" style="font-family:var(--font-display);color:var(--color-text-on-brand)">Landgut Nuscheler</span>
           </button>
           ${navHtml}
         </nav>
@@ -82,6 +83,7 @@ export function renderAdmin() {
   else if(adminTab==='artikel' && window.renderArtikel) window.renderArtikel();
   else if(adminTab==='zukauf' && window.renderAdminZukauf) window.renderAdminZukauf();
   else if(adminTab==='erntejahr' && window.renderNeuesErntejahr) window.renderNeuesErntejahr();
+  else if(adminTab==='fruchtfolge' && window.renderFruchtfolge) window.renderFruchtfolge();
   else if(adminTab==='waage' && window.renderWaageTab) window.renderWaageTab(document.getElementById('admintab'));
   else if(adminTab==='silos') {
     document.getElementById('admintab').innerHTML = '';

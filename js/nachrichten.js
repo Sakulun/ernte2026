@@ -1,6 +1,6 @@
-import { state } from './state.js?v=112';
-import { sb } from './db.js?v=112';
-import { showToast } from './helpers.js?v=112';
+import { state } from './state.js?v=113';
+import { sb } from './db.js?v=113';
+import { showToast } from './helpers.js?v=113';
 
 export async function adminSendNachricht(text, empfaenger='alle') {
   try {
@@ -108,7 +108,7 @@ export function initNachrichtenListener() {
       if(!relevant) return;
       showNachrichtBanner(n.text, n.von_name);
       if(Notification.permission === 'granted') {
-        new Notification('📢 Ernte 2026 – ' + n.von_name, {
+        new Notification('📢 Landgut Nuscheler – ' + n.von_name, {
           body: n.text,
           icon: '/ernteneu/icon.svg',
           tag: 'ernte-nachricht'

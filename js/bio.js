@@ -1,5 +1,5 @@
-import { state } from './state.js?v=112';
-import { getFeld } from './helpers.js?v=112';
+import { state } from './state.js?v=113';
+import { getFeld } from './helpers.js?v=113';
 
 // Fallback-Liste der Bio-Betriebe (nur relevant für Altdaten ohne pro-Feld-Bio-Flag).
 // Maßgeblich ist das bio-Feld in der felder-Tabelle (aus der Öko-Spalte der Flächenübersicht).
