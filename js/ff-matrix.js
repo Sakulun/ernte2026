@@ -1,10 +1,10 @@
 // Fruchtfolge: Matrix – Zeilen = Parzellen des Leitjahres (nach Betrieb gruppiert),
 // Spalten = alle Jahre. Zellen aus dem geometrischen Matching, farbcodiert nach Kultur.
-import { getSb } from './db.js?v=115';
-import { showToast, escapeHtml } from './helpers.js?v=115';
+import { getSb } from './db.js?v=116';
+import { showToast, escapeHtml } from './helpers.js?v=116';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen, ffJahr,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=115';
+         ffOffeneFlags } from './fruchtfolge.js?v=116';
 
 let zugeklappt = new Set(); // eingeklappte betrieb_id
 let alleNeben = null;       // parzelle_id → [nebenkulturen]
@@ -12,10 +12,15 @@ let alleNeben = null;       // parzelle_id → [nebenkulturen]
 async function ladeAlleNeben() {
   if (alleNeben) return alleNeben;
   try {
-    const { data, error } = await getSb().from('parzellen_nebenkulturen').select('*').limit(20000);
-    if (error) throw error;
     alleNeben = {};
-    for (const n of data) (alleNeben[n.parzelle_id] ||= []).push(n);
+    // Seitenweise laden – PostgREST liefert max. 1000 Zeilen pro Request
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await getSb().from('parzellen_nebenkulturen')
+        .select('*').order('id').range(from, from + 999);
+      if (error) throw error;
+      for (const n of data) (alleNeben[n.parzelle_id] ||= []).push(n);
+      if (data.length < 1000) break;
+    }
   } catch (err) { console.error(err); alleNeben = {}; }
   return alleNeben;
 }

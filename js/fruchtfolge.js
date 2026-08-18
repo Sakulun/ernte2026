@@ -1,8 +1,8 @@
 // Fruchtfolgemanagement – Modul-Shell, gemeinsamer Zustand und Datenzugriff.
 // Nur für die Rolle 'admin' (zusätzlich serverseitig via RLS ff_is_admin()).
-import { getSb } from './db.js?v=115';
-import { state } from './state.js?v=115';
-import { showToast, escapeHtml } from './helpers.js?v=115';
+import { getSb } from './db.js?v=116';
+import { state } from './state.js?v=116';
+import { showToast, escapeHtml } from './helpers.js?v=116';
 
 export const ffState = {
   loaded: false,
@@ -29,21 +29,20 @@ export async function ffLoadStammdaten(force = false) {
   if (ffState.loaded && !force) return;
   const sb = getSb();
   try {
-    const [betriebe, jahre, gruppen, kulturen, ncs, flags] = await Promise.all([
+    const [betriebe, jahre, gruppen, kulturen, ncs] = await Promise.all([
       sb.from('betriebe').select('*').order('name'),
       sb.from('jahre').select('*').order('jahr'),
       sb.from('kulturgruppen').select('*').order('name'),
       sb.from('kulturen').select('*').order('name'),
       sb.from('nutzungscodes').select('*').order('nc'),
-      sb.from('ff_flags_info').select('*').order('jahr', { ascending: false }),
     ]);
-    for (const r of [betriebe, jahre, gruppen, kulturen, ncs, flags]) if (r.error) throw r.error;
+    for (const r of [betriebe, jahre, gruppen, kulturen, ncs]) if (r.error) throw r.error;
     ffState.betriebe = betriebe.data;
     ffState.jahre = jahre.data;
     ffState.kulturgruppen = gruppen.data;
     ffState.kulturen = kulturen.data;
     ffState.nutzungscodes = ncs.data;
-    ffState.flags = flags.data;
+    ffState.flags = await ffFetchAlle(() => sb.from('ff_flags_info').select('*').order('jahr', { ascending: false }).order('id'));
     const jJahre = ffState.jahre;
     if (!ffState.leitjahrId || !jJahre.find(j => j.id === ffState.leitjahrId)) {
       ffState.leitjahrId = jJahre.length ? jJahre[jJahre.length - 1].id : null;
@@ -63,16 +62,14 @@ export async function ffLoadParzellen(jahrId, force = false) {
   if (!force && ffState.parzellenCache[jahrId]) return ffState.parzellenCache[jahrId];
   const sb = getSb();
   try {
-    const { data, error } = await sb.from('ff_parzellen_info').select('*')
-      .eq('jahr_id', jahrId).order('betrieb_name').order('nummer');
-    if (error) throw error;
+    const data = await ffFetchAlle(() => sb.from('ff_parzellen_info').select('*')
+      .eq('jahr_id', jahrId).order('betrieb_name').order('nummer').order('id'));
     ffState.parzellenCache[jahrId] = data;
     const ids = data.map(p => p.id);
-    let neben = [];
-    if (ids.length) {
-      const { data: nb, error: e2 } = await sb.from('parzellen_nebenkulturen').select('*').in('parzelle_id', ids);
-      if (e2) throw e2;
-      neben = nb;
+    const neben = [];
+    for (let off = 0; off < ids.length; off += 150) {
+      const teil = ids.slice(off, off + 150);
+      neben.push(...await ffFetchAlle(() => sb.from('parzellen_nebenkulturen').select('*').in('parzelle_id', teil)));
     }
     ffState.nebenkulturenCache[jahrId] = neben;
     return data;
@@ -83,15 +80,31 @@ export async function ffLoadParzellen(jahrId, force = false) {
   }
 }
 
+// Alle Zeilen einer Abfrage holen – PostgREST liefert max. 1000 Zeilen pro
+// Request, daher seitenweise nachladen.
+async function ffFetchAlle(queryBauen) {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await queryBauen().range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return rows;
+}
+
 export async function ffLoadMatching(leitjahrId, force = false) {
   if (!leitjahrId) return [];
   if (!force && ffState.matchingCache[leitjahrId]) return ffState.matchingCache[leitjahrId];
   const sb = getSb();
   try {
-    const { data, error } = await sb.from('ff_matching_info').select('*').limit(50000);
-    if (error) throw error;
-    const leitIds = new Set((ffState.parzellenCache[leitjahrId] || []).map(p => p.id));
-    const rows = data.filter(m => leitIds.has(m.leit_parzelle_id));
+    // Serverseitig auf die Leitjahr-Parzellen filtern (in 150er-Blöcken wegen URL-Länge)
+    const leitIds = (ffState.parzellenCache[leitjahrId] || []).map(p => p.id);
+    const rows = [];
+    for (let off = 0; off < leitIds.length; off += 150) {
+      const teil = leitIds.slice(off, off + 150);
+      rows.push(...await ffFetchAlle(() => sb.from('ff_matching_info').select('*').in('leit_parzelle_id', teil)));
+    }
     ffState.matchingCache[leitjahrId] = rows;
     return rows;
   } catch (err) {
@@ -133,9 +146,7 @@ export async function ffRecompute() {
     const { error: e2 } = await sb.rpc('ff_recompute_flags', {});
     if (e2) throw e2;
     ffState.matchingCache = {};
-    const { data, error: e3 } = await sb.from('ff_flags_info').select('*').order('jahr', { ascending: false });
-    if (e3) throw e3;
-    ffState.flags = data;
+    ffState.flags = await ffFetchAlle(() => sb.from('ff_flags_info').select('*').order('jahr', { ascending: false }).order('id'));
   } catch (err) {
     console.error(err);
     showToast('Neuberechnung fehlgeschlagen: ' + err.message);
