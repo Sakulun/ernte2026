@@ -1,9 +1,9 @@
 // Fruchtfolge: Kartenansicht (Leaflet). Parzellen in Kulturfarbe des gewählten
 // Jahres, Jahres-Umschalter, Legende, Flag-Umrandung, Mini-Historie im Popup.
-import { showToast, escapeHtml } from './helpers.js?v=113';
+import { showToast, escapeHtml } from './helpers.js?v=114';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=113';
+         ffOffeneFlags } from './fruchtfolge.js?v=114';
 
 let hiddenKulturen = new Set(); // per Legende ausgeblendete kultur_id (0 = ohne Kultur)
 

@@ -1,8 +1,8 @@
 // Fruchtfolge: Flag-Übersicht – filterbare Tabelle aller Selbstfolge-/Anbaupause-
 // Konflikte, akzeptieren mit Kommentar, CSV-Export, Sprung zu Matrix/Karte.
-import { getSb } from './db.js?v=113';
-import { showToast, escapeHtml } from './helpers.js?v=113';
-import { ffState, ffLoadStammdaten, renderFruchtfolge, ffRecompute } from './fruchtfolge.js?v=113';
+import { getSb } from './db.js?v=114';
+import { showToast, escapeHtml } from './helpers.js?v=114';
+import { ffState, ffLoadStammdaten, renderFruchtfolge, ffRecompute } from './fruchtfolge.js?v=114';
 
 let fBetrieb = null, fJahr = null, fTyp = null, fStatus = 'offen', fGruppe = null;
 let sortCol = 'jahr', sortDir = -1;

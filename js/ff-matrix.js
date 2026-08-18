@@ -1,10 +1,10 @@
 // Fruchtfolge: Matrix – Zeilen = Parzellen des Leitjahres (nach Betrieb gruppiert),
 // Spalten = alle Jahre. Zellen aus dem geometrischen Matching, farbcodiert nach Kultur.
-import { getSb } from './db.js?v=113';
-import { showToast, escapeHtml } from './helpers.js?v=113';
+import { getSb } from './db.js?v=114';
+import { showToast, escapeHtml } from './helpers.js?v=114';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen, ffJahr,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=113';
+         ffOffeneFlags } from './fruchtfolge.js?v=114';
 
 let zugeklappt = new Set(); // eingeklappte betrieb_id
 let alleNeben = null;       // parzelle_id → [nebenkulturen]
@@ -20,6 +20,16 @@ async function ladeAlleNeben() {
   return alleNeben;
 }
 export function ffMatrixNebenInvalidate() { alleNeben = null; }
+
+// Helle Schrift auf dunklen Kulturfarben (relative Luminanz der Hex-Farbe)
+function istDunkel(hex) {
+  let h = String(hex || '').replace('#', '');
+  if (/^[0-9a-f]{3}$/i.test(h)) h = h.replace(/./g, (c) => c + c);
+  if (!/^[0-9a-f]{6}$/i.test(h)) return false;
+  const n = parseInt(h, 16);
+  const luma = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return luma < 140;
+}
 
 export async function renderFFMatrix(el) {
   const jahre = ffState.jahre;
@@ -83,7 +93,7 @@ export async function renderFFMatrix(el) {
     const zielParzelle = j.id === leitId ? p.id : (eintraege.length === 1 ? eintraege[0].parzelle_id : null);
     const onclick = planbar && zielParzelle ? `onclick="ffMatrixZelleEdit(this, ${zielParzelle}, ${j.id})"` : '';
     return `<td class="ff-mx-zelle ${planbar ? 'ff-mx-plan planbar' : ''}" style="${bg}" title="${escapeHtml(tip)}" ${onclick}>
-      <span class="ff-mx-kuerzel">${escapeHtml(dom.kultur_kuerzel || (dom.kultur_name || '').slice(0, 3) || '—')}</span>
+      <span class="ff-mx-kuerzel" style="color:${istDunkel(farbe) ? '#fff' : 'rgba(0,0,0,.82)'}">${escapeHtml(dom.kultur_kuerzel || (dom.kultur_name || '').slice(0, 3) || '—')}</span>
       ${eintraege.length > 1 ? `<span class="ff-mx-mix">${eintraege.length}</span>` : ''}
       ${nb.length ? '<span class="ff-mx-zf" title="Zwischenfrucht"></span>' : ''}
       ${flag ? `<span class="ff-mx-flag ${flag.schweregrad === 'hoch' ? 'hoch' : 'mittel'}">⚠</span>` : ''}
