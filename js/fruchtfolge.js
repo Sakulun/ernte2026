@@ -1,8 +1,8 @@
 // Fruchtfolgemanagement – Modul-Shell, gemeinsamer Zustand und Datenzugriff.
 // Nur für die Rolle 'admin' (zusätzlich serverseitig via RLS ff_is_admin()).
-import { getSb } from './db.js?v=114';
-import { state } from './state.js?v=114';
-import { showToast, escapeHtml } from './helpers.js?v=114';
+import { getSb } from './db.js?v=115';
+import { state } from './state.js?v=115';
+import { showToast, escapeHtml } from './helpers.js?v=115';
 
 export const ffState = {
   loaded: false,
@@ -121,12 +121,13 @@ export async function ffEnsureMatching(leitjahrId) {
 }
 
 // Matching + Flags neu berechnen (nach Import oder Planänderung)
-export async function ffRecompute(leitjahrId = null) {
+export async function ffRecompute() {
   const sb = getSb();
-  const lj = leitjahrId || ffState.leitjahrId;
   try {
-    if (lj) {
-      const { error } = await sb.rpc('ff_recompute_matching', { p_leitjahr_id: lj });
+    // Matching für ALLE Jahre neu berechnen – jedes Jahr kann Leitjahr der
+    // Matrix sein, sonst blieben ältere Leitjahre nach einem Import veraltet.
+    for (const j of ffState.jahre) {
+      const { error } = await sb.rpc('ff_recompute_matching', { p_leitjahr_id: j.id });
       if (error) throw error;
     }
     const { error: e2 } = await sb.rpc('ff_recompute_flags', {});

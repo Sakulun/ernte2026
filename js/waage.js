@@ -1,10 +1,10 @@
-import { state } from './state.js?v=114';
-import { db } from './db.js?v=114';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=114';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=114';
-import { parseGewicht } from './abfahrer.js?v=114';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=114';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=114';
+import { state } from './state.js?v=115';
+import { db } from './db.js?v=115';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=115';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=115';
+import { parseGewicht } from './abfahrer.js?v=115';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=115';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=115';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
