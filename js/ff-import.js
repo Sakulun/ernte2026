@@ -1,8 +1,8 @@
 // Fruchtfolge: Import der Agrarantrags-Export-ZIPs (UI + Übernahme nach Supabase)
-import { getSb } from './db.js?v=116';
-import { showToast, escapeHtml } from './helpers.js?v=116';
-import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=116';
-import { parseAgrarantragZip } from './ff-import-parser.js?v=116';
+import { getSb } from './db.js?v=117';
+import { showToast, escapeHtml } from './helpers.js?v=117';
+import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=117';
+import { parseAgrarantragZip } from './ff-import-parser.js?v=117';
 
 // Geparste, noch nicht übernommene Pakete (Index = Anzeige-Reihenfolge)
 let pakete = [];
@@ -188,10 +188,20 @@ export async function ffNcQuickAdd(i, nc) {
 
 export async function ffPaketUebernehmen(i) {
   const p = pakete[i];
+  // Doppelklick-Schutz: eine laufende Übernahme desselben Pakets nicht erneut
+  // starten – sonst entstehen doppelte Parzellen (Count-Prüfung sähe noch 0).
+  if (p.laeuft || p.status === 'fertig') return;
+  p.laeuft = true;
+  const btn = document.querySelector(`#ff-paket-${i} .btn-primary`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Übernehme…'; }
+  const fertigMachen = () => {
+    p.laeuft = false;
+    if (btn && document.body.contains(btn)) { btn.disabled = false; btn.textContent = 'Übernehmen'; }
+  };
   const parsed = p.parsed;
   const sb = getSb();
   const jahrVal = parseInt(document.getElementById(`ff-jahr-${i}`)?.value, 10);
-  if (!jahrVal || jahrVal < 2000 || jahrVal > 2100) { showToast('Bitte gültiges Antragsjahr angeben'); return; }
+  if (!jahrVal || jahrVal < 2000 || jahrVal > 2100) { showToast('Bitte gültiges Antragsjahr angeben'); fertigMachen(); return; }
 
   try {
     // 1) Betrieb ermitteln oder anlegen
@@ -211,7 +221,7 @@ export async function ffPaketUebernehmen(i) {
     let { data: jahrRow, error: je } = await sb.from('jahre').select('*').eq('jahr', jahrVal).maybeSingle();
     if (je) throw je;
     if (jahrRow?.typ === 'plan') {
-      if (!confirm(`Für ${jahrVal} existiert ein Planjahr. Soll der Plan für diesen Betrieb durch den Import ersetzt werden?\n(Das Jahr wird zum Antragsjahr; geplante Kulturen dieses Betriebs gehen verloren.)`)) return;
+      if (!confirm(`Für ${jahrVal} existiert ein Planjahr. Soll der Plan für diesen Betrieb durch den Import ersetzt werden?\n(Das Jahr wird zum Antragsjahr; geplante Kulturen dieses Betriebs gehen verloren.)`)) { fertigMachen(); return; }
       const { error } = await sb.from('jahre').update({ typ: 'antrag', quelle_jahr_id: null }).eq('id', jahrRow.id);
       if (error) throw error;
       jahrRow.typ = 'antrag';
@@ -228,7 +238,7 @@ export async function ffPaketUebernehmen(i) {
       .eq('betrieb_id', betriebId).eq('jahr_id', jahrRow.id);
     if (ce) throw ce;
     if (count > 0) {
-      if (!confirm(`Für diesen Betrieb existieren bereits ${count} Parzellen im Jahr ${jahrVal}. Import komplett ersetzen?`)) return;
+      if (!confirm(`Für diesen Betrieb existieren bereits ${count} Parzellen im Jahr ${jahrVal}. Import komplett ersetzen?`)) { fertigMachen(); return; }
       const { error } = await sb.from('parzellen').delete().eq('betrieb_id', betriebId).eq('jahr_id', jahrRow.id);
       if (error) throw error;
     }
@@ -279,5 +289,7 @@ export async function ffPaketUebernehmen(i) {
   } catch (err) {
     console.error(err);
     showToast('Übernahme fehlgeschlagen: ' + err.message);
+  } finally {
+    fertigMachen();
   }
 }
