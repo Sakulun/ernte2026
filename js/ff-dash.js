@@ -1,7 +1,7 @@
 // Fruchtfolge: Anbauverhältnis-Dashboard – Kulturanteile in ha/% je Jahr,
 // Kultur-/Gruppen-Ebene, Jahresvergleich, CSV-Export. Diagramme als Inline-SVG.
-import { showToast, escapeHtml } from './helpers.js?v=118';
-import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=118';
+import { showToast, escapeHtml } from './helpers.js?v=119';
+import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=119';
 
 let ebene = 'kultur';        // 'kultur' | 'gruppe'
 let vergleichsJahre = new Set(); // jahr_id für den Jahresvergleich
@@ -19,20 +19,18 @@ function anteile(parzellen) {
   return [...map.values()].map(x => ({ ...x, prozent: x.ha / sum * 100 })).sort((a, b) => b.ha - a.ha);
 }
 
-function balkenSvg(daten) {
+// Balken als HTML statt SVG: Schrift bleibt in fester, lesbarer Größe,
+// egal wie viele Kategorien es gibt oder wie breit der Bildschirm ist.
+function balkenHtml(daten) {
   const max = Math.max(...daten.map(d => d.ha), 1);
-  const h = daten.length * 28 + 10;
-  return `<svg viewBox="0 0 560 ${h}" style="width:100%;max-width:560px">
-    ${daten.map((d, i) => {
-      const y = i * 28 + 5;
-      const w = Math.max(2, d.ha / max * 320);
-      return `<g>
-        <text x="0" y="${y + 14}" font-size="12" fill="currentColor">${escapeHtml(d.name.slice(0, 22))}</text>
-        <rect x="160" y="${y}" width="${w}" height="19" rx="3" fill="${escapeHtml(d.farbe)}"></rect>
-        <text x="${165 + w}" y="${y + 14}" font-size="12" fill="currentColor">${d.ha.toFixed(1)} ha · ${d.prozent.toFixed(1)} %</text>
-      </g>`;
-    }).join('')}
-  </svg>`;
+  return `<div class="ff-db">
+    ${daten.map(d => `
+      <div class="ff-db-zeile">
+        <span class="ff-db-name" title="${escapeHtml(d.name)}">${escapeHtml(d.name)}</span>
+        <div class="ff-db-bar"><div style="width:${Math.max(1, d.ha / max * 100).toFixed(1)}%;background:${escapeHtml(d.farbe)}"></div></div>
+        <span class="ff-db-wert">${d.ha.toFixed(1)} ha · ${d.prozent.toFixed(1)} %</span>
+      </div>`).join('')}
+  </div>`;
 }
 
 function tortenSvg(daten) {
@@ -112,7 +110,7 @@ export async function renderFFDashboard(el) {
         <span style="opacity:.7">Σ ${sumHa.toFixed(1)} ha (${parzellen.length} Parzellen; Betriebsauswahl über die Filterleiste)</span>
       </div>
       <div class="ff-dash-diagramme">
-        <div>${balkenSvg(daten)}</div>
+        <div style="flex:1;min-width:320px">${balkenHtml(daten)}</div>
         <div>${tortenSvg(daten)}</div>
       </div>
       <div class="ff-tabelle-wrap"><table class="ff-tabelle">

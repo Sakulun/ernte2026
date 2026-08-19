@@ -782,6 +782,13 @@ input::placeholder { color: var(--color-text-subtle); }
 .ff-mx-hinweis { font-size: 12px; opacity: .65; margin-top: 8px; }
 /* Dashboard */
 .ff-dash-diagramme { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin: 14px 0; }
+.ff-db { display: flex; flex-direction: column; gap: 6px; max-width: 640px; }
+.ff-db-zeile { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.ff-db-name { flex: 0 0 175px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-db-bar { flex: 1; height: 18px; background: rgba(128,128,128,.12); border-radius: 4px; overflow: hidden; }
+.ff-db-bar > div { height: 100%; border-radius: 4px; }
+.ff-db-wert { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: .9; }
+@media (max-width: 640px) { .ff-db-name { flex-basis: 120px; font-size: 13px; } .ff-db-zeile { font-size: 13px; } }
 
 </style>
 </head>
@@ -819,7 +826,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=118"></script>
+<script type="module" src="js/app.js?v=119"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

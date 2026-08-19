@@ -1,10 +1,10 @@
-import { state } from './state.js?v=118';
-import { db } from './db.js?v=118';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=118';
-import { getFruchtFarbe } from './frucht.js?v=118';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=118';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=118';
-import { isBioFuhre, bioBadge } from './bio.js?v=118';
+import { state } from './state.js?v=119';
+import { db } from './db.js?v=119';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=119';
+import { getFruchtFarbe } from './frucht.js?v=119';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=119';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=119';
+import { isBioFuhre, bioBadge } from './bio.js?v=119';
 
 let _editOpenId = null;
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
