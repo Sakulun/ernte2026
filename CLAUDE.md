@@ -162,7 +162,7 @@ ernteneu/
 | `parzellen_matching` | Fruchtfolge: Cache der geometrischen Jahres-Verschneidung (RPC `ff_recompute_matching`) |
 | `flags` | Fruchtfolge: Selbstfolge-/Anbaupause-Konflikte (RPC `ff_recompute_flags`) |
 
-**Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → `nutzer.rolle='admin'`). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
+**Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → `nutzer.rolle='admin'`). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. vereinfachtem GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. **Flags entstehen nur für Planjahre** (Vergangenheit = Fakt; Konfliktseite darf jedes Jahr sein). PostgREST liefert max. 1000 Zeilen/Request — Client lädt paginiert (`ffFetchAlle`). Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
 
 ---
 
