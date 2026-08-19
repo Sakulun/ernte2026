@@ -1,8 +1,8 @@
 // Fruchtfolge: Planjahre verwalten – anlegen (Kopie eines Basisjahres),
 // löschen, auf anderem Basisjahr neu aufbauen.
-import { getSb } from './db.js?v=117';
-import { showToast, escapeHtml } from './helpers.js?v=117';
-import { ffState, ffLoadStammdaten, ffRecompute, renderFruchtfolge } from './fruchtfolge.js?v=117';
+import { getSb } from './db.js?v=118';
+import { showToast, escapeHtml } from './helpers.js?v=118';
+import { ffState, ffLoadStammdaten, ffRecompute, renderFruchtfolge } from './fruchtfolge.js?v=118';
 
 export async function renderFFPlan(el) {
   const jahre = ffState.jahre;
@@ -25,8 +25,9 @@ export async function renderFFPlan(el) {
         <button class="btn btn-primary" onclick="ffPlanAnlegen()">Planjahr anlegen</button>
       </div>
       <p style="opacity:.7">Die Parzellen (Geometrie, Nummer, Name, ha, Betrieb) werden aus dem Basisjahr kopiert.
-      Kulturen anschließend über Matrix, Tabelle (Massenbearbeitung) oder Karte zuweisen –
-      Flags werden dabei sofort berechnet.</p>` : '<p>Zuerst ein Antragsjahr importieren.</p>'}
+      Brachen/Stilllegungen und mehrjähriges Feldfutter werden automatisch übernommen
+      (einstellbar je Kulturgruppe unter Stammdaten). Übrige Kulturen über Matrix,
+      Tabelle (Massenbearbeitung) oder Karte zuweisen – Flags werden dabei sofort berechnet.</p>` : '<p>Zuerst ein Antragsjahr importieren.</p>'}
     </div>
     <div class="card">
       <h3>Vorhandene Jahre</h3>

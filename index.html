@@ -756,7 +756,7 @@ input::placeholder { color: var(--color-text-subtle); }
 .ff-map-legende { position: absolute; right: 10px; bottom: 10px; z-index: 800; background: rgba(20,20,16,.88); color: #eee; border-radius: 8px; padding: 8px 10px; font-size: 12px; max-height: 45%; overflow-y: auto; }
 .ff-legende-zeile { display: flex; gap: 6px; align-items: center; cursor: pointer; padding: 1px 0; }
 .ff-legende-zeile.aus { opacity: .35; text-decoration: line-through; }
-.ff-legende-farbe { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.ff-legende-farbe { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; border: 1px solid rgba(0,0,0,.35); }
 .ff-popup { font-size: 13px; color: #222; }
 .ff-popup-historie { border-collapse: collapse; font-size: 12px; }
 .ff-popup-historie td { padding: 1px 6px 1px 0; }
@@ -819,7 +819,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=117"></script>
+<script type="module" src="js/app.js?v=118"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

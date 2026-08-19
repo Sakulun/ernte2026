@@ -1,8 +1,8 @@
 // Fruchtfolge: Stammdaten-CRUD – Kulturen, Kulturgruppen, Nutzungscode-Mapping,
 // Betriebe. Farben per Colorpicker, Anbaupausen/Selbstfolge editierbar.
-import { getSb } from './db.js?v=117';
-import { showToast, escapeHtml } from './helpers.js?v=117';
-import { ffState, ffLoadStammdaten, renderFruchtfolge } from './fruchtfolge.js?v=117';
+import { getSb } from './db.js?v=118';
+import { showToast, escapeHtml } from './helpers.js?v=118';
+import { ffState, ffLoadStammdaten, renderFruchtfolge } from './fruchtfolge.js?v=118';
 
 let bereich = 'kulturen'; // kulturen | gruppen | codes | betriebe
 
@@ -59,13 +59,14 @@ function kulturenHtml() {
 function gruppenHtml() {
   return `
     <div class="ff-tabelle-wrap"><table class="ff-tabelle">
-      <thead><tr><th>Name</th><th>Farbe</th><th title="Mindestjahre bis zum Wiederanbau (0 = keine)">Anbaupause (Jahre)</th><th title="Direktes Folgejahr gleicher Gruppe erlaubt?">Selbstfolge zulässig</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Farbe</th><th title="Mindestjahre bis zum Wiederanbau (0 = keine)">Anbaupause (Jahre)</th><th title="Direktes Folgejahr gleicher Gruppe erlaubt?">Selbstfolge zulässig</th><th title="Kulturen dieser Gruppe werden beim Anlegen eines Planjahres automatisch aus dem Basisjahr übernommen (Brachen, mehrjähriges Feldfutter)">Im Planjahr übernehmen</th><th></th></tr></thead>
       <tbody>
         ${ffState.kulturgruppen.map(g => `<tr>
           <td><input value="${escapeHtml(g.name)}" onchange="ffGruppeFeld(${g.id}, 'name', this.value)"></td>
           <td><input type="color" value="${escapeHtml(g.farbe)}" onchange="ffGruppeFeld(${g.id}, 'farbe', this.value)"></td>
           <td><input type="number" min="0" max="10" value="${g.min_anbaupause_jahre}" style="width:60px" onchange="ffGruppeFeld(${g.id}, 'min_anbaupause_jahre', parseInt(this.value)||0)"></td>
           <td><input type="checkbox" ${g.selbstfolge_zulaessig ? 'checked' : ''} onchange="ffGruppeFeld(${g.id}, 'selbstfolge_zulaessig', this.checked)"></td>
+          <td><input type="checkbox" ${g.plan_uebernahme ? 'checked' : ''} onchange="ffGruppeFeld(${g.id}, 'plan_uebernahme', this.checked)"></td>
           <td><button class="btn btn-sm" onclick="ffGruppeLoeschen(${g.id})">Löschen</button></td>
         </tr>`).join('')}
         <tr>
@@ -73,6 +74,7 @@ function gruppenHtml() {
           <td><input type="color" id="ff-neu-gruppe-farbe" value="#888888"></td>
           <td><input type="number" id="ff-neu-gruppe-pause" min="0" max="10" value="0" style="width:60px"></td>
           <td><input type="checkbox" id="ff-neu-gruppe-selbst" checked></td>
+          <td><input type="checkbox" id="ff-neu-gruppe-plan"></td>
           <td><button class="btn btn-sm btn-primary" onclick="ffGruppeAnlegen()">Anlegen</button></td>
         </tr>
       </tbody>
@@ -176,6 +178,7 @@ export async function ffGruppeAnlegen() {
       farbe: document.getElementById('ff-neu-gruppe-farbe')?.value || '#888888',
       min_anbaupause_jahre: parseInt(document.getElementById('ff-neu-gruppe-pause')?.value) || 0,
       selbstfolge_zulaessig: document.getElementById('ff-neu-gruppe-selbst')?.checked ?? true,
+      plan_uebernahme: document.getElementById('ff-neu-gruppe-plan')?.checked ?? false,
     });
     if (error) throw error;
     await ffLoadStammdaten(true);

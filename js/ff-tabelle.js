@@ -1,10 +1,10 @@
 // Fruchtfolge: Tabellenansicht eines Jahres mit Sortierung, Volltextsuche,
 // Checkbox-Mehrfachauswahl und Massenbearbeitung (nur Planjahre).
-import { getSb } from './db.js?v=117';
-import { showToast, escapeHtml } from './helpers.js?v=117';
+import { getSb } from './db.js?v=118';
+import { showToast, escapeHtml } from './helpers.js?v=118';
 import { ffState, ffLoadParzellen, ffGefilterteParzellen, ffJahr, ffIstPlanjahr,
-         ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge, ffOffeneFlags } from './fruchtfolge.js?v=117';
-import { ffMatrixNebenInvalidate } from './ff-matrix.js?v=117';
+         ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge, ffOffeneFlags } from './fruchtfolge.js?v=118';
+import { ffMatrixNebenInvalidate } from './ff-matrix.js?v=118';
 
 let sortCol = 'nummer';
 let sortDir = 1;
@@ -68,7 +68,7 @@ export async function renderFFTabelle(el) {
       <td style="text-align:right">${Number(p.netto_ha ?? 0).toFixed(2)}</td>
       <td>${planjahr
         ? `<select onchange="ffTabKultur(${p.id}, this.value)"><option value="">—</option>${kulturOpts(p.kultur_id)}</select>`
-        : `<span class="ff-legende-farbe" style="background:${escapeHtml(p.kultur_farbe || '#777')}"></span> ${escapeHtml(p.kultur_name || '—')}`}</td>
+        : `<span class="ff-legende-farbe" style="background:${escapeHtml(p.kultur_farbe || '#ffffff')}"></span> ${escapeHtml(p.kultur_name || '—')}`}</td>
       <td>${planjahr
         ? `<select onchange="ffTabZwischenfrucht(${p.id}, this.value)"><option value="">— keine —</option>${kulturOpts(nb[0]?.kultur_id)}</select>`
         : escapeHtml(nbKultur || '—')}</td>

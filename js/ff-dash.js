@@ -1,7 +1,7 @@
 // Fruchtfolge: Anbauverhältnis-Dashboard – Kulturanteile in ha/% je Jahr,
 // Kultur-/Gruppen-Ebene, Jahresvergleich, CSV-Export. Diagramme als Inline-SVG.
-import { showToast, escapeHtml } from './helpers.js?v=117';
-import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=117';
+import { showToast, escapeHtml } from './helpers.js?v=118';
+import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=118';
 
 let ebene = 'kultur';        // 'kultur' | 'gruppe'
 let vergleichsJahre = new Set(); // jahr_id für den Jahresvergleich
@@ -11,7 +11,7 @@ function anteile(parzellen) {
   for (const p of parzellen) {
     const key = ebene === 'gruppe' ? (p.kulturgruppe_id ?? 0) : (p.kultur_id ?? 0);
     const name = ebene === 'gruppe' ? (p.kulturgruppe_name || 'ohne Gruppe') : (p.kultur_name || 'ohne Kultur');
-    const farbe = ebene === 'gruppe' ? (p.kulturgruppe_farbe || '#777') : (p.kultur_farbe || '#777');
+    const farbe = ebene === 'gruppe' ? (p.kulturgruppe_farbe || '#ffffff') : (p.kultur_farbe || '#ffffff');
     if (!map.has(key)) map.set(key, { name, farbe, ha: 0 });
     map.get(key).ha += Number(p.netto_ha) || 0;
   }

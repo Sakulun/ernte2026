@@ -1,10 +1,10 @@
 // Fruchtfolge: Matrix – Zeilen = Parzellen des Leitjahres (nach Betrieb gruppiert),
 // Spalten = alle Jahre. Zellen aus dem geometrischen Matching, farbcodiert nach Kultur.
-import { getSb } from './db.js?v=117';
-import { showToast, escapeHtml } from './helpers.js?v=117';
+import { getSb } from './db.js?v=118';
+import { showToast, escapeHtml } from './helpers.js?v=118';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen, ffJahr,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=117';
+         ffOffeneFlags } from './fruchtfolge.js?v=118';
 
 let zugeklappt = new Set(); // eingeklappte betrieb_id
 let alleNeben = null;       // parzelle_id → [nebenkulturen]
@@ -80,10 +80,10 @@ export async function renderFFMatrix(el) {
     }
     if (!eintraege.length) return `<td class="ff-mx-zelle leer ${j.typ === 'plan' ? 'ff-mx-plan' : ''}"></td>`;
     const dom = eintraege[0];
-    const farbe = dom.kultur_farbe || '#555';
+    const farbe = dom.kultur_farbe || '#ffffff';
     let bg = `background:${farbe}`;
     if (eintraege.length > 1 && eintraege[1].kultur_id !== dom.kultur_id) {
-      const f2 = eintraege[1].kultur_farbe || '#555';
+      const f2 = eintraege[1].kultur_farbe || '#ffffff';
       const cut = Math.max(20, Math.min(80, Math.round(dom.anteil_prozent)));
       bg = `background:linear-gradient(90deg, ${farbe} ${cut}%, ${f2} ${cut}%)`;
     }

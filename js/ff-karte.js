@@ -3,10 +3,10 @@
 // Performance: Die Karte lebt in einem persistenten Container weiter und wird
 // beim Zurückschalten nur wieder angehängt; alle Parzellen liegen in EINEM
 // GeoJSON-Layer; die Matching-Historie lädt erst NACH dem Zeichnen nach.
-import { showToast, escapeHtml } from './helpers.js?v=117';
+import { showToast, escapeHtml } from './helpers.js?v=118';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=117';
+         ffOffeneFlags } from './fruchtfolge.js?v=118';
 
 let hiddenKulturen = new Set(); // per Legende ausgeblendete kultur_id (0 = ohne Kultur)
 let mapWrap = null;             // persistenter DOM-Container mit der Leaflet-Karte
@@ -105,8 +105,8 @@ export async function renderFFKarte(el) {
       return {
         color: flag ? (flag.schweregrad === 'hoch' ? '#e03030' : '#e08a20') : '#222',
         weight: flag ? 3 : 1,
-        fillColor: p.kultur_farbe || '#777',
-        fillOpacity: 0.55,
+        fillColor: p.kultur_farbe || '#ffffff',
+        fillOpacity: p.kultur_farbe ? 0.55 : 0.75,
       };
     },
     onEachFeature: (f, lyr) => {
@@ -145,7 +145,7 @@ function renderLegende(parzellen) {
   for (const p of parzellen) {
     const key = p.kultur_id ?? 0;
     if (!nachKultur.has(key)) {
-      nachKultur.set(key, { name: p.kultur_name || 'ohne Kultur', farbe: p.kultur_farbe || '#777', ha: 0 });
+      nachKultur.set(key, { name: p.kultur_name || 'ohne Kultur', farbe: p.kultur_farbe || '#ffffff', ha: 0 });
     }
     nachKultur.get(key).ha += Number(p.netto_ha) || 0;
   }
@@ -166,7 +166,7 @@ function popupHtml(p, neben, historie, flag, planjahr) {
   }).join(', ');
   const hist = (historie || [])
     .slice().sort((a, b) => b.jahr - a.jahr)
-    .map(m => `<tr><td>${m.jahr}</td><td><span class="ff-legende-farbe" style="background:${escapeHtml(m.kultur_farbe || '#777')}"></span>
+    .map(m => `<tr><td>${m.jahr}</td><td><span class="ff-legende-farbe" style="background:${escapeHtml(m.kultur_farbe || '#ffffff')}"></span>
       ${escapeHtml(m.kultur_name || '—')}</td><td style="text-align:right">${Math.round(m.anteil_prozent)} %</td></tr>`).join('');
   const kulturWahl = planjahr ? `
     <div style="margin-top:6px">
