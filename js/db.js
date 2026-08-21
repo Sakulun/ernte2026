@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=119';
+import { SB_URL, SB_KEY } from './config.js?v=120';
 
 export let sb = null;
 export function getSb() { return sb; }

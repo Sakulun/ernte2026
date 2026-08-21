@@ -1,8 +1,8 @@
 // Fruchtfolge: Import der Agrarantrags-Export-ZIPs (UI + Übernahme nach Supabase)
-import { getSb } from './db.js?v=119';
-import { showToast, escapeHtml } from './helpers.js?v=119';
-import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=119';
-import { parseAgrarantragZip } from './ff-import-parser.js?v=119';
+import { getSb } from './db.js?v=120';
+import { showToast, escapeHtml } from './helpers.js?v=120';
+import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=120';
+import { parseAgrarantragZip } from './ff-import-parser.js?v=120';
 
 // Geparste, noch nicht übernommene Pakete (Index = Anzeige-Reihenfolge)
 let pakete = [];
@@ -277,12 +277,23 @@ export async function ffPaketUebernehmen(i) {
       if (error) throw error;
     }
 
-    // 6) Neu berechnen + Caches leeren
+    // 6) Bestehende Planjahre um diesen Betrieb ergänzen, falls er dort noch fehlt
+    //    (z.B. Import kam erst nach dem Anlegen des Planjahres)
+    let planErgaenzt = 0;
+    try {
+      const { data: ext, error: extErr } = await sb.rpc('ff_extend_planjahre', { p_betrieb_id: betriebId });
+      if (extErr) throw extErr;
+      planErgaenzt = ext || 0;
+    } catch (e) { console.error('Planjahr-Ergänzung:', e); }
+
+    // 7) Neu berechnen + Caches leeren
     p.status = 'fertig';
     p.jahr = jahrVal;
     ffInvalidateJahr(jahrRow.id);
+    if (planErgaenzt) ffState.parzellenCache = {};
     await ffLoadStammdaten(true);
-    showToast(`Import übernommen: ${rows.length} Parzellen (${jahrVal})`);
+    showToast(`Import übernommen: ${rows.length} Parzellen (${jahrVal})` +
+      (planErgaenzt ? ` – ${planErgaenzt} Parzellen ins Planjahr ergänzt` : ''));
     renderFruchtfolge();
     await ffRecompute();
     renderFruchtfolge();
