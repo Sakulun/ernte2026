@@ -1,10 +1,11 @@
-import { SB_URL, SB_KEY } from './config.js?v=121';
+import { SB_URL, SB_KEY } from './config.js?v=122';
 import { renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
-         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=121';
+         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=122';
 import { renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV,
-         renderBgMeineFuhren } from './bg-auswertung.js?v=121';
+         renderBgMeineFuhren } from './bg-auswertung.js?v=122';
 import { renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
-         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=121';
+         bgKulturSpeichern, bgKulturToggle,
+         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=122';
 
 // ── Biogas-App (Biomasse-Erfassung, Anlage Bayern) ───────────────────────────
 // Eigenständiger Einstieg (biogas/index.html) mit eigenem, schlankem Modulsatz.
@@ -18,11 +19,10 @@ export const bgState = {
   users: [],           // nur profil='biogas'
   lieferanten: [],
   felder: [],
+  kulturen: [],        // bg_kulturen: vom Admin pflegbar (aktiv/inaktiv)
   haengerzuege: [],
   fuhren: [],
 };
-
-export const KULTUREN = ['Grünland', 'Getreide-GPS', 'Silomais', 'Mist/Sonstiges'];
 
 // ── kleine Helfer (bewusst lokal, um den Ernte-Modulgraphen nicht mitzuziehen) ─
 export function escapeHtml(s) {
@@ -54,15 +54,17 @@ export const bgDb = {
     return (data||[]).map(u => ({ id: u.id, name: u.name, role: u.rolle }));
   },
   async ladeAlles() {
-    const [l, f, h, fu] = await Promise.all([
+    const [l, f, k, h, fu] = await Promise.all([
       sb.from('bg_lieferanten').select('*').order('name'),
       sb.from('bg_felder').select('*').order('name'),
+      sb.from('bg_kulturen').select('*').order('id'),
       sb.from('bg_haengerzuege').select('*').order('name'),
       sb.from('bg_fuhren').select('*').order('zeit', {ascending:false}),
     ]);
-    for(const r of [l,f,h,fu]) if(r.error) throw r.error;
+    for(const r of [l,f,k,h,fu]) if(r.error) throw r.error;
     bgState.lieferanten  = l.data || [];
     bgState.felder       = f.data || [];
+    bgState.kulturen     = k.data || [];
     bgState.haengerzuege = h.data || [];
     bgState.fuhren       = fu.data || [];
   },
@@ -143,5 +145,6 @@ Object.assign(window, {
   openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug,
   renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV, renderBgMeineFuhren,
   renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
+  bgKulturSpeichern, bgKulturToggle,
   bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab,
 });

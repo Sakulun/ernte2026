@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=121';
+import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=122';
 
 // ── Stammdaten (nur Admin): Lieferanten, Schläge, Hängerzüge, Nutzer ─────────
 
@@ -12,11 +12,12 @@ async function hashPW(name, pw) {
 
 export function renderBgStammdaten(el) {
   if(bgState.currentUser?.role !== 'admin') { el.innerHTML = '<div class="empty-state">Nur für die Verwaltung.</div>'; return; }
-  const tabs = [['lieferanten','Lieferanten'],['felder','Schläge'],['hz','Hängerzüge'],['nutzer','Nutzer']];
+  const tabs = [['lieferanten','Lieferanten'],['felder','Schläge'],['kulturen','Kulturen'],['hz','Hängerzüge'],['nutzer','Nutzer']];
   const tabBar = `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${tabs.map(([id,label]) =>
     `<button class="btn btn-sm ${_stammTab===id?'btn-green':'btn-outline'}" onclick="setBgStammTab('${id}')">${label}</button>`).join('')}</div>`;
   let inhalt = '';
   if(_stammTab === 'felder') inhalt = felderHTML();
+  else if(_stammTab === 'kulturen') inhalt = kulturenHTML();
   else if(_stammTab === 'hz') inhalt = hzHTML();
   else if(_stammTab === 'nutzer') inhalt = nutzerHTML();
   else inhalt = lieferantenHTML();
@@ -105,6 +106,48 @@ export async function bgFeldLoeschen(id) {
     if(error) throw error;
     bgState.felder = bgState.felder.filter(x => x.id !== id);
     showToast('🗑 Schlag gelöscht');
+    renderBgMain();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
+// ── Kulturen ─────────────────────────────────────────────────────────────────
+// Vom Admin pflegbar; inaktive Kulturen erscheinen nicht mehr in der Erfassung.
+// Bestehende Fuhren behalten ihre Kultur (Text) auch nach dem Deaktivieren.
+function kulturenHTML() {
+  const rows = bgState.kulturen.map(k => `
+    <div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${k.aktiv?'':'opacity:.5'}">
+      <span style="font-weight:700">${escapeHtml(k.name)}${k.aktiv?'':' <span style="font-size:10px;color:var(--text3)">(inaktiv)</span>'}</span>
+      <button class="btn btn-sm btn-outline" onclick="bgKulturToggle(${k.id})">${k.aktiv?'Deaktivieren':'Aktivieren'}</button>
+    </div>`).join('');
+  return `<div class="card">
+    <div class="card-title" style="margin-bottom:4px">Kulturen</div>
+    <div class="card-sub" style="margin-bottom:10px">Inaktive Kulturen sind bei der Erfassung nicht wählbar; alte Fuhren bleiben unverändert.</div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="bg-neu-kultur" placeholder="Name der Kultur (z.B. Zuckerrüben)" style="flex:1">
+      <button class="btn btn-green" onclick="bgKulturSpeichern()">+ Anlegen</button>
+    </div>
+    ${rows || '<div class="empty-state">Noch keine Kulturen.</div>'}
+  </div>`;
+}
+export async function bgKulturSpeichern() {
+  const name = (document.getElementById('bg-neu-kultur')?.value || '').trim();
+  if(!name) { showToast('Bitte Namen eingeben', 'error'); return; }
+  if(bgState.kulturen.some(k => k.name.toLowerCase() === name.toLowerCase())) { showToast('Kultur existiert bereits', 'error'); return; }
+  try {
+    const { data, error } = await sb.from('bg_kulturen').insert({ name }).select().single();
+    if(error) throw error;
+    bgState.kulturen.push(data);
+    showToast('✓ Kultur angelegt');
+    renderBgMain();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+export async function bgKulturToggle(id) {
+  const k = bgState.kulturen.find(x => x.id === id);
+  if(!k) return;
+  try {
+    const { error } = await sb.from('bg_kulturen').update({ aktiv: !k.aktiv }).eq('id', id);
+    if(error) throw error;
+    k.aktiv = !k.aktiv;
     renderBgMain();
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }

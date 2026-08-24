@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, KULTUREN, escapeHtml, showToast, kg2t, renderBgMain } from './bg-app.js?v=121';
+import { sb, bgState, bgDb, escapeHtml, showToast, kg2t, renderBgMain } from './bg-app.js?v=122';
 
 // ── Fuhre erfassen: Lieferant → (Schlag) → Kultur → Gewichte + TS % ──────────
 
@@ -35,7 +35,8 @@ export function bgLieferantWahl() {
 export function renderBgErfassen(el) {
   const lieferanten = bgState.lieferanten.filter(l => l.aktiv);
   const lOpts = lieferanten.map(l => `<option value="${l.id}">${escapeHtml(l.name)}</option>`).join('');
-  const kOpts = KULTUREN.map(k => `<option>${escapeHtml(k)}</option>`).join('');
+  // Nur aktive Kulturen anbieten (Stammdaten-Pflege durch den Admin)
+  const kOpts = bgState.kulturen.filter(k => k.aktiv).map(k => `<option>${escapeHtml(k.name)}</option>`).join('');
   el.innerHTML = `<div class="card">
     <div class="card-header"><div>
       <div class="card-title">⚖ Fuhre erfassen</div>

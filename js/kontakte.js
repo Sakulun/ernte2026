@@ -1,6 +1,6 @@
-import { state } from './state.js?v=121';
-import { db } from './db.js?v=121';
-import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=121';
+import { state } from './state.js?v=122';
+import { db } from './db.js?v=122';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=122';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
