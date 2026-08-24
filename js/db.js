@@ -1,11 +1,12 @@
-import { SB_URL, SB_KEY } from './config.js?v=120';
+import { SB_URL, SB_KEY } from './config.js?v=121';
 
 export let sb = null;
 export function getSb() { return sb; }
 
 export const db = {
   async getNutzer() {
-    const { data, error } = await sb.from('nutzer_public').select('*').order('id');
+    // Nur Ernte-Nutzer – Biogas-Konten (profil='biogas') gehören zur Biogas-App (biogas/).
+    const { data, error } = await sb.from('nutzer_public').select('*').eq('profil','ernte').order('id');
     if(error) throw error;
     return data.map(u => {
       const lbl = u.rolle==='drescher'?'Drescherfahrer':u.rolle==='abfahrer'?'Abfahrer / Waage':u.rolle==='silomeister'?'Silomeister':u.rolle==='waage'?'Waage':'Admin / Übersicht';

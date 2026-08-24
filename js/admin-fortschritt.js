@@ -1,8 +1,8 @@
-import { state } from './state.js?v=120';
-import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=120';
-import { getFruchtFarbe } from './frucht.js?v=120';
-import { getQualitaetsfelder } from './quality.js?v=120';
-import { isBioFeld, bioBadge } from './bio.js?v=120';
+import { state } from './state.js?v=121';
+import { getFeld, netto, fmtDate, fmtTime, escapeHtml, istErnteFuhre } from './helpers.js?v=121';
+import { getFruchtFarbe } from './frucht.js?v=121';
+import { getQualitaetsfelder } from './quality.js?v=121';
+import { isBioFeld, bioBadge } from './bio.js?v=121';
 
 let fortschrittExpanded = {};
 let schlagExpanded = {};

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#141a12">
+<title>Biogas · Biomasse-Erfassung</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── Biogas-Theme: dunkel, Grün-Akzent (schlankes Subset des Ernte-Stils) ── */
+:root {
+  --bg: #10140e; --bg2: #161c13; --bg3: #1c2418;
+  --card: #1a2016; --border: #2a331f; --border2: #37422a;
+  --text: #e8eadd; --text2: #a8b096; --text3: #6e7660;
+  --green: #5a9e3c; --green2: #7cc05a; --gold: #9ecf62; --amber: #d9a441; --red: #d96459; --blue: #6aa3c8;
+  --color-surface: var(--card); --color-border: var(--border);
+  --color-text: var(--text); --color-text-muted: var(--text2);
+  --color-success: #7cc05a; --color-success-wash: rgba(124,192,90,.12);
+  --color-warning: #d9a441; --color-primary: #5a9e3c;
+  --neutral-200: #222a1c;
+  --radius: 12px; --radius-lg: 14px; --radius-md: 10px; --radius-sm: 8px; --radius-xs: 6px;
+  --mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --serif: Georgia, 'Times New Roman', serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; }
+body { font-family: system-ui, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 15px; }
+button { font-family: inherit; }
+input, select, textarea, .input {
+  width: 100%; padding: 11px 12px; font-size: 15px; font-family: inherit;
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border2); border-radius: var(--radius-sm);
+}
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--green); border-color: var(--green); }
+label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.form-group { margin-bottom: 14px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+.card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.card-title { font-size: 16px; font-weight: 700; }
+.card-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.section-label { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text3); margin: 14px 0 8px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 18px; border-radius: var(--radius-md); border: none; font-size: 14px; font-weight: 700; cursor: pointer; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-outline { background: none; border: 1px solid var(--border2); color: var(--text2); }
+.btn-amber { background: var(--amber); color: #1f1608; }
+.btn-full { width: 100%; }
+.btn-sm { padding: 7px 12px; font-size: 12px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 10px; font-weight: 800; letter-spacing: 1px; }
+.badge-fertig { background: rgba(124,192,90,.15); color: var(--green2); }
+.empty-state { text-align: center; color: var(--text3); padding: 28px 14px; font-size: 14px; }
+.stat-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px; text-align: center; }
+.stat-val { font-size: 22px; font-weight: 800; color: var(--gold); }
+.stat-label { font-size: 10px; color: var(--text3); letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+.tabs { display: flex; gap: 6px; padding: 10px 12px 0; }
+.tab { flex: 1; padding: 11px 6px; border-radius: var(--radius-md) var(--radius-md) 0 0; border: 1px solid var(--border); border-bottom: none; background: var(--bg2); color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; }
+.tab.active { background: var(--card); color: var(--gold); }
+.netto-display { display: flex; align-items: baseline; justify-content: center; gap: 8px; background: var(--bg3); border: 1px solid var(--border2); border-radius: var(--radius-md); padding: 12px; margin: 10px 0 14px; }
+.netto-label { font-size: 11px; letter-spacing: 1.5px; color: var(--text3); text-transform: uppercase; }
+.netto-val { font-size: 30px; font-weight: 800; color: var(--green2); font-variant-numeric: tabular-nums; }
+.netto-unit { font-size: 13px; color: var(--text3); }
+.gewicht-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.topbar-logo { font-family: var(--serif); font-weight: 700; font-size: 17px; letter-spacing: 1px; color: var(--gold); }
+.topbar-user { font-size: 12px; color: var(--text2); }
+#toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: var(--card); color: var(--text); border: 1px solid var(--green); border-radius: var(--radius-md); padding: 12px 20px; font-size: 14px; font-weight: 600; box-shadow: 0 6px 24px rgba(0,0,0,.5); display: none; z-index: 9999; max-width: 92vw; }
+#toast.error { border-color: var(--red); }
+#login-screen { min-height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+#app { display: none; }
+#app.active { display: block; }
+.fuhre-item { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; }
+.fuhre-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.fuhre-nr { font-size: 12px; font-weight: 700; color: var(--text2); }
+table.bg-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.bg-tbl th { text-align: right; padding: 8px; font-size: 11px; color: var(--text2); border-bottom: 2px solid var(--border2); }
+table.bg-tbl th:first-child { text-align: left; }
+table.bg-tbl td { padding: 7px 8px; text-align: right; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+table.bg-tbl td:first-child { text-align: left; }
+@media (min-width: 700px) { #main-content, .tabs { max-width: 640px; margin-left: auto; margin-right: auto; } }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="card" style="width:100%;max-width:380px;padding:26px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:40px">♻️</div>
+      <div style="font-family:var(--serif);font-size:22px;font-weight:700;letter-spacing:1px;color:var(--gold);margin-top:6px">Biogas</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:2px">Biomasse-Erfassung</div>
+    </div>
+    <div class="form-group"><label>Benutzername</label><input type="text" id="login-name" placeholder="Name eingeben" autocomplete="username"></div>
+    <div class="form-group"><label>Passwort</label><input type="password" id="login-pw" placeholder="Passwort eingeben" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div id="login-error" style="display:none;font-size:13px;color:var(--red);margin-bottom:10px"></div>
+    <button class="btn btn-green btn-full" onclick="doLogin()">Anmelden</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <span class="topbar-logo">♻️ Biogas</span>
+    <span class="topbar-user" id="topbar-name"></span>
+    <button class="btn btn-sm btn-outline" onclick="doLogout()">Abmelden</button>
+  </div>
+  <div class="tabs" id="bg-tabs"></div>
+  <div id="main-content" style="padding:14px 12px"></div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module" src="../js/bg-app.js?v=121"></script>
+</body>
+</html>
