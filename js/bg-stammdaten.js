@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=122';
+import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=123';
 
 // ── Stammdaten (nur Admin): Lieferanten, Schläge, Hängerzüge, Nutzer ─────────
 
@@ -111,17 +111,19 @@ export async function bgFeldLoeschen(id) {
 }
 
 // ── Kulturen ─────────────────────────────────────────────────────────────────
-// Vom Admin pflegbar; inaktive Kulturen erscheinen nicht mehr in der Erfassung.
-// Bestehende Fuhren behalten ihre Kultur (Text) auch nach dem Deaktivieren.
+// Genau EINE Kultur ist aktiv – sie gilt für alle neuen Fuhren (der Fahrer wählt
+// nicht). Aktivieren einer Kultur deaktiviert automatisch die anderen.
+// Bestehende Fuhren behalten ihren Kultur-Text.
 function kulturenHTML() {
   const rows = bgState.kulturen.map(k => `
-    <div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${k.aktiv?'':'opacity:.5'}">
-      <span style="font-weight:700">${escapeHtml(k.name)}${k.aktiv?'':' <span style="font-size:10px;color:var(--text3)">(inaktiv)</span>'}</span>
-      <button class="btn btn-sm btn-outline" onclick="bgKulturToggle(${k.id})">${k.aktiv?'Deaktivieren':'Aktivieren'}</button>
+    <div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${k.aktiv?'border-color:var(--gold);':'opacity:.6'}">
+      <span style="font-weight:700">${escapeHtml(k.name)}
+        ${k.aktiv?'<span class="badge" style="background:var(--gold);color:#1a1200;margin-left:6px">AKTIV</span>':''}</span>
+      <button class="btn btn-sm ${k.aktiv?'btn-outline':'btn-amber'}" onclick="bgKulturToggle(${k.id})">${k.aktiv?'Deaktivieren':'Aktivieren'}</button>
     </div>`).join('');
   return `<div class="card">
     <div class="card-title" style="margin-bottom:4px">Kulturen</div>
-    <div class="card-sub" style="margin-bottom:10px">Inaktive Kulturen sind bei der Erfassung nicht wählbar; alte Fuhren bleiben unverändert.</div>
+    <div class="card-sub" style="margin-bottom:10px">Die <b>aktive</b> Kultur gilt für alle neuen Fuhren – die Fahrer wählen nicht selbst. Beim Kulturwechsel (z.B. Grünland → Silomais) hier umschalten.</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <input id="bg-neu-kultur" placeholder="Name der Kultur (z.B. Zuckerrüben)" style="flex:1">
       <button class="btn btn-green" onclick="bgKulturSpeichern()">+ Anlegen</button>
@@ -134,10 +136,11 @@ export async function bgKulturSpeichern() {
   if(!name) { showToast('Bitte Namen eingeben', 'error'); return; }
   if(bgState.kulturen.some(k => k.name.toLowerCase() === name.toLowerCase())) { showToast('Kultur existiert bereits', 'error'); return; }
   try {
-    const { data, error } = await sb.from('bg_kulturen').insert({ name }).select().single();
+    // Neu angelegte Kulturen starten inaktiv – aktiviert wird bewusst per Klick.
+    const { data, error } = await sb.from('bg_kulturen').insert({ name, aktiv: false }).select().single();
     if(error) throw error;
     bgState.kulturen.push(data);
-    showToast('✓ Kultur angelegt');
+    showToast('✓ Kultur angelegt – zum Verwenden aktivieren');
     renderBgMain();
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
@@ -145,9 +148,20 @@ export async function bgKulturToggle(id) {
   const k = bgState.kulturen.find(x => x.id === id);
   if(!k) return;
   try {
-    const { error } = await sb.from('bg_kulturen').update({ aktiv: !k.aktiv }).eq('id', id);
-    if(error) throw error;
-    k.aktiv = !k.aktiv;
+    if(k.aktiv) {
+      const { error } = await sb.from('bg_kulturen').update({ aktiv: false }).eq('id', id);
+      if(error) throw error;
+      k.aktiv = false;
+      showToast('Keine Kultur aktiv – Erfassung ist gesperrt, bis eine aktiviert wird');
+    } else {
+      // Radio-Logik: erst alle deaktivieren, dann die gewählte aktivieren.
+      const { error: e1 } = await sb.from('bg_kulturen').update({ aktiv: false }).neq('id', id);
+      if(e1) throw e1;
+      const { error: e2 } = await sb.from('bg_kulturen').update({ aktiv: true }).eq('id', id);
+      if(e2) throw e2;
+      bgState.kulturen.forEach(x => { x.aktiv = (x.id === id); });
+      showToast('✓ Aktive Kultur: ' + escapeHtml(k.name));
+    }
     renderBgMain();
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }

@@ -1,10 +1,10 @@
-import { state } from './state.js?v=122';
-import { db } from './db.js?v=122';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=122';
-import { isBioFeld } from './bio.js?v=122';
-import { getQualitaetsfelder } from './quality.js?v=122';
-import { parseGewicht } from './abfahrer.js?v=122';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=122';
+import { state } from './state.js?v=123';
+import { db } from './db.js?v=123';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=123';
+import { isBioFeld } from './bio.js?v=123';
+import { getQualitaetsfelder } from './quality.js?v=123';
+import { parseGewicht } from './abfahrer.js?v=123';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=123';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
