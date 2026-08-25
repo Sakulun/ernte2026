@@ -1,4 +1,4 @@
-import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain } from './bg-app.js?v=123';
+import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain } from './bg-app.js?v=124';
 
 // ── Übersicht: Tonnage nach Lieferant × Kultur (× Schlag), Fuhrenliste, Export ─
 
@@ -81,15 +81,73 @@ export function renderBgUebersicht(el) {
 
 function fuhreCard(f, mitLoeschen) {
   const n = nettoVon(f);
+  const admin = mitLoeschen && bgState.currentUser?.role === 'admin';
   return `<div class="fuhre-item">
     <div class="fuhre-top"><span class="fuhre-nr">${escapeHtml(f.nr)} · ${fmtDatum(f.zeit)}</span>
       <span style="display:flex;gap:6px;align-items:center">
         <span style="font-size:15px;font-weight:800;color:var(--gold)">${kg2t(n)}</span>
-        ${mitLoeschen && bgState.currentUser?.role === 'admin' ? `<button onclick="bgFuhreLoeschen(${f.id})" title="Löschen" style="background:none;border:1px solid var(--border2);color:var(--red);border-radius:6px;width:28px;height:28px;cursor:pointer">🗑</button>` : ''}
+        ${admin ? `<button onclick="bgFuhreEditToggle(${f.id})" title="Bearbeiten" style="background:none;border:1px solid var(--border2);color:var(--text2);border-radius:6px;width:28px;height:28px;cursor:pointer">✏</button>
+        <button onclick="bgFuhreLoeschen(${f.id})" title="Löschen" style="background:none;border:1px solid var(--border2);color:var(--red);border-radius:6px;width:28px;height:28px;cursor:pointer">🗑</button>` : ''}
       </span></div>
     <div style="font-size:12px;color:var(--text2)">${escapeHtml(lName(f.lieferant_id))}${f.feld_id?' · '+escapeHtml(fName(f.feld_id)):''} · ${escapeHtml(f.kultur||'–')}${f.ts_gehalt!=null?' · TS '+parseFloat(f.ts_gehalt).toLocaleString('de-DE')+' %':''}</div>
     <div style="font-size:11px;color:var(--text3);margin-top:2px">Voll ${Number(f.vollgewicht).toLocaleString('de-DE')} · Leer ${Number(f.leergewicht).toLocaleString('de-DE')} kg${f.abfahrer_id?' · '+escapeHtml(uName(f.abfahrer_id)):''}</div>
+    ${admin && _editOpen === f.id ? editFormHTML(f) : ''}
   </div>`;
+}
+
+// ── Fuhre bearbeiten (nur Admin): Lieferant/Schlag/Kultur/Gewichte/TS ────────
+let _editOpen = null;
+export function bgFuhreEditToggle(id) { _editOpen = (_editOpen === id) ? null : id; renderBgMain(); }
+
+function editFormHTML(f) {
+  const lOpts = bgState.lieferanten.map(l => `<option value="${l.id}" ${l.id===f.lieferant_id?'selected':''}>${escapeHtml(l.name)}</option>`).join('');
+  const fOpts = '<option value="">— ohne Schlag —</option>' + bgState.felder
+    .map(x => `<option value="${x.id}" ${x.id===f.feld_id?'selected':''}>${escapeHtml(x.name)}</option>`).join('');
+  // Alle Kulturen wählbar (auch inaktive) + der historische Text, falls nicht in der Liste
+  const namen = bgState.kulturen.map(k => k.name);
+  if(f.kultur && !namen.includes(f.kultur)) namen.push(f.kultur);
+  const kOpts = namen.map(nm => `<option ${nm===f.kultur?'selected':''}>${escapeHtml(nm)}</option>`).join('');
+  const lab = (t, inner) => `<label style="font-size:10px;color:var(--text2)">${t}${inner}</label>`;
+  return `<div style="margin-top:10px;padding:12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2)">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${lab('Lieferant', `<select id="bge-lief-${f.id}" class="input">${lOpts}</select>`)}
+      ${lab('Schlag', `<select id="bge-feld-${f.id}" class="input">${fOpts}</select>`)}
+      ${lab('Kultur', `<select id="bge-kultur-${f.id}" class="input">${kOpts}</select>`)}
+      ${lab('TS-Gehalt %', `<input id="bge-ts-${f.id}" class="input" type="number" step="0.1" min="0" max="100" value="${f.ts_gehalt ?? ''}">`)}
+      ${lab('Vollgew. (kg)', `<input id="bge-voll-${f.id}" class="input" type="number" value="${f.vollgewicht ?? ''}">`)}
+      ${lab('Leergew. (kg)', `<input id="bge-leer-${f.id}" class="input" type="number" value="${f.leergewicht ?? ''}">`)}
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-sm btn-green" onclick="bgFuhreEditSpeichern(${f.id})">💾 Speichern</button>
+      <button class="btn btn-sm btn-outline" onclick="bgFuhreEditToggle(${f.id})">Abbrechen</button>
+    </div>
+  </div>`;
+}
+
+export async function bgFuhreEditSpeichern(id) {
+  const f = bgState.fuhren.find(x => x.id === id);
+  if(!f) return;
+  const el = sfx => document.getElementById('bge-'+sfx+'-'+id);
+  const voll = parseFloat(el('voll')?.value);
+  const leer = parseFloat(el('leer')?.value);
+  if(!voll || !leer || voll <= leer) { alert('Bitte gültige Gewichte eingeben (Vollgew. > Leergew.).'); return; }
+  const tsRaw = (el('ts')?.value || '').trim();
+  const ts = tsRaw !== '' ? parseFloat(tsRaw) : null;
+  if(ts != null && (isNaN(ts) || ts < 0 || ts > 100)) { alert('TS-Gehalt bitte zwischen 0 und 100 % angeben.'); return; }
+  const upd = {
+    lieferant_id: parseInt(el('lief')?.value) || null,
+    feld_id: parseInt(el('feld')?.value) || null,
+    kultur: el('kultur')?.value || f.kultur,
+    vollgewicht: voll, leergewicht: leer, ts_gehalt: ts,
+  };
+  try {
+    const { error } = await sb.from('bg_fuhren').update(upd).eq('id', id);
+    if(error) throw error;
+    Object.assign(f, upd);
+    _editOpen = null;
+    showToast('✓ Fuhre ' + escapeHtml(f.nr) + ' gespeichert');
+    renderBgMain();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 
 export async function bgFuhreLoeschen(id) {
