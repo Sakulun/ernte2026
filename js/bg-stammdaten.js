@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=124';
+import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=125';
 
 // ── Stammdaten (nur Admin): Lieferanten, Schläge, Hängerzüge, Nutzer ─────────
 
@@ -25,20 +25,76 @@ export function renderBgStammdaten(el) {
 }
 
 // ── Lieferanten ──────────────────────────────────────────────────────────────
+let _lieferantEdit = null; // id des Lieferanten im Umbenennen-Modus
+
 function lieferantenHTML() {
-  const rows = bgState.lieferanten.map(l => `
-    <div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${l.aktiv?'':'opacity:.5'}">
-      <span style="font-weight:700">${escapeHtml(l.name)}${l.aktiv?'':' <span style="font-size:10px;color:var(--text3)">(inaktiv)</span>'}</span>
-      <button class="btn btn-sm btn-outline" onclick="bgLieferantToggle(${l.id})">${l.aktiv?'Deaktivieren':'Aktivieren'}</button>
-    </div>`).join('');
+  const rows = bgState.lieferanten.map(l => {
+    const anzFuhren = bgState.fuhren.filter(f => f.lieferant_id === l.id).length;
+    if(_lieferantEdit === l.id) {
+      return `<div class="fuhre-item" style="display:flex;gap:8px;align-items:center">
+        <input id="bg-edit-lieferant-${l.id}" value="${escapeHtml(l.name)}" style="flex:1"
+          onkeydown="if(event.key==='Enter')bgLieferantEditSpeichern(${l.id})">
+        <button class="btn btn-sm btn-green" onclick="bgLieferantEditSpeichern(${l.id})">💾</button>
+        <button class="btn btn-sm btn-outline" onclick="bgLieferantEditToggle(null)">✕</button>
+      </div>`;
+    }
+    return `<div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px;${l.aktiv?'':'opacity:.5'}">
+      <span style="font-weight:700;min-width:0">${escapeHtml(l.name)}${l.aktiv?'':' <span style="font-size:10px;color:var(--text3)">(inaktiv)</span>'}
+        ${anzFuhren?` <span style="font-size:10px;color:var(--text3)">· ${anzFuhren} Fuhre${anzFuhren===1?'':'n'}</span>`:''}</span>
+      <span style="display:flex;gap:6px;flex-shrink:0">
+        <button class="btn btn-sm btn-outline" onclick="bgLieferantEditToggle(${l.id})" title="Umbenennen">✏</button>
+        <button class="btn btn-sm btn-outline" onclick="bgLieferantToggle(${l.id})">${l.aktiv?'Deaktivieren':'Aktivieren'}</button>
+        ${anzFuhren === 0 ? `<button class="btn btn-sm btn-outline" style="color:var(--red)" onclick="bgLieferantLoeschen(${l.id})" title="Löschen">🗑</button>` : ''}
+      </span>
+    </div>`;
+  }).join('');
   return `<div class="card">
-    <div class="card-title" style="margin-bottom:10px">Biomasse-Lieferanten</div>
+    <div class="card-title" style="margin-bottom:4px">Biomasse-Lieferanten</div>
+    <div class="card-sub" style="margin-bottom:10px">Löschen ist nur möglich, solange keine Fuhren auf den Lieferanten laufen.</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <input id="bg-neu-lieferant" placeholder="Name des Lieferanten" style="flex:1">
       <button class="btn btn-green" onclick="bgLieferantSpeichern()">+ Anlegen</button>
     </div>
     ${rows || '<div class="empty-state">Noch keine Lieferanten.</div>'}
   </div>`;
+}
+
+export function bgLieferantEditToggle(id) { _lieferantEdit = (_lieferantEdit === id) ? null : id; renderBgMain(); }
+
+export async function bgLieferantEditSpeichern(id) {
+  const l = bgState.lieferanten.find(x => x.id === id);
+  const name = (document.getElementById('bg-edit-lieferant-'+id)?.value || '').trim();
+  if(!l) return;
+  if(!name) { showToast('Bitte Namen eingeben', 'error'); return; }
+  if(bgState.lieferanten.some(x => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) { showToast('Name existiert bereits', 'error'); return; }
+  try {
+    const { error } = await sb.from('bg_lieferanten').update({ name }).eq('id', id);
+    if(error) throw error;
+    l.name = name;
+    bgState.lieferanten.sort((a,b) => a.name.localeCompare(b.name,'de'));
+    _lieferantEdit = null;
+    showToast('✓ Lieferant umbenannt');
+    renderBgMain();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
+export async function bgLieferantLoeschen(id) {
+  const l = bgState.lieferanten.find(x => x.id === id);
+  if(!l) return;
+  // Sperre: nur löschen, wenn KEINE Fuhren auf den Lieferanten laufen.
+  const anzFuhren = bgState.fuhren.filter(f => f.lieferant_id === id).length;
+  if(anzFuhren > 0) { showToast(`⚠ Nicht möglich: ${anzFuhren} Fuhre${anzFuhren===1?' läuft':'n laufen'} auf diesen Lieferanten`, 'error'); return; }
+  const felder = bgState.felder.filter(f => f.lieferant_id === id);
+  const hinweis = felder.length ? `\n\n${felder.length} zugeordnete${felder.length===1?'r Schlag wird':' Schläge werden'} auf „alle Lieferanten" umgestellt.` : '';
+  if(!confirm(`Lieferant „${l.name}" löschen?${hinweis}`)) return;
+  try {
+    const { error } = await sb.from('bg_lieferanten').delete().eq('id', id);
+    if(error) throw error;
+    bgState.lieferanten = bgState.lieferanten.filter(x => x.id !== id);
+    felder.forEach(f => { f.lieferant_id = null; }); // DB macht das via ON DELETE SET NULL
+    showToast('🗑 Lieferant gelöscht');
+    renderBgMain();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 export async function bgLieferantSpeichern() {
   const name = (document.getElementById('bg-neu-lieferant')?.value || '').trim();
