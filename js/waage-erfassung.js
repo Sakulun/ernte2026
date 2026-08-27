@@ -1,10 +1,10 @@
-import { state } from './state.js?v=125';
-import { db } from './db.js?v=125';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=125';
-import { isBioFeld } from './bio.js?v=125';
-import { getQualitaetsfelder } from './quality.js?v=125';
-import { parseGewicht } from './abfahrer.js?v=125';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=125';
+import { state } from './state.js?v=126';
+import { db } from './db.js?v=126';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=126';
+import { isBioFeld } from './bio.js?v=126';
+import { getQualitaetsfelder } from './quality.js?v=126';
+import { parseGewicht } from './abfahrer.js?v=126';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=126';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -519,8 +519,14 @@ export function renderUmlaufEingangAbschluss(el, u) {
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:10px">
       ${row(duenger ? 'Artikel' : 'Fruchtart', escapeHtml(artikelBez))}
       ${row('Herkunft', escapeHtml(herkunft))}
-      ${row(erstVoll ? 'Vollgewicht (1. Wiegung)' : 'Leergewicht (1. Wiegung)', '<b>' + erst.toLocaleString('de-DE') + '</b> kg')}
     </table>
+    <div class="section-label">Fahrzeug bearbeiten <span style="font-size:10px;color:var(--text2);font-weight:400">– speichern ohne Abschluss</span></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px">
+      <label style="font-size:11px;color:var(--text2)">Kennzeichen<input id="we-um-kz-${u.id}" class="input" value="${escapeHtml(u.kennzeichen||'')}" style="text-transform:uppercase"></label>
+      <label style="font-size:11px;color:var(--text2)">${erstVoll ? 'Vollgewicht' : 'Leergewicht'} 1. Wiegung (kg)<input id="we-um-erst-${u.id}" class="input" type="number" value="${erst||''}"></label>
+    </div>
+    <button class="btn btn-outline btn-full" style="margin-bottom:12px" onclick="weUmlaufAktualisieren(${u.id})"
+      title="Änderungen speichern und im Umlauf behalten – ohne 2. Wiegung">&#128190; Im Umlauf speichern</button>
     <div class="section-label">${erstVoll ? 'Leergewicht (kg)' : 'Vollgewicht (kg)'} – 2. Wiegung</div>
     ${widget}
     <div class="form-group" style="display:flex;gap:6px">
@@ -545,6 +551,22 @@ export function weUmlaufNetto() {
   const leer = erstVoll ? zweit : erst;
   if(voll && leer && voll > leer) { el.textContent = (voll - leer).toLocaleString('de-DE'); el.style.color = 'var(--green2)'; }
   else { el.textContent = '—'; el.style.color = 'var(--text3)'; }
+}
+
+// Eingangs-Umlauf bearbeiten (Kennzeichen + Erstgewicht) und im Umlauf behalten –
+// ohne die zweite Wiegung / den Abschluss.
+export async function weUmlaufAktualisieren(id) {
+  const u = (_umlaufEntry && _umlaufEntry.id === id) ? _umlaufEntry : (state.umlauf || []).find(x => x.id === id);
+  if(!u) { showToast('⚠ Umlauf-Eintrag nicht gefunden', 'error'); return; }
+  const kz = (document.getElementById('we-um-kz-'+id)?.value || '').trim().toUpperCase();
+  const erst = parseGewicht(document.getElementById('we-um-erst-'+id)?.value);
+  if(!erst || erst <= 0) { alert('Bitte ein gültiges Erstgewicht angeben.'); return; }
+  try {
+    await db.updateUmlauf(id, { kennzeichen: kz || null, erstgewicht: erst });
+    u.kennzeichen = kz || null; u.erstgewicht = erst;
+    showToast(`💾 ${kz || 'Fahrzeug'} im Umlauf gespeichert`);
+    if(window.waUmlaufListe) window.waUmlaufListe();
+  } catch(e) { showToast('⚠ Fehler: ' + e.message, 'error'); }
 }
 
 export async function weUmlaufAbschliessen(id) {

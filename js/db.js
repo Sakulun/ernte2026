@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=125';
+import { SB_URL, SB_KEY } from './config.js?v=126';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -461,6 +461,17 @@ export const db = {
   async umlaufStornieren(id) {
     const { error } = await sb.from('umlauf')
       .update({ status:'storniert', erledigt_am:new Date().toISOString() }).eq('id', id);
+    if(error) throw error;
+  },
+  // Wartenden Umlauf-Eintrag bearbeiten (ohne Abschluss). Nur gesetzte Felder.
+  async updateUmlauf(id, u) {
+    const map = {};
+    const set = (k, dbk) => { if(u[k] !== undefined) map[dbk] = u[k]; };
+    set('kennzeichen','kennzeichen');   set('spedition','spedition');   set('sonstigeAngaben','sonstige_angaben');
+    set('kontaktId','kontakt_id');      set('kontraktId','kontrakt_id'); set('siloVonId','silo_von_id');
+    set('artikelId','artikel_id');      set('erstgewicht','erstgewicht'); set('leergewicht','leergewicht');
+    set('payload','payload');
+    const { error } = await sb.from('umlauf').update(map).eq('id', id);
     if(error) throw error;
   },
   async upsertGPS(nutzerId, lat, lon) {

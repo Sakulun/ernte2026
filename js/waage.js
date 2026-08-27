@@ -1,10 +1,10 @@
-import { state } from './state.js?v=125';
-import { db } from './db.js?v=125';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=125';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=125';
-import { parseGewicht } from './abfahrer.js?v=125';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=125';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=125';
+import { state } from './state.js?v=126';
+import { db } from './db.js?v=126';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=126';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=126';
+import { parseGewicht } from './abfahrer.js?v=126';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=126';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=126';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -218,7 +218,9 @@ function formHTML(u) {
       <textarea id="wa-sonstiges" rows="2" style="width:100%" placeholder="Freitext, z.B. Probe gezogen"></textarea>
     </div>
     ${voll
-      ? `<div style="display:flex;gap:8px">
+      ? `<button class="btn btn-outline btn-full" style="margin-bottom:8px" onclick="waUmlaufAktualisieren(${u.id})"
+           title="Änderungen speichern und im Umlauf behalten – ohne Vollwiegung/Abschluss">&#128190; Änderungen im Umlauf speichern</button>
+         <div style="display:flex;gap:8px">
            <button class="btn btn-outline" style="flex-shrink:0" onclick="waUmlaufStornieren(${u.id})" title="Fahrzeug aus dem Umlauf nehmen">✕</button>
            <button class="btn btn-green btn-full" id="wa-btn" onclick="waAbschliessen(${u.id})">&#10003; Abschließen &amp; drucken</button>
          </div>`
@@ -444,6 +446,37 @@ export async function waUmlaufStornieren(id) {
     showToast(`🚚 ${u.kennzeichen} aus dem Umlauf genommen`);
     if(_container) renderWaageTab(_container);
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
+// Änderungen an einer wartenden Ausgangs-Fuhre speichern und im Umlauf behalten
+// (ohne Vollwiegung/Abschluss). Es reicht das Leergewicht + Kennzeichen.
+export async function waUmlaufAktualisieren(id) {
+  const u = wartende().find(x => x.id === id);
+  if(!u) return;
+  const leer = parseGewicht(document.getElementById('leer-'+WID)?.value);
+  const kennzeichen = (document.getElementById('wa-kennzeichen')?.value || '').trim().toUpperCase();
+  if(!leer || leer <= 0) { alert('Bitte ein gültiges Leergewicht (Tara) angeben.'); return; }
+  if(!kennzeichen) { alert('Bitte Kennzeichen angeben.'); return; }
+  const kundeId    = parseInt(document.getElementById('wa-kunde')?.value) || null;
+  const kontraktId = parseInt(document.getElementById('wa-kontrakt')?.value) || null;
+  const lagerId    = document.getElementById('wa-lager')?.value || null;
+  const artikelId  = parseInt(document.getElementById('wa-artikel')?.value) || null;
+  const spedition  = (document.getElementById('wa-spedition')?.value || '').trim() || null;
+  const sonstiges  = (document.getElementById('wa-sonstiges')?.value || '').trim() || null;
+  try {
+    await db.updateUmlauf(id, {
+      kontaktId: kundeId, kontraktId, siloVonId: lagerId, artikelId,
+      kennzeichen, spedition, sonstigeAngaben: sonstiges,
+      erstgewicht: leer, leergewicht: leer
+    });
+    Object.assign(u, {
+      kontakt_id: kundeId, kontrakt_id: kontraktId, silo_von_id: lagerId, artikel_id: artikelId,
+      kennzeichen, spedition, sonstige_angaben: sonstiges, erstgewicht: leer, leergewicht: leer
+    });
+    _offenesFahrzeug = null; _modus = 'umlauf';
+    showToast(`💾 ${kennzeichen} im Umlauf gespeichert`);
+    if(_container) renderWaageTab(_container);
+  } catch(e) { showToast('⚠ Fehler: ' + e.message, 'error'); }
 }
 
 // Bucht den Warenausgang und druckt den Lieferschein in einem Schritt.
