@@ -47,6 +47,14 @@ export function renderBgUebersicht(el) {
       return `<tr><td style="padding-left:12px;font-weight:600">${escapeHtml(kultur)}</td>
         <td>${K.anz}</td><td><b>${t1(K.kg)}</b></td><td>${avgTs(K)}</td></tr>${schlagRows}`;
     }).join('');
+    // Aufgeklappt: die Fuhren dieses Lieferanten (neueste zuerst, bearbeitbar)
+    const eigene = open ? bgState.fuhren.filter(f => (f.lieferant_id ?? 0) === L.lieferantId) : [];
+    const fuhrenBlock = open && eigene.length ? `
+      <div style="padding:0 10px 10px">
+        <div class="section-label" style="margin-top:4px">Fuhren (${eigene.length})</div>
+        ${eigene.slice(0, 100).map(f => fuhreCard(f, true)).join('')}
+        ${eigene.length > 100 ? `<div style="font-size:11px;color:var(--text3);text-align:center;padding:4px">… ${eigene.length - 100} weitere (siehe Export)</div>` : ''}
+      </div>` : '';
     return `<div class="card" style="padding:0;overflow:hidden">
       <div onclick="toggleBgLieferant(${L.lieferantId})" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:13px 16px">
         <div style="font-size:15px;font-weight:700">${open?'▾':'▸'} ${escapeHtml(lName(L.lieferantId))}</div>
@@ -59,11 +67,9 @@ export function renderBgUebersicht(el) {
         <thead><tr><th>Kultur${open?' / Schlag':''}</th><th>Fuhren</th><th>t</th><th>Ø TS</th></tr></thead>
         <tbody>${kulturRows}</tbody>
       </table></div>
+      ${fuhrenBlock}
     </div>`;
   }).join('');
-
-  const fuhren = bgState.fuhren.slice(0, 30);
-  const fuhrenListe = fuhren.map(f => fuhreCard(f, true)).join('');
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
@@ -75,8 +81,8 @@ export function renderBgUebersicht(el) {
       <button class="btn btn-sm btn-outline" onclick="exportBgExcel()">📊 Excel</button>
       <button class="btn btn-sm btn-outline" onclick="exportBgCSV()">⬇ CSV</button>
     </div>
-    ${daten.length ? lieferantCards : '<div class="empty-state">Noch keine Fuhren erfasst.</div>'}
-    ${fuhren.length ? `<div class="section-label">Letzte Fuhren</div>${fuhrenListe}` : ''}`;
+    <div class="section-label">Lieferanten — anklicken für Fuhren</div>
+    ${daten.length ? lieferantCards : '<div class="empty-state">Noch keine Fuhren erfasst.</div>'}`;
 }
 
 function fuhreCard(f, mitLoeschen) {
