@@ -1,12 +1,12 @@
-import { SB_URL, SB_KEY } from './config.js?v=126';
+import { SB_URL, SB_KEY } from './config.js?v=127';
 import { renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
-         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=126';
+         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=127';
 import { renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV,
-         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=126';
+         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=127';
 import { renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
          bgLieferantEditToggle, bgLieferantEditSpeichern, bgLieferantLoeschen,
          bgKulturSpeichern, bgKulturToggle,
-         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=126';
+         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=127';
 
 // ── Biogas-App (Biomasse-Erfassung, Anlage Bayern) ───────────────────────────
 // Eigenständiger Einstieg (biogas/index.html) mit eigenem, schlankem Modulsatz.
@@ -88,6 +88,8 @@ export async function doLogin() {
       const { error: aerr } = await sb.auth.signInWithPassword({ email: `n${result.id}@ernte2026.local`, password: hashed });
       if(aerr) console.warn('Auth-Session nicht aufgebaut:', aerr.message);
     } catch(e) { console.warn('Auth-Session nicht aufgebaut:', e); }
+    // Login-Zeit merken: Session wird beim nächsten Öffnen bis 24 h wiederhergestellt.
+    try { localStorage.setItem('bg_login_ts', String(Date.now())); } catch(e) {}
     errEl.style.display = 'block'; errEl.style.color = 'var(--text2)'; errEl.textContent = 'Lade Daten…';
     bgState.users = await bgDb.ladeNutzer();
     await bgDb.ladeAlles();
@@ -105,6 +107,7 @@ export async function doLogin() {
 
 export function doLogout() {
   try { sb?.auth?.signOut().catch(()=>{}); } catch(e) {}
+  try { localStorage.removeItem('bg_login_ts'); } catch(e) {}
   bgState.currentUser = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').classList.remove('active');
@@ -131,14 +134,46 @@ export function renderBgMain() {
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
+// Eigener Auth-Speicher (storageKey): Ernte- und Biogas-App laufen auf derselben
+// Domain – ohne eigenen Key würde ein Biogas-Login die Ernte-Session ersetzen
+// (und umgekehrt). So bleiben beide Anmeldungen parallel bestehen.
 function initSupabase() {
   if(typeof supabase !== 'undefined' && supabase.createClient) {
-    sb = supabase.createClient(SB_URL, SB_KEY);
+    sb = supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: 'sb-biogas-auth' } });
+    bootRestore();
   } else {
     setTimeout(initSupabase, 50);
   }
 }
 initSupabase();
+
+// Anmeldung wiederherstellen: bis 24 h nach dem letzten Login bleibt der Nutzer
+// angemeldet (Supabase-Auth-Session + bg_login_ts). Danach ist ein neuer Login nötig.
+async function bootRestore() {
+  try {
+    const ts = parseInt(localStorage.getItem('bg_login_ts')) || 0;
+    if(!ts || Date.now() - ts > 24*60*60*1000) {
+      if(ts) { try { localStorage.removeItem('bg_login_ts'); } catch(e) {} try { await sb.auth.signOut(); } catch(e) {} }
+      return;
+    }
+    const { data: { session } } = await sb.auth.getSession();
+    const m = session?.user?.email?.match(/^n(\d+)@ernte2026\.local$/);
+    if(!m) return;
+    const errEl = document.getElementById('login-error');
+    if(errEl) { errEl.style.display = 'block'; errEl.style.color = 'var(--text2)'; errEl.textContent = 'Melde automatisch an…'; }
+    const users = await bgDb.ladeNutzer();
+    const user = users.find(u => u.id === parseInt(m[1]));
+    if(!user) { if(errEl) errEl.style.display = 'none'; return; }   // kein Biogas-Nutzer
+    bgState.users = users;
+    await bgDb.ladeAlles();
+    if(errEl) { errEl.style.display = 'none'; errEl.style.color = ''; }
+    bgState.currentUser = user;
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.add('active');
+    document.getElementById('topbar-name').textContent = user.name + ' · ' + (user.role === 'admin' ? 'Verwaltung' : 'Fahrer');
+    renderBgMain();
+  } catch(e) { console.warn('Session-Restore fehlgeschlagen:', e); }
+}
 
 Object.assign(window, {
   doLogin, doLogout, setBgTab, renderBgMain,
