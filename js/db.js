@@ -56,10 +56,8 @@ export const db = {
     const { data, error } = await sb.from('felder').select('*').order('id');
     if(error) throw error;
     return data
-      // Vorübergehend ausgeblendet (nur Getreide & Raps relevant): Mais & Silomais,
-      // Sonnenblumen und Soja. Daten bleiben in der DB.
-      // Zum Wieder-Einblenden einfach die passende Kultur aus dieser Regex entfernen.
-      .filter(f => !/mais|sonnenblum|soja/i.test(f.fruchtart||''))
+      // Herbst: Mais/Silomais, Sonnenblumen und Soja sind wieder eingeblendet.
+      // (Früher hier temporär ausgefiltert – Daten lagen immer in der DB.)
       .map(f => ({
         id: f.id, name: f.name, flaeche: parseFloat(f.flaeche),
         fruchtart: f.fruchtart, status: f.status, betrieb: f.betrieb||'',
