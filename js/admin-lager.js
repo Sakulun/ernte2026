@@ -1,9 +1,9 @@
-import { state } from './state.js?v=127';
-import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=127';
-import { getFruchtFarbe } from './frucht.js?v=127';
-import { getSiloBioStatus, bioBadge } from './bio.js?v=127';
-import { feuchteZuHoch } from './quality.js?v=127';
-import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=127';
+import { state } from './state.js?v=128';
+import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=128';
+import { getFruchtFarbe } from './frucht.js?v=128';
+import { getSiloBioStatus, bioBadge } from './bio.js?v=128';
+import { feuchteZuHoch } from './quality.js?v=128';
+import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=128';
 
 // Lagerübersicht: alle Lagerstätten nach Orten getrennt. Je Lager zunächst nur
 // Produkt, Ø-Qualität und Herkunft (Schläge) – Klick klappt die Einzelfuhren auf.

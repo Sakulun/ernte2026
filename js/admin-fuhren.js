@@ -1,12 +1,16 @@
-import { state } from './state.js?v=127';
-import { db } from './db.js?v=127';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=127';
-import { getFruchtFarbe } from './frucht.js?v=127';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=127';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=127';
-import { isBioFuhre, bioBadge } from './bio.js?v=127';
+import { state } from './state.js?v=128';
+import { db } from './db.js?v=128';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=128';
+import { getFruchtFarbe } from './frucht.js?v=128';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=128';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=128';
+import { isBioFuhre, bioBadge } from './bio.js?v=128';
 
 let _editOpenId = null;
+// Abfahrer-Verkaufslieferungen ein-/ausklappbar (Standard eingeklappt, damit man
+// direkt zu den Ernte-/Eingangsfuhren kommt; der Zähler bleibt sichtbar).
+let _lieferungenOpen = false;
+export function toggleLieferungen() { _lieferungenOpen = !_lieferungenOpen; renderAdminFuhren(); }
 // Filter für die Fuhren-Übersicht (Lieferant/Betrieb + Tag), auch für den Export.
 let _fFilterHerkunft = '';
 let _fFilterDatum = '';
@@ -293,9 +297,10 @@ export function renderAdminFuhren() {
       <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none" onclick="exportGefilterteFuhrenExcel()">📊 Excel (Filter)</button>
     </div>
 
-    ${lieferungen.length ? `<div class="section-label" style="color:var(--gold)">🡒 Abfahrer-Verkaufslieferungen (${lieferungen.length}${lieferungenOffen?` · <span style="color:var(--amber)">${lieferungenOffen} ohne Quelle</span>`:''})</div>
-      <div style="font-size:11px;color:var(--text3);margin:-4px 0 8px">Vom Abfahrer selbst zum Kunden gefahren – bitte Quelle (Silo) zuweisen; damit wird der Bestand ausgebucht.</div>
-      ${lieferungen.map(lieferungRow).join('')}` : ''}
+    ${lieferungen.length ? `<div class="section-label" style="color:var(--gold);cursor:pointer;user-select:none" onclick="toggleLieferungen()" title="Ein-/ausklappen">
+        ${_lieferungenOpen?'▾':'▸'} 🡒 Abfahrer-Verkaufslieferungen (${lieferungen.length}${lieferungenOffen?` · <span style="color:var(--amber)">${lieferungenOffen} ohne Quelle</span>`:''})</div>
+      ${_lieferungenOpen ? `<div style="font-size:11px;color:var(--text3);margin:-4px 0 8px">Vom Abfahrer selbst zum Kunden gefahren – bitte Quelle (Silo) zuweisen; damit wird der Bestand ausgebucht.</div>
+      ${lieferungen.map(lieferungRow).join('')}` : ''}` : ''}
     ${filterAktiv && !fertig.length && !offen.length ? '<div class="empty-state">Keine Fuhren für diesen Filter.</div>' : ''}
     ${pending.length ? `<div class="section-label" style="color:var(--text)">⚠ Zu bestätigen (${pending.length})</div>${pending.map(f=>fuhreRow(f,true)).join('')}` : ''}
     ${verified.length ? `<div class="section-label" style="margin-top:8px">✓ Bestätigt (${verified.length})</div>${verified.map(f=>fuhreRow(f,true)).join('')}` : ''}
