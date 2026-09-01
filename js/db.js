@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=128';
+import { SB_URL, SB_KEY } from './config.js?v=129';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -97,9 +97,17 @@ export const db = {
     if(error) throw error;
   },
   async getFuhren() {
-    const { data, error } = await sb.from('fuhren').select('*').order('id');
-    if(error) throw error;
-    return data.map(f => ({
+    // PostgREST liefert max. 1000 Zeilen/Request. Ab >1000 Fuhren MUSS paginiert
+    // werden – sonst fehlen die neuesten Fuhren (sie "verschwinden" ab 1000).
+    const rows = [];
+    const CHUNK = 1000;
+    for(let from = 0; ; from += CHUNK) {
+      const { data, error } = await sb.from('fuhren').select('*').order('id').range(from, from + CHUNK - 1);
+      if(error) throw error;
+      rows.push(...(data || []));
+      if(!data || data.length < CHUNK) break;
+    }
+    return rows.map(f => ({
       id: f.id, nr: f.nr, status: f.status,
       drescherId: f.drescher_id, abfahrerId: f.abfahrer_id,
       feldId: f.feld_id, fruchtart: f.fruchtart,
