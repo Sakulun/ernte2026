@@ -1,9 +1,9 @@
-import { state } from './state.js?v=129';
-import { db } from './db.js?v=129';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=129';
-import { getFruchtFarbe } from './frucht.js?v=129';
-import { feuchteZuHoch } from './quality.js?v=129';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=129';
+import { state } from './state.js?v=130';
+import { db } from './db.js?v=130';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=130';
+import { getFruchtFarbe } from './frucht.js?v=130';
+import { feuchteZuHoch } from './quality.js?v=130';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=130';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -19,6 +19,7 @@ const FLACHLAGER = {
   // (bestehende Zuordnungen bleiben unter dem alten Schlüssel gültig), Teil 2 = andere Kulturen.
   HALLE_HOEHNSTEDT:  { toggle: 'Höhnstedt 1', titel: '📦 Halle Höhnstedt · Teil 1 (Gerste)', label: 'Halle Höhnstedt 1', kap_t: 2000 },
   HALLE_HOEHNSTEDT2: { toggle: 'Höhnstedt 2', titel: '📦 Halle Höhnstedt · Teil 2',           label: 'Halle Höhnstedt 2', kap_t: 2000 },
+  FAHRSILO_HOEHNSTEDT: { toggle: 'Fahrsilo', titel: '🚜 Fahrsilo · Höhnstedt',                 label: 'Fahrsilo' },
   HALLE_LAUCHSTAEDT: { toggle: 'Lauchstädt', titel: '📦 Halle Bad Lauchstädt',     label: 'Halle Bad Lauchstädt' },
   // Halle Thondorf ist als 4 einzelne Boxen (Silos T1–T4) modelliert – siehe
   // eigene Ansicht "Thondorf" im Silomanagement (nicht mehr als Flachlager).
@@ -47,6 +48,7 @@ const LAGER_ORT = {
   HALLE_ANARODE:     'Anarode',
   HALLE_HOEHNSTEDT:  'Höhnstedt',
   HALLE_HOEHNSTEDT2: 'Höhnstedt',
+  FAHRSILO_HOEHNSTEDT: 'Höhnstedt',
   HALLE_LAUCHSTAEDT: 'Bad Lauchstädt',
   KUCHENLAGER:       'Beesenstedt',
 };
