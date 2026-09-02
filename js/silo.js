@@ -1,9 +1,9 @@
-import { state } from './state.js?v=130';
-import { db } from './db.js?v=130';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=130';
-import { getFruchtFarbe } from './frucht.js?v=130';
-import { feuchteZuHoch } from './quality.js?v=130';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=130';
+import { state } from './state.js?v=133';
+import { db } from './db.js?v=133';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=133';
+import { getFruchtFarbe } from './frucht.js?v=133';
+import { feuchteZuHoch } from './quality.js?v=133';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=133';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -156,12 +156,14 @@ const HIST_META = {
   lieferung:  { label: 'Lieferung',  icon: '📄', farbe: 'var(--color-primary)' },
   umlagerung: { label: 'Umlagerung', icon: '🔄', farbe: 'var(--blue-500)' },
   reinigung:  { label: 'Reinigung',  icon: '🌀', farbe: 'var(--color-text-muted)' },
+  saatgut:    { label: 'Saatgutverkauf', icon: '🌱', farbe: 'var(--color-success)' },
   ausgang:    { label: 'Ausgang',    icon: '📤', farbe: 'var(--color-text-muted)' },
 };
 function histKat(w) {
   return w.kontrakt_id ? 'lieferung'
     : /^\s*Umlagerung/i.test(w.notiz||'') ? 'umlagerung'
     : /^\s*Reinigungsabgang/i.test(w.notiz||'') ? 'reinigung'
+    : /^\s*Saatgutverkauf/i.test(w.notiz||'') ? 'saatgut'
     : 'ausgang';
 }
 export function ausgangHistorie(lagerId) {
@@ -173,6 +175,9 @@ export function ausgangHistorie(lagerId) {
 function histCrop(w) {
   const qf = w.fuhre_id ? state.fuhren.find(x=>x.id===w.fuhre_id) : null;
   if(qf) return { fruchtart: qf.fruchtart || '', badge: sorteBadge(qf) };
+  // Saatgutverkauf: die Sorte steht in der Notiz ("Saatgutverkauf <Sorte> → <Kunde>")
+  const sv = /^\s*Saatgutverkauf\s+([^→]+?)(?:\s*→.*)?$/i.exec(w.notiz||'');
+  if(sv && sv[1]) return { fruchtart: '🌱 ' + sv[1].trim(), badge: '' };
   const art = state.artikel.find(a=>a.id===w.artikel_id);
   return { fruchtart: art ? art.name : '', badge: '' };
 }
@@ -577,6 +582,81 @@ export async function reinigenSpeichern(quelleId) {
     try { state.fuhren = await db.getFuhren(); state.warenbewegungen = await db.getWarenbewegungen(); } catch(_) {}
   }
   _activeSiloId = null;
+  renderSiloManagement();
+}
+
+// ── Z-Saatgut verkauft: Menge aus dem Silo ausbuchen (Warenausgang) ─────────
+// Gereinigtes Z-Saatgut wird verkauft und das Silo leert sich. Bucht einen
+// Warenausgang (typ 'ausgang', silo_von_id) mit Notiz "Saatgutverkauf <Sorte>",
+// wodurch der Bestand sinkt; erscheint in der Silo-Historie als 🌱 Saatgutverkauf
+// und unter Warenwirtschaft › Warenbewegungen.
+export function saatgutVerkaufDialog(siloId) {
+  const bestKg = getSiloBestand(siloId);
+  if(bestKg <= 0) { showToast('Silo ist leer', 'error'); return; }
+  const bestT = bestKg / 1000;
+  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  // Fruchtart aus den Fuhren (getSiloKultur liefert bei Vermehrungen 'VERMEHRUNG:<Sorte>')
+  const kultur = fuhren.find(f => f.fruchtart)?.fruchtart || (getSiloKultur(siloId) || '–').replace(/^VERMEHRUNG:/, '');
+  const sorteStr = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))].join(', ');
+  document.getElementById('silo-saatgut-modal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'silo-saatgut-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--color-surface);border-radius:var(--radius-xl);padding:var(--space-6);width:100%;max-width:460px;box-shadow:var(--shadow-lg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-family:var(--font-display);font-size:var(--text-xl);color:var(--color-text)">🌱 Als Saatgut verkauft · ${escapeHtml(lagerLabel(siloId))}</div>
+        <button onclick="document.getElementById('silo-saatgut-modal').remove()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div style="background:var(--green-50);border:1px solid var(--green-200);border-radius:var(--radius-md);padding:14px;margin-bottom:16px">
+        <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">Bestand: ${bestT.toFixed(2)} t · ${escapeHtml(kultur)}${sorteStr ? ' · 🌱 ' + escapeHtml(sorteStr) : ''}</div>
+        <div style="font-size:var(--text-base);color:var(--color-text-muted)">Die verkaufte Menge wird als Warenausgang ausgebucht – der Silobestand sinkt entsprechend.</div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Verkaufte Menge (t)</label>
+        <input type="number" id="saatgut-menge" class="form-control" min="0.001" step="0.001" value="${bestT.toFixed(3)}" style="font-size:15px;font-weight:700">
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Kunde <span style="font-weight:400;color:var(--text2)">(optional)</span></label>
+        <input type="text" id="saatgut-kunde" class="form-control" placeholder="z.B. Raiffeisen / Landhandel">
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="saatgutVerkaufSpeichern('${siloId}')">🌱 Ausbuchen</button>
+        <button class="btn btn-outline" onclick="document.getElementById('silo-saatgut-modal').remove()">Abbrechen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+export async function saatgutVerkaufSpeichern(siloId) {
+  const mengeT = parseFloat(document.getElementById('saatgut-menge')?.value);
+  const kunde = (document.getElementById('saatgut-kunde')?.value || '').trim();
+  if(isNaN(mengeT) || mengeT <= 0) { showToast('Bitte verkaufte Menge angeben', 'error'); return; }
+  const bestKg = getSiloBestand(siloId);
+  const mengeKg = Math.round(mengeT * 1000);
+  if(mengeKg > bestKg + 0.5) { showToast('Menge größer als Bestand (' + (bestKg/1000).toFixed(2) + ' t)', 'error'); return; }
+  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  // Fruchtart aus den Fuhren (getSiloKultur liefert bei Vermehrungen 'VERMEHRUNG:<Sorte>')
+  const kultur = fuhren.find(f => f.fruchtart)?.fruchtart || (getSiloKultur(siloId) || '').replace(/^VERMEHRUNG:/, '');
+  const sorteStr = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))].join(', ');
+  // passender Artikel (best-effort): Kern der Kultur ohne Winter/Sommer/Weich/Silo,
+  // z.B. "Winterweichweizen" -> "weizen" -> Artikel "Winterweizen"
+  const kern = (kultur || '').toLowerCase().replace(/winter|sommer|weich|silo|\s.*$/g, '').trim();
+  const art = kern ? state.artikel.find(a => a.aktiv && a.name.toLowerCase().includes(kern)) : null;
+  document.getElementById('silo-saatgut-modal')?.remove();
+  try {
+    const wb = await db.insertWarenbewegung({
+      typ: 'ausgang', siloVonId: siloId, mengeKg, artikelId: art?.id || null,
+      empfaenger: kunde || null,
+      notiz: 'Saatgutverkauf' + (sorteStr ? ' ' + sorteStr : '') + (kunde ? ' → ' + kunde : ''),
+      erstelltVon: state.currentUser?.id || null
+    });
+    if(wb) state.warenbewegungen.unshift(wb);
+    showToast(`🌱 ${mengeT.toFixed(2)} t als Saatgut verkauft · ${lagerLabel(siloId)}`);
+  } catch(e) {
+    showToast('⚠ Ausbuchen fehlgeschlagen: ' + e.message, 'error');
+  }
+  // Detail bleibt offen – Bestand ist jetzt reduziert sichtbar
   renderSiloManagement();
 }
 
@@ -1002,7 +1082,8 @@ function renderSiloDetail(siloId) {
       </div>
     </div>
     ${bestandKg > 0 ? `
-    <button class="btn btn-full" style="background:var(--blue);color:#fff;border:none;margin-bottom:10px" onclick="reinigenDialog('${siloId}')">🌀 Reinigen → anderes Silo</button>
+    <button class="btn btn-full" style="background:var(--blue);color:#fff;border:none;margin-bottom:8px" onclick="reinigenDialog('${siloId}')">🌀 Reinigen → anderes Silo</button>
+    <button class="btn btn-full" style="background:var(--color-success);color:#fff;border:none;margin-bottom:10px" onclick="saatgutVerkaufDialog('${siloId}')">🌱 Als Saatgut verkauft (ausbuchen)</button>
     <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;text-align:center">Auslagerungen → Warenwirtschaft › Warenbewegungen</div>` : ''}
     <div style="font-size:12px;color:var(--text3);margin-bottom:4px;text-align:right">${pct.toFixed(0)}% belegt</div>
     ${avgFeuchte ? `
