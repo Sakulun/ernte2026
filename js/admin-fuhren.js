@@ -1,10 +1,10 @@
-import { state } from './state.js?v=133';
-import { db } from './db.js?v=133';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=133';
-import { getFruchtFarbe } from './frucht.js?v=133';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=133';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=133';
-import { isBioFuhre, bioBadge } from './bio.js?v=133';
+import { state } from './state.js?v=134';
+import { db } from './db.js?v=134';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=134';
+import { getFruchtFarbe } from './frucht.js?v=134';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=134';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=134';
+import { isBioFuhre, bioBadge } from './bio.js?v=134';
 
 let _editOpenId = null;
 // Abfahrer-Verkaufslieferungen ein-/ausklappbar (Standard eingeklappt, damit man

@@ -1,9 +1,9 @@
-import { state } from './state.js?v=133';
-import { db } from './db.js?v=133';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=133';
-import { getFruchtFarbe } from './frucht.js?v=133';
-import { feuchteZuHoch } from './quality.js?v=133';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=133';
+import { state } from './state.js?v=134';
+import { db } from './db.js?v=134';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=134';
+import { getFruchtFarbe } from './frucht.js?v=134';
+import { feuchteZuHoch } from './quality.js?v=134';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=134';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -1024,6 +1024,9 @@ function renderSiloDetail(siloId) {
   const pct = Math.min(100,(fillT/silo.kapazitaet_t)*100);
   const kultur = getSiloKultur(siloId);
   const farbe = getFruchtFarbe(kultur);
+  // Z-Saatgut = Vermehrungssorte, die bereits gereinigt ist (gleiche Regel wie das ZS-Badge).
+  // Nur dann wird "Als Saatgut verkauft" angeboten.
+  const istZSaatgut = !!kultur && kultur.startsWith('VERMEHRUNG:') && zsSet.has(kultur.slice(11));
   const avg = (key) => {
     const valid = assignedFuhren.filter(f=>f[key]!=null);
     return valid.length ? (valid.reduce((s,f)=>s+(f[key]||0),0)/valid.length).toFixed(1) : null;
@@ -1083,7 +1086,7 @@ function renderSiloDetail(siloId) {
     </div>
     ${bestandKg > 0 ? `
     <button class="btn btn-full" style="background:var(--blue);color:#fff;border:none;margin-bottom:8px" onclick="reinigenDialog('${siloId}')">🌀 Reinigen → anderes Silo</button>
-    <button class="btn btn-full" style="background:var(--color-success);color:#fff;border:none;margin-bottom:10px" onclick="saatgutVerkaufDialog('${siloId}')">🌱 Als Saatgut verkauft (ausbuchen)</button>
+    ${istZSaatgut ? `<button class="btn btn-full" style="background:var(--color-success);color:#fff;border:none;margin-bottom:10px" onclick="saatgutVerkaufDialog('${siloId}')">🌱 Als Saatgut verkauft (ausbuchen)</button>` : ''}
     <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;text-align:center">Auslagerungen → Warenwirtschaft › Warenbewegungen</div>` : ''}
     <div style="font-size:12px;color:var(--text3);margin-bottom:4px;text-align:right">${pct.toFixed(0)}% belegt</div>
     ${avgFeuchte ? `
