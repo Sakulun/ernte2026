@@ -1,4 +1,4 @@
-import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain } from './bg-app.js?v=134';
+import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain } from './bg-app.js?v=135';
 
 // ── Übersicht: Tonnage nach Lieferant × Kultur (× Schlag), Fuhrenliste, Export ─
 
@@ -30,6 +30,10 @@ function auswertung() {
 }
 const avgTs = x => x.tsKg > 0 ? (x.tsSum / x.tsKg).toFixed(1) + ' %' : '–';
 const t1 = kg => (kg/1000).toLocaleString('de-DE', {minimumFractionDigits:1, maximumFractionDigits:1});
+// Trockenmasse (kg): Frischmasse × Ø TS der Gruppe. Fuhren ohne TS-Messung
+// werden mit dem gewichteten Ø TS hochgerechnet; ganz ohne TS-Werte: unbekannt.
+const tmKg = x => x.tsKg > 0 ? x.kg * (x.tsSum / x.tsKg) / 100 : null;
+const tmT  = x => { const v = tmKg(x); return v != null ? t1(v) : '–'; };
 
 export function renderBgUebersicht(el) {
   const daten = auswertung();
@@ -43,9 +47,9 @@ export function renderBgUebersicht(el) {
     const kulturRows = Object.entries(L.kulturen).sort((a,b) => b[1].kg - a[1].kg).map(([kultur, K]) => {
       const schlagRows = open ? Object.values(K.schlaege).sort((a,b) => b.kg - a.kg).map(S =>
         `<tr style="color:var(--text2)"><td style="padding-left:26px">${S.feldId ? escapeHtml(fName(S.feldId)) : '<i>ohne Schlag</i>'}</td>
-          <td>${S.anz}</td><td>${t1(S.kg)}</td><td>${avgTs(S)}</td></tr>`).join('') : '';
+          <td>${S.anz}</td><td>${t1(S.kg)}</td><td>${tmT(S)}</td><td>${avgTs(S)}</td></tr>`).join('') : '';
       return `<tr><td style="padding-left:12px;font-weight:600">${escapeHtml(kultur)}</td>
-        <td>${K.anz}</td><td><b>${t1(K.kg)}</b></td><td>${avgTs(K)}</td></tr>${schlagRows}`;
+        <td>${K.anz}</td><td><b>${t1(K.kg)}</b></td><td><b>${tmT(K)}</b></td><td>${avgTs(K)}</td></tr>${schlagRows}`;
     }).join('');
     // Aufgeklappt: die Fuhren dieses Lieferanten (neueste zuerst, bearbeitbar)
     const eigene = open ? bgState.fuhren.filter(f => (f.lieferant_id ?? 0) === L.lieferantId) : [];
@@ -60,20 +64,23 @@ export function renderBgUebersicht(el) {
         <div style="font-size:15px;font-weight:700">${open?'▾':'▸'} ${escapeHtml(lName(L.lieferantId))}</div>
         <div style="text-align:right">
           <div style="font-size:16px;font-weight:800;color:var(--gold)">${t1(L.kg)} t</div>
+          <div style="font-size:11px;font-weight:700;color:var(--green2)">${tmKg(L)!=null ? tmT(L)+' t TM' : ''}</div>
           <div style="font-size:10px;color:var(--text3)">${L.anz} Fuhren · Ø TS ${avgTs(L)}</div>
         </div>
       </div>
       <div style="padding:0 8px 10px"><table class="bg-tbl">
-        <thead><tr><th>Kultur${open?' / Schlag':''}</th><th>Fuhren</th><th>t</th><th>Ø TS</th></tr></thead>
+        <thead><tr><th>Kultur${open?' / Schlag':''}</th><th>Fuhren</th><th>t</th><th>t TM</th><th>Ø TS</th></tr></thead>
         <tbody>${kulturRows}</tbody>
       </table></div>
       ${fuhrenBlock}
     </div>`;
   }).join('');
 
+  const gesamt = { kg: gesamtKg, tsKg: gesamtTsKg, tsSum: gesamtTsSum };
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-      <div class="stat-box"><div class="stat-val">${t1(gesamtKg)}</div><div class="stat-label">t gesamt</div></div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">
+      <div class="stat-box"><div class="stat-val">${t1(gesamtKg)}</div><div class="stat-label">t Frischmasse</div></div>
+      <div class="stat-box"><div class="stat-val" style="color:var(--green2)">${tmT(gesamt)}</div><div class="stat-label">t Trockenmasse</div></div>
       <div class="stat-box"><div class="stat-val">${gesamtAnz}</div><div class="stat-label">Fuhren</div></div>
       <div class="stat-box"><div class="stat-val">${gesamtTsKg>0?(gesamtTsSum/gesamtTsKg).toFixed(1)+'%':'–'}</div><div class="stat-label">Ø TS</div></div>
     </div>
