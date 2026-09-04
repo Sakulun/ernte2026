@@ -1,4 +1,4 @@
-import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain } from './bg-app.js?v=135';
+import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain, getKennzeichen } from './bg-app.js?v=136';
 
 // ── Übersicht: Tonnage nach Lieferant × Kultur (× Schlag), Fuhrenliste, Export ─
 
@@ -103,7 +103,7 @@ function fuhreCard(f, mitLoeschen) {
         <button onclick="bgFuhreLoeschen(${f.id})" title="Löschen" style="background:none;border:1px solid var(--border2);color:var(--red);border-radius:6px;width:28px;height:28px;cursor:pointer">🗑</button>` : ''}
       </span></div>
     <div style="font-size:12px;color:var(--text2)">${escapeHtml(lName(f.lieferant_id))}${f.feld_id?' · '+escapeHtml(fName(f.feld_id)):''} · ${escapeHtml(f.kultur||'–')}${f.ts_gehalt!=null?' · TS '+parseFloat(f.ts_gehalt).toLocaleString('de-DE')+' %':''}</div>
-    <div style="font-size:11px;color:var(--text3);margin-top:2px">Voll ${Number(f.vollgewicht).toLocaleString('de-DE')} · Leer ${Number(f.leergewicht).toLocaleString('de-DE')} kg${f.abfahrer_id?' · '+escapeHtml(uName(f.abfahrer_id)):''}</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:2px">Voll ${Number(f.vollgewicht).toLocaleString('de-DE')} · Leer ${Number(f.leergewicht).toLocaleString('de-DE')} kg${f.kennzeichen?' · 🚚 '+escapeHtml(f.kennzeichen):''}${f.abfahrer_id?' · '+escapeHtml(uName(f.abfahrer_id)):''}</div>
     ${admin && _editOpen === f.id ? editFormHTML(f) : ''}
   </div>`;
 }
@@ -176,18 +176,22 @@ export async function bgFuhreLoeschen(id) {
   } catch(e) { showToast('⚠ ' + e.message, 'error'); }
 }
 
-// ── Fahrer-Ansicht: eigene Fuhren ────────────────────────────────────────────
+// ── Fahrer-Ansicht: eigene Fuhren (Zuordnung über das Geräte-Kennzeichen) ────
 export function renderBgMeineFuhren(el) {
-  const uid = bgState.currentUser?.id;
-  const meine = bgState.fuhren.filter(f => f.abfahrer_id === uid);
+  const kz = getKennzeichen().toUpperCase();
+  if(!kz) {
+    el.innerHTML = '<div class="empty-state">Noch kein Kennzeichen gesetzt.<br>Trag es beim Erfassen ein – danach erscheinen deine Fuhren hier.</div>';
+    return;
+  }
+  const meine = bgState.fuhren.filter(f => (f.kennzeichen || '').toUpperCase() === kz);
   const kg = meine.reduce((s,f) => s + nettoVon(f), 0);
   el.innerHTML = `
     <div class="card" style="text-align:center">
-      <div class="stat-label">Deine Biomasse</div>
+      <div class="stat-label">Deine Biomasse · 🚚 ${escapeHtml(kz)}</div>
       <div style="font-size:34px;font-weight:800;color:var(--gold)">${(kg/1000).toLocaleString('de-DE',{maximumFractionDigits:1})} t</div>
       <div style="font-size:12px;color:var(--text2)">${meine.length} Fuhren</div>
     </div>
-    ${meine.length ? meine.slice(0,50).map(f => fuhreCard(f, false)).join('') : '<div class="empty-state">Noch keine Fuhren erfasst.</div>'}`;
+    ${meine.length ? meine.slice(0,50).map(f => fuhreCard(f, false)).join('') : '<div class="empty-state">Noch keine Fuhren mit diesem Kennzeichen.</div>'}`;
 }
 
 // ── Export ───────────────────────────────────────────────────────────────────

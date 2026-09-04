@@ -1,12 +1,12 @@
-import { SB_URL, SB_KEY } from './config.js?v=135';
+import { SB_URL, SB_KEY } from './config.js?v=136';
 import { renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
-         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=135';
+         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=136';
 import { renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV,
-         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=135';
+         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=136';
 import { renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
          bgLieferantEditToggle, bgLieferantEditSpeichern, bgLieferantLoeschen,
          bgKulturSpeichern, bgKulturToggle,
-         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=135';
+         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=136';
 
 // ── Biogas-App (Biomasse-Erfassung, Anlage Bayern) ───────────────────────────
 // Eigenständiger Einstieg (biogas/index.html) mit eigenem, schlankem Modulsatz.
@@ -41,6 +41,40 @@ export function showToast(msg, typ) {
 export const kg2t = kg => (kg/1000).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' t';
 export const fmtDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}); };
 export const nettoVon = f => (f.vollgewicht && f.leergewicht && f.vollgewicht > f.leergewicht) ? f.vollgewicht - f.leergewicht : 0;
+
+// ── Geräte-Kennzeichen: identifiziert den Fahrer OHNE Login. Bleibt auf dem
+// Endgerät gespeichert, bis der Fahrer es in der Erfassung ändert. ────────────
+export function getKennzeichen() {
+  try { return (localStorage.getItem('bg_kennzeichen') || '').trim(); } catch(e) { return ''; }
+}
+export function setKennzeichen(kz) {
+  try { localStorage.setItem('bg_kennzeichen', (kz || '').trim().toUpperCase()); } catch(e) {}
+  aktualisiereTopbar();
+}
+
+// Topbar: Fahrer sehen ihr Kennzeichen + "Verwaltung"-Knopf, Admins Name + Abmelden.
+function aktualisiereTopbar() {
+  const nameEl = document.getElementById('topbar-name');
+  const btn = document.getElementById('bg-auth-btn');
+  const admin = bgState.currentUser?.role === 'admin';
+  if(nameEl) nameEl.textContent = admin
+    ? bgState.currentUser.name + ' · Verwaltung'
+    : (getKennzeichen() ? '🚚 ' + getKennzeichen() : 'Fahrer');
+  if(btn) {
+    btn.textContent = admin ? 'Abmelden' : 'Verwaltung';
+    btn.onclick = admin ? doLogout : bgShowLogin;
+  }
+}
+
+// Login-Maske nur für die Verwaltung (Fahrer arbeiten ohne Anmeldung).
+export function bgShowLogin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').classList.remove('active');
+}
+export function bgHideLogin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+}
 
 async function hashPW(name, pw) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(name.toLowerCase() + ':' + pw));
@@ -95,9 +129,8 @@ export async function doLogin() {
     await bgDb.ladeAlles();
     errEl.style.display = 'none'; errEl.style.color = '';
     bgState.currentUser = bgState.users.find(u => u.id === result.id) || { id: result.id, name: result.name, role: result.rolle };
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').classList.add('active');
-    document.getElementById('topbar-name').textContent = bgState.currentUser.name + ' · ' + (bgState.currentUser.role === 'admin' ? 'Verwaltung' : 'Fahrer');
+    bgHideLogin();
+    aktualisiereTopbar();
     renderBgMain();
   } catch(e) {
     errEl.style.color = 'var(--red)';
@@ -105,13 +138,15 @@ export async function doLogin() {
   }
 }
 
+// Abmelden führt zurück in den Fahrer-Modus (App bleibt offen, keine Login-Pflicht).
 export function doLogout() {
   try { sb?.auth?.signOut().catch(()=>{}); } catch(e) {}
   try { localStorage.removeItem('bg_login_ts'); } catch(e) {}
   bgState.currentUser = null;
-  document.getElementById('login-screen').style.display = 'flex';
-  document.getElementById('app').classList.remove('active');
   const pw = document.getElementById('login-pw'); if(pw) pw.value = '';
+  bgHideLogin();
+  aktualisiereTopbar();
+  renderBgMain();
 }
 
 // ── Tab-Shell ────────────────────────────────────────────────────────────────
@@ -147,36 +182,46 @@ function initSupabase() {
 }
 initSupabase();
 
-// Anmeldung wiederherstellen: bis 24 h nach dem letzten Login bleibt der Nutzer
-// angemeldet (Supabase-Auth-Session + bg_login_ts). Danach ist ein neuer Login nötig.
+// Boot: erst prüfen, ob eine Verwaltungs-Session (max. 24 h alt) wiederherstellbar
+// ist – sonst direkt in den Fahrer-Modus ohne Anmeldung (Daten laden, App zeigen).
 async function bootRestore() {
   try {
     const ts = parseInt(localStorage.getItem('bg_login_ts')) || 0;
-    if(!ts || Date.now() - ts > 24*60*60*1000) {
-      if(ts) { try { localStorage.removeItem('bg_login_ts'); } catch(e) {} try { await sb.auth.signOut(); } catch(e) {} }
-      return;
+    if(ts && Date.now() - ts <= 24*60*60*1000) {
+      const { data: { session } } = await sb.auth.getSession();
+      const m = session?.user?.email?.match(/^n(\d+)@ernte2026\.local$/);
+      if(m) {
+        const users = await bgDb.ladeNutzer();
+        const user = users.find(u => u.id === parseInt(m[1]));
+        if(user) {
+          bgState.users = users;
+          await bgDb.ladeAlles();
+          bgState.currentUser = user;
+          bgHideLogin();
+          aktualisiereTopbar();
+          renderBgMain();
+          return;
+        }
+      }
+    } else if(ts) {
+      try { localStorage.removeItem('bg_login_ts'); } catch(e) {}
+      try { await sb.auth.signOut(); } catch(e) {}
     }
-    const { data: { session } } = await sb.auth.getSession();
-    const m = session?.user?.email?.match(/^n(\d+)@ernte2026\.local$/);
-    if(!m) return;
-    const errEl = document.getElementById('login-error');
-    if(errEl) { errEl.style.display = 'block'; errEl.style.color = 'var(--text2)'; errEl.textContent = 'Melde automatisch an…'; }
-    const users = await bgDb.ladeNutzer();
-    const user = users.find(u => u.id === parseInt(m[1]));
-    if(!user) { if(errEl) errEl.style.display = 'none'; return; }   // kein Biogas-Nutzer
-    bgState.users = users;
-    await bgDb.ladeAlles();
-    if(errEl) { errEl.style.display = 'none'; errEl.style.color = ''; }
-    bgState.currentUser = user;
-    document.getElementById('login-screen').style.display = 'none';
-    document.getElementById('app').classList.add('active');
-    document.getElementById('topbar-name').textContent = user.name + ' · ' + (user.role === 'admin' ? 'Verwaltung' : 'Fahrer');
-    renderBgMain();
   } catch(e) { console.warn('Session-Restore fehlgeschlagen:', e); }
+  await fahrerStart();
+}
+
+// Fahrer-Modus: keine Anmeldung, Identifikation läuft über das Kennzeichen.
+async function fahrerStart() {
+  try { await bgDb.ladeAlles(); }
+  catch(e) { console.warn('Daten laden fehlgeschlagen:', e); showToast('⚠ Daten konnten nicht geladen werden: ' + e.message, 'error'); }
+  bgHideLogin();
+  aktualisiereTopbar();
+  renderBgMain();
 }
 
 Object.assign(window, {
-  doLogin, doLogout, setBgTab, renderBgMain,
+  doLogin, doLogout, setBgTab, renderBgMain, bgShowLogin, bgHideLogin, setKennzeichen,
   renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
   openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug,
   renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV, renderBgMeineFuhren,

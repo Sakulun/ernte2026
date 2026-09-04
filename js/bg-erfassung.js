@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, kg2t, renderBgMain } from './bg-app.js?v=135';
+import { sb, bgState, bgDb, escapeHtml, showToast, kg2t, renderBgMain, getKennzeichen, setKennzeichen } from './bg-app.js?v=136';
 
 // ── Fuhre erfassen: Lieferant → (Schlag) → Kultur → Gewichte + TS % ──────────
 
@@ -44,6 +44,10 @@ export function renderBgErfassen(el) {
       <div class="card-sub">Lieferant → Gewichte → TS-Gehalt</div>
     </div></div>
     ${lieferanten.length ? '' : '<div style="font-size:13px;color:var(--amber);margin-bottom:10px">⚠ Noch keine Lieferanten angelegt – unter „Stammdaten" anlegen.</div>'}
+    <div class="form-group"><label>Kennzeichen (dein Fahrzeug) *</label>
+      <input type="text" id="bg-kz" value="${escapeHtml(getKennzeichen())}" placeholder="z.B. WM-KN 42" autocapitalize="characters"
+        style="text-transform:uppercase" onchange="setKennzeichen(this.value)">
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">Bleibt auf diesem Gerät gespeichert – so werden deine Fuhren dir zugeordnet.</div></div>
     <div class="form-group"><label>Kultur</label>
       <div style="padding:11px 12px;border:1px solid var(--border2);border-radius:var(--radius);background:var(--bg2);font-weight:700;letter-spacing:1px;color:${aktiveKultur?'var(--gold2)':'var(--amber)'}">
         ${aktiveKultur ? escapeHtml(aktiveKultur.name) : '⚠ Keine Kultur aktiviert'}</div>
@@ -71,6 +75,8 @@ export function renderBgErfassen(el) {
 }
 
 export async function bgFuhreSpeichern() {
+  const kz = (document.getElementById('bg-kz')?.value || '').trim().toUpperCase();
+  if(!kz) { alert('Bitte Kennzeichen eingeben – so wird die Fuhre dir zugeordnet.'); return; }
   const lieferantId = parseInt(document.getElementById('bg-lieferant')?.value);
   if(!lieferantId) { alert('Bitte Lieferant wählen.'); return; }
   const kultur = bgState.kulturen.find(k => k.aktiv)?.name || '';
@@ -84,10 +90,12 @@ export async function bgFuhreSpeichern() {
   if(ts != null && (isNaN(ts) || ts < 0 || ts > 100)) { alert('TS-Gehalt bitte zwischen 0 und 100 % angeben.'); return; }
   const btn = document.getElementById('bg-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
+  setKennzeichen(kz); // am Gerät merken – bleibt bis der Fahrer es ändert
   try {
     const { data, error } = await sb.from('bg_fuhren').insert({
       lieferant_id: lieferantId, feld_id: feldId, kultur,
       vollgewicht: v, leergewicht: l, ts_gehalt: ts,
+      kennzeichen: kz,
       abfahrer_id: bgState.currentUser?.id || null,
       erstellt_von: bgState.currentUser?.id || null,
       zeit: new Date().toISOString(),

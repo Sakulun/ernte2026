@@ -796,12 +796,12 @@ table.bg-tbl td:first-child { text-align: left; }
 </style>
 </head>
 <body>
-<div id="login-screen">
+<div id="login-screen" style="display:none">
   <div class="login-logo">Biogasanlage Kees &amp; Nuscheler</div>
   <div class="login-app-name">Biogas</div>
   <div class="login-sub">Biomasse-Erfassung</div>
   <div class="login-card">
-    <h2>Anmelden</h2>
+    <h2>Anmelden (Verwaltung)</h2>
     <div class="form-group">
       <label>Benutzername</label>
       <input type="text" id="login-name" placeholder="Name eingeben" autocomplete="username" autocapitalize="off" spellcheck="false"
@@ -813,6 +813,9 @@ table.bg-tbl td:first-child { text-align: left; }
     </div>
     <div id="login-error" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none">Anmeldung fehlgeschlagen.</div>
     <button class="btn btn-primary btn-full" onclick="doLogin()">Anmelden</button>
+    <div style="text-align:center;margin-top:14px">
+      <a href="#" onclick="bgHideLogin();return false" style="color:var(--text2);font-size:12px">◂ Weiter ohne Anmeldung (Fahrer)</a>
+    </div>
   </div>
 </div>
 <div id="app">
@@ -823,13 +826,13 @@ table.bg-tbl td:first-child { text-align: left; }
       <span class="topbar-user"><span id="topbar-name"></span></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <button class="logout-btn" onclick="doLogout()">Abmelden</button>
+      <button class="logout-btn" id="bg-auth-btn" onclick="bgShowLogin()">Verwaltung</button>
     </div>
   </div>
   <div class="tabs" id="bg-tabs"></div>
   <div class="content" id="main-content"></div>
 </div>
 <div id="toast"></div>
-<script type="module" src="../js/bg-app.js?v=135"></script>
+<script type="module" src="../js/bg-app.js?v=136"></script>
 </body>
 </html>
