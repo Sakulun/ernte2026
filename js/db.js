@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=136';
+import { SB_URL, SB_KEY } from './config.js?v=137';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -363,6 +363,7 @@ export const db = {
     const { data, error } = await sb.from('warenbewegungen').insert({
       typ: w.typ || 'ausgang',
       artikel_id: w.artikelId || null,
+      artikel_text: w.artikelText || null,
       silo_von_id: w.siloVonId || null,
       silo_nach_id: w.siloNachId || null,
       menge_kg: w.mengeKg,

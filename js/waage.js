@@ -1,10 +1,10 @@
-import { state } from './state.js?v=136';
-import { db } from './db.js?v=136';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=136';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=136';
-import { parseGewicht } from './abfahrer.js?v=136';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=136';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=136';
+import { state } from './state.js?v=137';
+import { db } from './db.js?v=137';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=137';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=137';
+import { parseGewicht } from './abfahrer.js?v=137';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=137';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=137';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -159,17 +159,19 @@ function formHTML(u) {
       <label>Kunde *</label>
       <select id="wa-kunde" onchange="waAusgangKundeWahl()">
         <option value="">— Kunde wählen —</option>${kunden}
+        <option value="sonstige">✎ Sonstige (Freitext) …</option>
       </select>
+      <input type="text" id="wa-kunde-text" placeholder="Kundenname (Freitext)" style="display:none;margin-top:6px">
     </div>
     <div id="wa-adresse-warn" style="display:none" class="alert alert-warn"></div>
-    <div class="form-group">
+    <div class="form-group" id="wa-grp-kontrakt">
       <label>Kontrakt *</label>
       <select id="wa-kontrakt" onchange="waAusgangKontraktWahl()" ${voll?'':'disabled'}>
         <option value="">— zuerst Kunde wählen —</option>
       </select>
     </div>
     <div id="wa-kontrakt-info" style="display:none;font-size:11px;color:var(--gold);margin:-8px 0 12px;line-height:1.6"></div>
-    <div class="form-group">
+    <div class="form-group" id="wa-grp-lager">
       <label>Lager *</label>
       <select id="wa-lager" onchange="waAusgangLagerWahl()">
         <option value="">— Lager wählen —</option>${lagerOptionen()}
@@ -179,6 +181,7 @@ function formHTML(u) {
     <div class="form-group">
       <label>Artikel *</label>
       <select id="wa-artikel"><option value="">— wählen —</option>${artOpts}</select>
+      <input type="text" id="wa-artikel-text" placeholder="Artikel / Ware (Freitext)" style="display:none;margin-top:6px">
     </div>
     <div class="section-label">Fahrzeug</div>
     <div class="gewicht-grid">
@@ -231,13 +234,21 @@ function formHTML(u) {
 function vorbelegen(u) {
   if(!u) { waAusgangKundeWahl(); return; }
   const set = (id, v) => { const el = document.getElementById(id); if(el && v != null) el.value = String(v); };
-  set('wa-kunde', u.kontakt_id);
-  waAusgangKundeWahl();                       // baut die Kontrakt-Optionen
-  set('wa-kontrakt', u.kontrakt_id);
-  waAusgangKontraktWahl();                    // setzt u.a. den Artikel aus dem Kontrakt
-  set('wa-lager', u.silo_von_id);
-  waAusgangLagerWahl();
-  set('wa-artikel', u.artikel_id);            // nach Lager/Kontrakt, damit die Wahl gewinnt
+  const p = u.payload || {};
+  if(p.sonstige) {
+    set('wa-kunde', 'sonstige');
+    waAusgangKundeWahl();                     // schaltet die Maske in den Freitext-Modus
+    set('wa-kunde-text', p.kundeText || '');
+    set('wa-artikel-text', p.artikelText || '');
+  } else {
+    set('wa-kunde', u.kontakt_id);
+    waAusgangKundeWahl();                     // baut die Kontrakt-Optionen
+    set('wa-kontrakt', u.kontrakt_id);
+    waAusgangKontraktWahl();                  // setzt u.a. den Artikel aus dem Kontrakt
+    set('wa-lager', u.silo_von_id);
+    waAusgangLagerWahl();
+    set('wa-artikel', u.artikel_id);          // nach Lager/Kontrakt, damit die Wahl gewinnt
+  }
   set('wa-kennzeichen', u.kennzeichen);
   set('wa-spedition', u.spedition || '');
   set('leer-'+WID, Number(u.leergewicht).toLocaleString('de-DE'));
@@ -261,6 +272,30 @@ export function waNetto() {
 }
 
 export function waAusgangKundeWahl() {
+  // Sonstige-Modus: Kunde + Artikel als Freitext, Kontrakt & Lager entfallen komplett.
+  const sonstige = document.getElementById('wa-kunde')?.value === 'sonstige';
+  const kText = document.getElementById('wa-kunde-text');
+  const aText = document.getElementById('wa-artikel-text');
+  const aSel  = document.getElementById('wa-artikel');
+  const grpK  = document.getElementById('wa-grp-kontrakt');
+  const grpL  = document.getElementById('wa-grp-lager');
+  if(kText) kText.style.display = sonstige ? 'block' : 'none';
+  if(aText) aText.style.display = sonstige ? 'block' : 'none';
+  if(aSel)  aSel.style.display  = sonstige ? 'none'  : 'block';
+  if(grpK)  grpK.style.display  = sonstige ? 'none'  : 'block';
+  if(grpL)  grpL.style.display  = sonstige ? 'none'  : 'block';
+  if(sonstige) {
+    const kInfo = document.getElementById('wa-kontrakt-info');
+    const lInfo = document.getElementById('wa-lager-info');
+    const w = document.getElementById('wa-adresse-warn');
+    if(kInfo) kInfo.style.display = 'none';
+    if(lInfo) lInfo.style.display = 'none';
+    if(w) w.style.display = 'none';
+    const kS = document.getElementById('wa-kontrakt');
+    if(kS) { kS.disabled = true; kS.value = ''; }
+    return;
+  }
+
   const kundeId = parseInt(document.getElementById('wa-kunde')?.value);
   const kSel = document.getElementById('wa-kontrakt');
   const info = document.getElementById('wa-kontrakt-info');
@@ -328,21 +363,30 @@ export function waAusgangLagerWahl() {
 
 // Liest die Maske aus – identisch für beide Schritte.
 function formLesen(mitVoll) {
+  const sonstige = document.getElementById('wa-kunde')?.value === 'sonstige';
   const d = {
-    kundeId:    parseInt(document.getElementById('wa-kunde')?.value),
-    kontraktId: parseInt(document.getElementById('wa-kontrakt')?.value),
-    lagerId:    document.getElementById('wa-lager')?.value,
-    artikelId:  parseInt(document.getElementById('wa-artikel')?.value),
+    sonstige,
+    kundeId:    sonstige ? null : parseInt(document.getElementById('wa-kunde')?.value),
+    kontraktId: sonstige ? null : parseInt(document.getElementById('wa-kontrakt')?.value),
+    lagerId:    sonstige ? null : (document.getElementById('wa-lager')?.value || ''),
+    artikelId:  sonstige ? null : parseInt(document.getElementById('wa-artikel')?.value),
+    kundeText:   (document.getElementById('wa-kunde-text')?.value || '').trim(),
+    artikelText: (document.getElementById('wa-artikel-text')?.value || '').trim(),
     kennzeichen:document.getElementById('wa-kennzeichen')?.value.trim().toUpperCase(),
     spedition:  document.getElementById('wa-spedition')?.value.trim() || '',
     sonstiges:  document.getElementById('wa-sonstiges')?.value.trim() || '',
     leer:       parseGewicht(document.getElementById('leer-'+WID)?.value),
     voll:       mitVoll ? parseGewicht(document.getElementById('voll-'+WID)?.value) : null,
   };
-  if(!d.kundeId)    return { fehler:'Bitte Kunde wählen.' };
-  if(!d.kontraktId) return { fehler:'Bitte Kontrakt wählen.' };
-  if(!d.lagerId)    return { fehler:'Bitte Lager wählen.' };
-  if(!d.artikelId)  return { fehler:'Bitte Artikel wählen.' };
+  if(sonstige) {
+    if(!d.kundeText)   return { fehler:'Bitte Kundennamen eingeben.' };
+    if(!d.artikelText) return { fehler:'Bitte Artikel / Ware eingeben.' };
+  } else {
+    if(!d.kundeId)    return { fehler:'Bitte Kunde wählen.' };
+    if(!d.kontraktId) return { fehler:'Bitte Kontrakt wählen.' };
+    if(!d.lagerId)    return { fehler:'Bitte Lager wählen.' };
+    if(!d.artikelId)  return { fehler:'Bitte Artikel wählen.' };
+  }
   if(!d.kennzeichen)return { fehler:'Bitte Kennzeichen eingeben.' };
   if(!d.leer || d.leer <= 0) return { fehler:'Bitte gültiges Leergewicht eingeben.' };
   if(mitVoll && (!d.voll || d.voll <= d.leer))
@@ -362,6 +406,7 @@ export async function waZwischenspeichern() {
       kennzeichen: d.kennzeichen, spedition: d.spedition, leergewicht: d.leer,
       kontaktId: d.kundeId, kontraktId: d.kontraktId, siloVonId: d.lagerId,
       artikelId: d.artikelId, sonstigeAngaben: d.sonstiges,
+      payload: d.sonstige ? { sonstige:true, kundeText:d.kundeText, artikelText:d.artikelText } : null,
       erstelltVon: state.currentUser?.id || null
     });
     state.umlauf = state.umlauf || [];
@@ -399,6 +444,10 @@ function umlaufListeHTML() {
       const p = u.payload || {};
       sub1 = `<span style="color:var(--green);font-weight:700">↓ Eingang</span> · ${escapeHtml(p.artikel || p.fruchtart || '–')}`;
       sub2 = `${p.lieferant ? escapeHtml(p.lieferant) : (p.herkunftName ? escapeHtml(p.herkunftName) : '')}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
+    } else if(u.payload?.sonstige) {
+      const p = u.payload;
+      sub1 = `<span style="color:var(--amber);font-weight:700">↑ Ausgang</span> · ${escapeHtml(p.kundeText || '–')} · <span style="color:var(--text3)">Sonstige</span>`;
+      sub2 = `${escapeHtml(p.artikelText || '–')}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
     } else {
       const kunde = state.kontakte.find(c => c.id === u.kontakt_id);
       const kontr = state.kontrakte.find(k => k.id === u.kontrakt_id);
@@ -457,21 +506,31 @@ export async function waUmlaufAktualisieren(id) {
   const kennzeichen = (document.getElementById('wa-kennzeichen')?.value || '').trim().toUpperCase();
   if(!leer || leer <= 0) { alert('Bitte ein gültiges Leergewicht (Tara) angeben.'); return; }
   if(!kennzeichen) { alert('Bitte Kennzeichen angeben.'); return; }
-  const kundeId    = parseInt(document.getElementById('wa-kunde')?.value) || null;
-  const kontraktId = parseInt(document.getElementById('wa-kontrakt')?.value) || null;
-  const lagerId    = document.getElementById('wa-lager')?.value || null;
-  const artikelId  = parseInt(document.getElementById('wa-artikel')?.value) || null;
+  const sonstige   = document.getElementById('wa-kunde')?.value === 'sonstige';
   const spedition  = (document.getElementById('wa-spedition')?.value || '').trim() || null;
   const sonstiges  = (document.getElementById('wa-sonstiges')?.value || '').trim() || null;
+  let kundeId = null, kontraktId = null, lagerId = null, artikelId = null, payload = null;
+  if(sonstige) {
+    const kundeText   = (document.getElementById('wa-kunde-text')?.value || '').trim();
+    const artikelText = (document.getElementById('wa-artikel-text')?.value || '').trim();
+    if(!kundeText)   { alert('Bitte Kundennamen eingeben.'); return; }
+    if(!artikelText) { alert('Bitte Artikel / Ware eingeben.'); return; }
+    payload = { sonstige:true, kundeText, artikelText };
+  } else {
+    kundeId    = parseInt(document.getElementById('wa-kunde')?.value) || null;
+    kontraktId = parseInt(document.getElementById('wa-kontrakt')?.value) || null;
+    lagerId    = document.getElementById('wa-lager')?.value || null;
+    artikelId  = parseInt(document.getElementById('wa-artikel')?.value) || null;
+  }
   try {
     await db.updateUmlauf(id, {
       kontaktId: kundeId, kontraktId, siloVonId: lagerId, artikelId,
-      kennzeichen, spedition, sonstigeAngaben: sonstiges,
+      kennzeichen, spedition, sonstigeAngaben: sonstiges, payload,
       erstgewicht: leer, leergewicht: leer
     });
     Object.assign(u, {
       kontakt_id: kundeId, kontrakt_id: kontraktId, silo_von_id: lagerId, artikel_id: artikelId,
-      kennzeichen, spedition, sonstige_angaben: sonstiges, erstgewicht: leer, leergewicht: leer
+      kennzeichen, spedition, sonstige_angaben: sonstiges, payload, erstgewicht: leer, leergewicht: leer
     });
     _offenesFahrzeug = null; _modus = 'umlauf';
     showToast(`💾 ${kennzeichen} im Umlauf gespeichert`);
@@ -487,20 +546,24 @@ export async function waAbschliessen(id) {
   const d = formLesen(true);
   if(d.fehler) { alert(d.fehler); return; }
   const netto = d.voll - d.leer;
-  const bestKg = getSiloBestand(d.lagerId);
-  // Ausgang-only-Lager (Kuchenlager) führt keinen Bestand – Warnung entfällt.
-  if(!istAusgangLager(d.lagerId) && netto > bestKg + 0.01 &&
-     !confirm(`Die Menge (${(netto/1000).toFixed(2)} t) übersteigt den Lagerbestand von ${(bestKg/1000).toFixed(2)} t.\n\nTrotzdem buchen?`)) return;
+  // Sonstige-Wiegung: kein Lager hinterlegt → keine Bestandsprüfung.
+  if(!d.sonstige) {
+    const bestKg = getSiloBestand(d.lagerId);
+    // Ausgang-only-Lager (Kuchenlager) führt keinen Bestand – Warnung entfällt.
+    if(!istAusgangLager(d.lagerId) && netto > bestKg + 0.01 &&
+       !confirm(`Die Menge (${(netto/1000).toFixed(2)} t) übersteigt den Lagerbestand von ${(bestKg/1000).toFixed(2)} t.\n\nTrotzdem buchen?`)) return;
+  }
 
-  const kontrakt = state.kontrakte.find(k => k.id === d.kontraktId);
-  const kunde    = state.kontakte.find(c => c.id === d.kundeId);
+  const kontrakt = d.sonstige ? null : state.kontrakte.find(k => k.id === d.kontraktId);
+  const kunde    = d.sonstige ? null : state.kontakte.find(c => c.id === d.kundeId);
   const btn = document.getElementById('wa-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Bucht…'; }
   try {
     const saved = await db.insertWarenbewegung({
-      typ:'ausgang', artikelId: d.artikelId, siloVonId: d.lagerId, mengeKg: netto,
+      typ:'ausgang', artikelId: d.artikelId, artikelText: d.sonstige ? d.artikelText : null,
+      siloVonId: d.lagerId, mengeKg: netto,
       vollgewicht: d.voll, leergewicht: d.leer,
-      empfaenger: kunde?.name || '', belegNr: '', bio: !!kontrakt?.bio,
+      empfaenger: d.sonstige ? d.kundeText : (kunde?.name || ''), belegNr: '', bio: !!kontrakt?.bio,
       kontraktId: d.kontraktId, notiz: '', erstelltVon: state.currentUser?.id || null,
       spedition: d.spedition, kennzeichen: d.kennzeichen, sonstigeAngaben: d.sonstiges
     });

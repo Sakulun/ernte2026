@@ -1,8 +1,8 @@
-import { state } from './state.js?v=136';
-import { db } from './db.js?v=136';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=136';
-import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=136';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=136';
+import { state } from './state.js?v=137';
+import { db } from './db.js?v=137';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=137';
+import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=137';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=137';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -427,7 +427,7 @@ export function renderWarenausgang() {
       +'<div style="flex:1;min-width:0">'
       +'<div style="font-size:12px;font-weight:700;letter-spacing:1px;color:'+farbe+';text-transform:uppercase">'
       +pfeil+' '+(isAus?'Ausgang':'Eingang')+(w.silo_von_id?' · '+lagerLabel(w.silo_von_id):'')+(w.bio?' · <span style="color:var(--gold)">BIO</span>':'')+'</div>'
-      +'<div style="font-size:13px;font-weight:600;color:var(--text);margin-top:2px">'+(art?escapeHtml(art.name):'–')+'</div>'
+      +'<div style="font-size:13px;font-weight:600;color:var(--text);margin-top:2px">'+(art?escapeHtml(art.name):(w.artikel_text?escapeHtml(w.artikel_text):'–'))+'</div>'
       +(kontr?'<div style="font-size:11px;color:var(--gold);margin-top:1px">Kontrakt '+escapeHtml(kontr.nummer)+'</div>':'')
       +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'
       +(w.empfaenger?escapeHtml(w.empfaenger):'')+(w.beleg_nr?' · '+escapeHtml(w.beleg_nr):'')

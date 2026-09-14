@@ -1,7 +1,7 @@
-import { state } from './state.js?v=136';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=136';
-import { renderLieferschein } from './lieferschein.js?v=136';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=136';
+import { state } from './state.js?v=137';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=137';
+import { renderLieferschein } from './lieferschein.js?v=137';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=137';
 
 // Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
 // "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
@@ -74,7 +74,7 @@ export function lieferscheinDaten(w, override = {}) {
   const netto = Number(w.menge_kg) || 0;
   const voll  = w.vollgewicht != null ? Number(w.vollgewicht) : null;
   const leer  = w.leergewicht != null ? Number(w.leergewicht) : null;
-  const artikelName = lieferscheinArtikelName(artikel?.name || kontrakt?.fruchtart_text || '');
+  const artikelName = lieferscheinArtikelName(artikel?.name || w.artikel_text || kontrakt?.fruchtart_text || '');
 
   // Zertifikatszeilen aus den Siegel-Flags des Kontrakts; bei Raps zusätzlich die
   // THG-Angaben direkt hinter das Nachhaltigkeits-Zertifikat einfügen.
