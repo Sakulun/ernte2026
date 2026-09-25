@@ -1,11 +1,12 @@
-import { state } from './state.js?v=142';
-import { db } from './db.js?v=142';
-import { showToast, escapeHtml } from './helpers.js?v=142';
+import { state } from './state.js?v=143';
+import { db } from './db.js?v=143';
+import { showToast, escapeHtml } from './helpers.js?v=143';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
 // uebergeben (Apostrophe im PDF-Text zerbrechen sonst den Handler-String).
 let _pdfImport = { name: '', text: '' };
+let _pdfImportFile = null; // Original-PDF aus dem Import – wird beim Anlegen angeheftet
 
 // Filter/Suche der Kontrakt-Liste (wie bei Schlägen).
 let _kFilterFruchtart = '';
@@ -260,6 +261,7 @@ export function renderKontrakte() {
               ${k.zert_gmp?'<span class="badge" style="background:var(--neutral-200);color:var(--text)">GMP+</span>':''}
               ${k.bio?'<span class="badge badge-aktiv">🌿 EU-Öko</span>':''}
               ${k.abfahrer_frei?'<span class="badge" style="background:var(--gold);color:#1a1400">🚛 Abfahrer</span>':''}
+              ${k.pdf_pfad?'<span class="badge" style="background:var(--neutral-200);color:var(--text)" title="Original-PDF angeheftet">📄 PDF</span>':''}
               <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
@@ -278,6 +280,11 @@ export function renderKontrakte() {
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="kontraktBearbeiten(${k.id})">✏ Bearbeiten</button>
+        ${k.pdf_pfad
+          ? `<button class="btn btn-sm btn-outline" onclick="kontraktPdfOeffnen(${k.id})" title="${escapeHtml(k.pdf_name||'Original-PDF')}">📄 PDF öffnen</button>
+             <button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--text2)" onclick="kontraktPdfWaehlen(${k.id})" title="Anderes PDF anheften">↻ PDF ersetzen</button>
+             <button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktPdfEntfernen(${k.id})" title="Angeheftetes PDF entfernen">✕ PDF</button>`
+          : `<button class="btn btn-sm btn-outline" onclick="kontraktPdfWaehlen(${k.id})" title="Original-Kontrakt als PDF anheften">📎 PDF anheften</button>`}
         ${(k.richtung||'verkauf')==='verkauf' && k.status==='aktiv' ? `<button class="btn btn-sm" style="background:${k.abfahrer_frei?'var(--gold)':'none'};border:1px solid var(--border2);color:${k.abfahrer_frei?'#1a1400':'var(--text2)'}" onclick="kontraktAbfahrerFrei(${k.id},${k.abfahrer_frei?'false':'true'})" title="Abfahrer dürfen selbst auf diesen Kontrakt liefern (Reiter „Kontrakt“ in der Fuhre-erfassen-Maske)">🚛 ${k.abfahrer_frei?'Für Abfahrer: frei':'Für Abfahrer freischalten'}</button>` : ''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--gold)" onclick="kontraktStatus(${k.id},'erfuellt')">✓ Als erfüllt markieren</button>`:''}
         ${k.status==='aktiv'?`<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--red)" onclick="kontraktStatus(${k.id},'storniert')">✕ Stornieren</button>`:''}
@@ -452,6 +459,7 @@ export async function kontraktPDFDatei(input) {
 }
 
 async function kontraktPDFVerarbeiten(file) {
+  _pdfImportFile = file;
   showToast('⏳ PDF wird gelesen…');
   try {
     const text = await extractPDFText(file);
@@ -463,11 +471,55 @@ async function kontraktPDFVerarbeiten(file) {
   }
 }
 
+// ── Original-Kontrakt-PDF anheften / öffnen / entfernen ─────────────────────
+export function kontraktPdfWaehlen(id) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = '.pdf,application/pdf'; inp.style.display = 'none';
+  inp.onchange = () => { const f = inp.files?.[0]; inp.remove(); if(f) kontraktPdfUpload(id, f); };
+  document.body.appendChild(inp);
+  inp.click();
+}
+export async function kontraktPdfUpload(id, file) {
+  const k = state.kontrakte.find(x=>x.id===id);
+  if(!k) return;
+  if(!(file.type === 'application/pdf' || /\.pdf$/i.test(file.name))) { showToast('⚠ Bitte eine PDF-Datei wählen', 'error'); return; }
+  if(file.size > 20*1024*1024) { showToast('⚠ PDF ist größer als 20 MB', 'error'); return; }
+  showToast('⏳ PDF wird hochgeladen…');
+  try {
+    k.pdf_pfad = await db.uploadKontraktPdf(id, file, k.pdf_pfad || null);
+    k.pdf_name = file.name;
+    showToast('✓ PDF angeheftet: ' + file.name);
+    renderKontrakte();
+  } catch(e) { showToast('⚠ Upload fehlgeschlagen: ' + e.message, 'error'); }
+}
+export async function kontraktPdfOeffnen(id) {
+  const k = state.kontrakte.find(x=>x.id===id);
+  if(!k?.pdf_pfad) return;
+  // Fenster synchron im Klick öffnen (Popup-Blocker), signierte URL danach setzen.
+  const w = window.open('', '_blank');
+  try {
+    const url = await db.kontraktPdfUrl(k.pdf_pfad);
+    if(w) w.location = url; else window.location = url;
+  } catch(e) { if(w) w.close(); showToast('⚠ PDF konnte nicht geöffnet werden: ' + e.message, 'error'); }
+}
+export async function kontraktPdfEntfernen(id) {
+  const k = state.kontrakte.find(x=>x.id===id);
+  if(!k?.pdf_pfad) return;
+  if(!confirm(`Angeheftetes PDF „${k.pdf_name||''}“ vom Kontrakt ${k.nummer} entfernen?`)) return;
+  try {
+    await db.removeKontraktPdf(id, k.pdf_pfad);
+    k.pdf_pfad = null; k.pdf_name = null;
+    showToast('✓ PDF entfernt');
+    renderKontrakte();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
 export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
   const k = id ? state.kontrakte.find(x=>x.id===id) : null;
   const v = k || prefill;
   // PDF-Daten merken (statt sie durch das onclick-Attribut zu schleusen).
   _pdfImport = { name: pdfName || '', text: pdfText || '' };
+  if(!pdfName) _pdfImportFile = null; // manuell/bearbeiten: kein Import-PDF anheften
   const kontaktOpts = state.kontakte.map(c =>
     `<option value="${c.id}"${(v.kontakt_id||v.kontaktId)===c.id?' selected':''}>${escapeHtml(c.name)}</option>`
   ).join('');
@@ -551,6 +603,12 @@ export async function kontraktSpeichern(id) {
     } else {
       const saved = await db.insertKontrakt(data);
       state.kontrakte.unshift(saved);
+      // Importiertes Original-PDF gleich anheften – ein Fehler hier bricht das Anlegen nicht ab.
+      if(_pdfImportFile) {
+        const f = _pdfImportFile; _pdfImportFile = null;
+        try { saved.pdf_pfad = await db.uploadKontraktPdf(saved.id, f); saved.pdf_name = f.name; }
+        catch(e) { showToast('⚠ PDF konnte nicht angeheftet werden: ' + e.message, 'error'); }
+      }
     }
     document.getElementById('kontrakt-modal')?.remove();
     showToast('✓ Kontrakt gespeichert');
@@ -566,6 +624,7 @@ export async function kontraktLoeschen(id) {
   if(hatFuhren) { showToast('⚠ Kontrakt hat Auslieferungen – Löschen nicht möglich','error'); return; }
   if(!confirm(`Kontrakt ${k.nummer} wirklich löschen?`)) return;
   try {
+    if(k.pdf_pfad) { try { await db.removeKontraktPdf(id, k.pdf_pfad); } catch(_) {} }
     await db.deleteKontrakt(id);
     state.kontrakte = state.kontrakte.filter(x=>x.id!==id);
     showToast('🗑 Kontrakt gelöscht');

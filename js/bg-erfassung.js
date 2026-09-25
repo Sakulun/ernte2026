@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, kg2t, renderBgMain, getKennzeichen, setKennzeichen } from './bg-app.js?v=142';
+import { sb, bgState, bgDb, escapeHtml, showToast, kg2t, renderBgMain, getKennzeichen, setKennzeichen } from './bg-app.js?v=143';
 
 // ── Fuhre erfassen: Lieferant → (Schlag) → Kultur → Gewichte + TS % ──────────
 

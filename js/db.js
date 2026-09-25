@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=142';
+import { SB_URL, SB_KEY } from './config.js?v=143';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -323,6 +323,30 @@ export const db = {
   async deleteKontrakt(id) {
     const { error } = await sb.from('kontrakte').delete().eq('id', id);
     if(error) throw error;
+  },
+  // ── Original-Kontrakt-PDF (Supabase Storage, Bucket "kontrakte", privat) ──
+  // Pfad: <kontraktId>/<zeitstempel>_<dateiname>. Lesen/Schreiben nur angemeldet;
+  // Öffnen über eine kurzlebige signierte URL (kein öffentlicher Link).
+  async uploadKontraktPdf(kontraktId, file, altPfad = null) {
+    const safe = (file.name || 'kontrakt.pdf').normalize('NFKD').replace(/[^\w.\-]+/g, '_');
+    const pfad = `${kontraktId}/${Date.now()}_${safe}`;
+    const { error } = await sb.storage.from('kontrakte').upload(pfad, file, { contentType: 'application/pdf', upsert: false });
+    if(error) throw error;
+    const { error: e2 } = await sb.from('kontrakte').update({ pdf_pfad: pfad, pdf_name: file.name }).eq('id', kontraktId);
+    if(e2) throw e2;
+    // Vorgänger-Datei beim Ersetzen aufräumen – Fehler dabei sind unkritisch.
+    if(altPfad && altPfad !== pfad) await sb.storage.from('kontrakte').remove([altPfad]);
+    return pfad;
+  },
+  async kontraktPdfUrl(pfad) {
+    const { data, error } = await sb.storage.from('kontrakte').createSignedUrl(pfad, 600);
+    if(error) throw error;
+    return data.signedUrl;
+  },
+  async removeKontraktPdf(kontraktId, pfad) {
+    if(pfad) { const { error } = await sb.storage.from('kontrakte').remove([pfad]); if(error) throw error; }
+    const { error: e2 } = await sb.from('kontrakte').update({ pdf_pfad: null, pdf_name: null }).eq('id', kontraktId);
+    if(e2) throw e2;
   },
   // Verkaufskontrakt für die Abfahrer-Selbstlieferung freischalten (oder sperren)
   async setKontraktAbfahrerFrei(id, frei) {
