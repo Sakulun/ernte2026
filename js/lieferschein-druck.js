@@ -1,7 +1,7 @@
-import { state } from './state.js?v=141';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=141';
-import { renderLieferschein } from './lieferschein.js?v=141';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=141';
+import { state } from './state.js?v=142';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=142';
+import { renderLieferschein } from './lieferschein.js?v=142';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=142';
 
 // Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
 // "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
