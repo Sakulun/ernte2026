@@ -311,6 +311,11 @@ body {
   padding: var(--space-4); margin-bottom: var(--space-3);
   box-shadow: var(--shadow-md);
 }
+/* Kontrakt mit Auslieferungen ohne Gutschrift-Nr.: roter Schimmer */
+.card.kontrakt-unabgerechnet {
+  box-shadow: 0 0 0 1px rgba(176,48,48,.35), 0 0 18px rgba(176,48,48,.25), var(--shadow-md);
+  background-image: linear-gradient(90deg, rgba(176,48,48,.12), rgba(176,48,48,0) 60%);
+}
 .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-4); }
 .card-title { font-family: var(--font-display); font-size: var(--text-lg); font-weight: 700; color: var(--color-text); }
 .card-sub { font-size: var(--text-sm); color: var(--color-text-subtle); margin-top: 2px; }
@@ -826,7 +831,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=140"></script>
+<script type="module" src="js/app.js?v=141"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

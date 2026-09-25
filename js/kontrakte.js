@@ -1,6 +1,6 @@
-import { state } from './state.js?v=140';
-import { db } from './db.js?v=140';
-import { showToast, escapeHtml } from './helpers.js?v=140';
+import { state } from './state.js?v=141';
+import { db } from './db.js?v=141';
+import { showToast, escapeHtml } from './helpers.js?v=141';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -11,6 +11,7 @@ let _pdfImport = { name: '', text: '' };
 let _kFilterFruchtart = '';
 let _kFilterKunde = '';
 let _kSuche = '';
+let _kFilterAbrechnung = ''; // '' | 'offen' | 'fertig' | 'keine'
 let _kRichtung = 'verkauf'; // 'verkauf' | 'einkauf' – getrennte Ansicht/Anlage
 
 export function setKontraktRichtung(r) { _kRichtung = r; renderKontrakte(); }
@@ -27,6 +28,7 @@ function kontraktKundeName(k) {
 function kontraktPasst(k) {
   if(_kFilterFruchtart && kontraktFruchtart(k) !== _kFilterFruchtart) return false;
   if(_kFilterKunde && kontraktKundeName(k) !== _kFilterKunde) return false;
+  if(_kFilterAbrechnung && kontraktAbrechnung(k).status !== _kFilterAbrechnung) return false;
   if(_kSuche) {
     const q = _kSuche.toLowerCase();
     const heu = [k.nummer, kontraktKundeName(k), kontraktFruchtart(k), k.paritaet]
@@ -39,6 +41,7 @@ function kontraktPasst(k) {
 export function setKontraktFilter(feld, wert) {
   if(feld === 'fruchtart') _kFilterFruchtart = wert;
   else if(feld === 'kunde') _kFilterKunde = wert;
+  else if(feld === 'abrechnung') _kFilterAbrechnung = wert;
   renderKontrakte();
 }
 export function kontraktSucheInput(val) {
@@ -49,7 +52,7 @@ export function kontraktSucheInput(val) {
   if(inp) { inp.focus(); const p = (val || '').length; inp.setSelectionRange(p, p); }
 }
 export function kontraktFilterReset() {
-  _kFilterFruchtart = ''; _kFilterKunde = ''; _kSuche = '';
+  _kFilterFruchtart = ''; _kFilterKunde = ''; _kSuche = ''; _kFilterAbrechnung = '';
   renderKontrakte();
 }
 
@@ -68,6 +71,14 @@ export function kontraktFuhren(kId) {
   return state.warenbewegungen
     .filter(w => w.typ==='ausgang' && w.kontrakt_id===kId)
     .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
+}
+// Abrechnungsstatus eines Kontrakts anhand der Gutschrift-Nr. je Auslieferung:
+// 'keine' (noch keine Auslieferung), 'offen' (mind. eine ohne Gutschrift), 'fertig'.
+export function kontraktAbrechnung(k) {
+  const fuhren = kontraktFuhren(k.id);
+  if(!fuhren.length) return { status:'keine', fehlen:0, gesamt:0 };
+  const fehlen = fuhren.filter(w => !String(w.gutschrift_nr||'').trim()).length;
+  return { status: fehlen ? 'offen' : 'fertig', fehlen, gesamt: fuhren.length };
 }
 // Raps-Kontrakt? (dann Zusatzspalte Qualitätsabrechnung)
 function istRapsKontrakt(k) {
@@ -210,9 +221,10 @@ export function renderKontrakte() {
   const offen    = alle.filter(k=>k.status!=='storniert');
   const gesamtT  = offen.reduce((s,k)=>s+(k.menge_t||0),0);
   const geliefT  = offen.reduce((s,k)=>s+getKontraktGeliefertKg(k.id)/1000,0);
+  const unabgerechnetN = offen.filter(k => kontraktAbrechnung(k).status==='offen').length;
 
   // Filter/Suche nur auf die angezeigten Listen (Kennzahlen + Übersicht bleiben gesamt).
-  const filterAktiv = !!(_kFilterFruchtart || _kFilterKunde || _kSuche);
+  const filterAktiv = !!(_kFilterFruchtart || _kFilterKunde || _kSuche || _kFilterAbrechnung);
   const fAktiv    = aktiv.filter(kontraktPasst);
   const fErfuellt = erfuellt.filter(kontraktPasst);
   const fStornier = stornier.filter(kontraktPasst);
@@ -232,8 +244,12 @@ export function renderKontrakte() {
     const vonBis    = [k.lieferung_von,k.lieferung_bis].filter(Boolean).map(d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
     const fuhren    = kontraktFuhren(k.id);
     const klaerenN  = fuhren.filter(w=>w.klaeren).length;
+    const abr       = kontraktAbrechnung(k);
+    const abrHTML   = abr.status==='offen'
+      ? ` · <span style="color:var(--red);font-weight:700" title="Auslieferungen ohne Gutschrift-Nr.">💶 ${abr.fehlen} von ${abr.gesamt} Gutschrift${abr.gesamt===1?'':'en'} fehl${abr.fehlen===1?'t':'en'}</span>`
+      : abr.status==='fertig' ? ` · <span style="color:var(--green2);font-weight:600">✓ abgerechnet</span>` : '';
     const offen     = _offenerKontrakt === k.id;
-    return `<div class="card" style="margin-bottom:8px">
+    return `<div class="card${abr.status==='offen'?' kontrakt-unabgerechnet':''}" style="margin-bottom:8px">
       <div onclick="toggleKontraktDetail(${k.id})" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
           <div style="flex:1;min-width:0">
@@ -248,7 +264,7 @@ export function renderKontrakte() {
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
             <div style="font-size:11px;color:var(--text3)">${vonBis||''}${k.paritaet?' · '+escapeHtml(k.paritaet):''}${k.preis_eur?' · '+k.preis_eur.toFixed(2)+' €/t':''}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:3px">🚚 ${fuhren.length} Fuhre${fuhren.length===1?'':'n'}${klaerenN?` · <span style="color:var(--color-warning);font-weight:700">⚠ ${klaerenN} zu klären</span>`:''}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">🚚 ${fuhren.length} Fuhre${fuhren.length===1?'':'n'}${klaerenN?` · <span style="color:var(--color-warning);font-weight:700">⚠ ${klaerenN} zu klären</span>`:''}${abrHTML}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${restT.toFixed(1)} t</div>
@@ -287,10 +303,11 @@ export function renderKontrakte() {
       <input type="file" id="kontrakt-file-input" accept=".pdf" style="display:none" onchange="kontraktPDFDatei(this)">
       <button class="btn btn-sm btn-outline" style="margin-top:12px" onclick="document.getElementById('kontrakt-file-input').click()">Datei wählen</button>
     </div>`}
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:repeat(${einkauf?3:4},1fr);gap:8px;margin-bottom:16px">
       <div class="stat-box"><div class="stat-val" style="font-size:22px">${aktiv.length}</div><div class="stat-label">aktive Kontrakte</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${gesamtT.toFixed(0)}</div><div class="stat-label">t kontraktiert</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${geliefT.toFixed(1)}</div><div class="stat-label">t geliefert</div></div>
+      ${einkauf ? '' : `<div class="stat-box" title="Kontrakte mit Auslieferungen ohne Gutschrift-Nr."><div class="stat-val" style="font-size:22px;color:${unabgerechnetN?'var(--red)':'var(--green2)'}">${unabgerechnetN}</div><div class="stat-label">Gutschriften offen</div></div>`}
     </div>
     ${fruchtartUebersichtHTML()}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
@@ -311,6 +328,14 @@ export function renderKontrakte() {
           <option value="">Alle</option>${kundeOpts}
         </select>
       </label>
+      ${einkauf ? '' : `<label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Abrechnung
+        <select class="input" style="width:auto;padding:5px 8px;font-size:13px" onchange="setKontraktFilter('abrechnung', this.value)">
+          <option value="">Alle</option>
+          <option value="offen" ${_kFilterAbrechnung==='offen'?'selected':''}>⚠ Gutschriften fehlen</option>
+          <option value="fertig" ${_kFilterAbrechnung==='fertig'?'selected':''}>✓ Abgerechnet</option>
+          <option value="keine" ${_kFilterAbrechnung==='keine'?'selected':''}>– Ohne Auslieferung</option>
+        </select>
+      </label>`}
       ${filterAktiv ? `<button class="btn btn-sm btn-outline" onclick="kontraktFilterReset()">✕ Zurücksetzen</button>` : ''}
     </div>`;
 
