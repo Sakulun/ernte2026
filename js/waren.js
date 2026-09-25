@@ -1,8 +1,8 @@
-import { state } from './state.js?v=138';
-import { db } from './db.js?v=138';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=138';
-import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=138';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=138';
+import { state } from './state.js?v=139';
+import { db } from './db.js?v=139';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=139';
+import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=139';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=139';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -318,6 +318,56 @@ export function waageFuhreWidgetHTML(fuhreId, felder = 'beide') {
 // ── Einzelne Warenbewegung bearbeiten (Inline-Formular) ──────────────────────
 let _wbEditOpen = null;
 
+// Filter der Warenbewegungs-Übersicht (Datum von/bis, Kunde/Lieferant, Produkt).
+// Bleibt während der Sitzung erhalten; die Kennzahlen oben folgen der Filterung.
+let _wbFilter = { von:'', bis:'', kunde:'', produkt:'' };
+export function wbFilterSet(key, val) {
+  if(!(key in _wbFilter)) return;
+  _wbFilter[key] = val || '';
+  renderWarenausgang();
+}
+export function wbFilterReset() {
+  _wbFilter = { von:'', bis:'', kunde:'', produkt:'' };
+  renderWarenausgang();
+}
+// Lokales Datum als YYYY-MM-DD – vergleichbar mit dem Wert eines <input type="date">.
+function wbDatumLokal(iso) {
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+// Produktbezeichnung einer Bewegung: Artikel-Stammsatz, sonst Freitext (Sonstige).
+function wbProdukt(w) {
+  const art = state.artikel.find(a=>a.id===w.artikel_id);
+  return art ? art.name : (w.artikel_text || '');
+}
+function wbFilterPasst(w) {
+  const f = _wbFilter;
+  if(f.von || f.bis) {
+    const d = wbDatumLokal(w.erstellt_am);
+    if(f.von && d < f.von) return false;
+    if(f.bis && d > f.bis) return false;
+  }
+  if(f.kunde   && (w.empfaenger||'') !== f.kunde) return false;
+  if(f.produkt && wbProdukt(w) !== f.produkt) return false;
+  return true;
+}
+function wbFilterBarHTML(kunden, produkte, aktiv, nGefiltert, nGesamt) {
+  const f = _wbFilter;
+  const opt  = (v, cur) => `<option value="${escapeHtml(v)}"${v===cur?' selected':''}>${escapeHtml(v)}</option>`;
+  const feld = (label, inner) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);min-width:0">${label}${inner}</label>`;
+  const inp  = 'style="font-size:13px;padding:6px 8px;min-width:0"';
+  return `<div class="filter-bar" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;margin-bottom:12px">
+    ${feld('Datum von', `<input type="date" value="${escapeHtml(f.von)}" ${inp} onchange="wbFilterSet('von',this.value)">`)}
+    ${feld('Datum bis', `<input type="date" value="${escapeHtml(f.bis)}" ${inp} onchange="wbFilterSet('bis',this.value)">`)}
+    ${feld('Kunde / Lieferant', `<select ${inp} onchange="wbFilterSet('kunde',this.value)"><option value="">Alle</option>${kunden.map(k=>opt(k,f.kunde)).join('')}</select>`)}
+    ${feld('Produkt', `<select ${inp} onchange="wbFilterSet('produkt',this.value)"><option value="">Alle</option>${produkte.map(p=>opt(p,f.produkt)).join('')}</select>`)}
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);white-space:nowrap">
+      ${aktiv ? `<span>${nGefiltert} von ${nGesamt}</span><button class="btn btn-sm btn-outline" onclick="wbFilterReset()" title="Filter zurücksetzen">✕ Zurücksetzen</button>` : `<span>${nGesamt} Bewegungen</span>`}
+    </div>
+  </div>`;
+}
+
 function wbEditFormHTML(w) {
   const isAus = w.typ === 'ausgang';
   const artOpts = state.artikel
@@ -405,9 +455,14 @@ export async function wbEditSpeichern(id) {
 export function renderWarenausgang() {
   // Reinigungsabgänge sind interne Umbuchungen (Reduktion des Ziel-Silos, dem ein
   // Reinigungsabgang-Fuhre gegenübersteht) – nicht als Warenausgang listen.
-  const alle    = state.warenbewegungen
+  const basis   = state.warenbewegungen
     .filter(w => !(w.notiz||'').startsWith('Reinigungsabgang'))
     .sort((a,b)=>new Date(b.erstellt_am)-new Date(a.erstellt_am));
+  const alle    = basis.filter(wbFilterPasst);
+  const aktiv   = !!(_wbFilter.von || _wbFilter.bis || _wbFilter.kunde || _wbFilter.produkt);
+  // Auswahllisten aus dem ungefilterten Bestand, damit man jederzeit umschalten kann
+  const kunden   = [...new Set(basis.map(w=>w.empfaenger).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
+  const produkte = [...new Set(basis.map(wbProdukt).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'de'));
   const ausgaenge = alle.filter(w=>w.typ==='ausgang');
   const eingaenge = alle.filter(w=>w.typ==='eingang');
   const ausT = ausgaenge.reduce((s,w)=>s+(w.menge_kg||0),0)/1000;
@@ -459,7 +514,9 @@ export function renderWarenausgang() {
     +'<button class="btn btn-green" onclick="wareneingangsDialog()">↓ Wareneingang</button>'
     +'<button class="btn btn-amber" onclick="warenausgangsDialog()">↑ Warenausgang</button>'
     +'</div>'
-    +(alle.length ? alle.map(bRow).join('') : '<div class="empty-state" style="padding:20px">Noch keine Warenbewegungen erfasst.</div>');
+    +wbFilterBarHTML(kunden, produkte, aktiv, alle.length, basis.length)
+    +(alle.length ? alle.map(bRow).join('')
+      : '<div class="empty-state" style="padding:20px">'+(aktiv ? 'Keine Warenbewegungen für diesen Filter.' : 'Noch keine Warenbewegungen erfasst.')+'</div>');
   renderWaageBar();
 }
 

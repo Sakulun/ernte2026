@@ -1,6 +1,6 @@
-import { state } from './state.js?v=138';
-import { db } from './db.js?v=138';
-import { showToast } from './helpers.js?v=138';
+import { state } from './state.js?v=139';
+import { db } from './db.js?v=139';
+import { showToast } from './helpers.js?v=139';
 
 // ── Waage per Bildschirm ablesen (OCR im Browser) ────────────────────────────
 // Der Waagen-PC zeigt das Gewicht im Bitzer-Fenster ("0,00 t"). Statt einer
