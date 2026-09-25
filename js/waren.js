@@ -1,8 +1,8 @@
-import { state } from './state.js?v=139';
-import { db } from './db.js?v=139';
-import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=139';
-import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=139';
-import { parseGewicht, fmtGewicht } from './abfahrer.js?v=139';
+import { state } from './state.js?v=140';
+import { db } from './db.js?v=140';
+import { showToast, escapeHtml, getFeld, getUser, netto, kontaktAnschriftZeile } from './helpers.js?v=140';
+import { getSiloBestand, getSiloKultur, lagerLabel, alleLagerOrte } from './silo.js?v=140';
+import { parseGewicht, fmtGewicht } from './abfahrer.js?v=140';
 
 export function warenausgangsDialog(preGewichtKg) {
   const silosAlle = state.silos.sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
@@ -352,8 +352,13 @@ function wbFilterPasst(w) {
   if(f.produkt && wbProdukt(w) !== f.produkt) return false;
   return true;
 }
-function wbFilterBarHTML(kunden, produkte, aktiv, nGefiltert, nGesamt) {
+function wbFilterBarHTML(kunden, produkte, aktiv, nGefiltert, nGesamt, einT, ausT) {
   const f = _wbFilter;
+  // Summe der (gefilterten) Bewegungen – bei gemischten Richtungen getrennt ausweisen
+  const t1 = x => (x || 0).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
+  const summe = (einT > 0 && ausT > 0)
+    ? `↓ ${t1(einT)} t · ↑ ${t1(ausT)} t`
+    : `Σ ${t1(einT + ausT)} t`;
   const opt  = (v, cur) => `<option value="${escapeHtml(v)}"${v===cur?' selected':''}>${escapeHtml(v)}</option>`;
   const feld = (label, inner) => `<label style="display:flex;flex-direction:column;gap:3px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);min-width:0">${label}${inner}</label>`;
   const inp  = 'style="font-size:13px;padding:6px 8px;min-width:0"';
@@ -363,7 +368,7 @@ function wbFilterBarHTML(kunden, produkte, aktiv, nGefiltert, nGesamt) {
     ${feld('Kunde / Lieferant', `<select ${inp} onchange="wbFilterSet('kunde',this.value)"><option value="">Alle</option>${kunden.map(k=>opt(k,f.kunde)).join('')}</select>`)}
     ${feld('Produkt', `<select ${inp} onchange="wbFilterSet('produkt',this.value)"><option value="">Alle</option>${produkte.map(p=>opt(p,f.produkt)).join('')}</select>`)}
     <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text3);white-space:nowrap">
-      ${aktiv ? `<span>${nGefiltert} von ${nGesamt}</span><button class="btn btn-sm btn-outline" onclick="wbFilterReset()" title="Filter zurücksetzen">✕ Zurücksetzen</button>` : `<span>${nGesamt} Bewegungen</span>`}
+      ${aktiv ? `<span>${nGefiltert} von ${nGesamt} · <b style="color:var(--gold)">${summe}</b></span><button class="btn btn-sm btn-outline" onclick="wbFilterReset()" title="Filter zurücksetzen">✕ Zurücksetzen</button>` : `<span>${nGesamt} Bewegungen · <b style="color:var(--gold)">${summe}</b></span>`}
     </div>
   </div>`;
 }
@@ -514,7 +519,7 @@ export function renderWarenausgang() {
     +'<button class="btn btn-green" onclick="wareneingangsDialog()">↓ Wareneingang</button>'
     +'<button class="btn btn-amber" onclick="warenausgangsDialog()">↑ Warenausgang</button>'
     +'</div>'
-    +wbFilterBarHTML(kunden, produkte, aktiv, alle.length, basis.length)
+    +wbFilterBarHTML(kunden, produkte, aktiv, alle.length, basis.length, einT, ausT)
     +(alle.length ? alle.map(bRow).join('')
       : '<div class="empty-state" style="padding:20px">'+(aktiv ? 'Keine Warenbewegungen für diesen Filter.' : 'Noch keine Warenbewegungen erfasst.')+'</div>');
   renderWaageBar();
