@@ -1,7 +1,7 @@
-import { state } from './state.js?v=137';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=137';
-import { renderLieferschein } from './lieferschein.js?v=137';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=137';
+import { state } from './state.js?v=138';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=138';
+import { renderLieferschein } from './lieferschein.js?v=138';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=138';
 
 // Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
 // "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
@@ -15,6 +15,15 @@ const LS_ARTIKEL_KURZ = {
 export function lieferscheinArtikelName(name) {
   const n = (name || '').trim();
   return LS_ARTIKEL_KURZ[n] || name || '';
+}
+
+// Bio-Ware trägt auf dem Lieferschein immer das Präfix "Bio-" in der
+// Produktbezeichnung – außer der Name führt "bio" bereits selbst
+// (z.B. "Sonnenblumenöl nativ LO bio"), dann nicht doppelt kennzeichnen.
+export function bioPraefix(name, istBio) {
+  const n = (name || '').trim();
+  if(!istBio || !n) return n;
+  return /\bbio\b/i.test(n) ? n : 'Bio-' + n;
 }
 
 // Zertifikatszeilen aus den Siegel-Flags eines Kontrakts (nachhaltig/GMP+/EU-Öko).
@@ -74,7 +83,9 @@ export function lieferscheinDaten(w, override = {}) {
   const netto = Number(w.menge_kg) || 0;
   const voll  = w.vollgewicht != null ? Number(w.vollgewicht) : null;
   const leer  = w.leergewicht != null ? Number(w.leergewicht) : null;
-  const artikelName = lieferscheinArtikelName(artikel?.name || w.artikel_text || kontrakt?.fruchtart_text || '');
+  const istBio = !!(kontrakt?.bio || w.bio);
+  const artikelName = bioPraefix(
+    lieferscheinArtikelName(artikel?.name || w.artikel_text || kontrakt?.fruchtart_text || ''), istBio);
 
   // Zertifikatszeilen aus den Siegel-Flags des Kontrakts; bei Raps zusätzlich die
   // THG-Angaben direkt hinter das Nachhaltigkeits-Zertifikat einfügen.
