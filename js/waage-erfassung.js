@@ -1,10 +1,10 @@
-import { state } from './state.js?v=143';
-import { db } from './db.js?v=143';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=143';
-import { isBioFeld } from './bio.js?v=143';
-import { getQualitaetsfelder } from './quality.js?v=143';
-import { parseGewicht } from './abfahrer.js?v=143';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=143';
+import { state } from './state.js?v=144';
+import { db } from './db.js?v=144';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=144';
+import { isBioFeld } from './bio.js?v=144';
+import { getQualitaetsfelder } from './quality.js?v=144';
+import { parseGewicht } from './abfahrer.js?v=144';
+import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=144';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -73,10 +73,23 @@ function aktuelleFruchtart() {
 function renderQualGrid() {
   const grid = document.getElementById('we-qual-grid');
   if(!grid) return;
-  const qf = getQualitaetsfelder(aktuelleFruchtart());
-  grid.innerHTML = Object.entries(qf).map(([key,q]) =>
-    `<div class="form-group"><label>${q.label}</label><input type="number" id="qual-${key}-${WID}" placeholder="${q.ph}" step="${q.step}"></div>`
+  grid.innerHTML = qualGridHTML(aktuelleFruchtart());
+}
+// Qualitätsfelder als Markup (optional vorbelegt) – Erfassung und Zweitwiegung nutzen dasselbe.
+function qualGridHTML(fruchtart, werte = {}) {
+  const qf = getQualitaetsfelder(fruchtart);
+  return Object.entries(qf).map(([key,q]) =>
+    `<div class="form-group"><label>${q.label}</label><input type="number" id="qual-${key}-${WID}" placeholder="${q.ph}" step="${q.step}" value="${werte[key] ?? ''}"></div>`
   ).join('');
+}
+// Qualitätswerte aus dem Grid lesen; fehlt ein Feld im DOM, gilt der Fallback (z.B. Umlauf-Payload).
+function leseQualitaeten(fruchtart, fallback = {}) {
+  const q = {};
+  for(const key of Object.keys(getQualitaetsfelder(fruchtart))) {
+    const el = document.getElementById('qual-'+key+'-'+WID);
+    q[key] = el ? (parseFloat(el.value) || null) : (fallback[key] ?? null);
+  }
+  return q;
 }
 
 // Abfahrer-Auswahl bzw. fester Abfahrer (Selbsterfassung)
@@ -475,7 +488,9 @@ export async function weInUmlauf() {
     if((feld.typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
     const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
     payload = { feldId, fruchtart: fruchtart || '', sorte, abfahrerId, herkunftName: feld.name || '',
-      einkaufskontrakt: (feld.typ === 'lieferant' && einkaufskontrakt) ? einkaufskontrakt : null };
+      einkaufskontrakt: (feld.typ === 'lieferant' && einkaufskontrakt) ? einkaufskontrakt : null,
+      // Qualitäten mitnehmen – sonst gehen sie zwischen 1. und 2. Wiegung verloren.
+      qualitaet: leseQualitaeten(fruchtart) };
   }
 
   const btn = document.getElementById('we-btn');
@@ -525,6 +540,8 @@ export function renderUmlaufEingangAbschluss(el, u) {
       <label style="font-size:11px;color:var(--text2)">Kennzeichen<input id="we-um-kz-${u.id}" class="input" value="${escapeHtml(u.kennzeichen||'')}" style="text-transform:uppercase"></label>
       <label style="font-size:11px;color:var(--text2)">${erstVoll ? 'Vollgewicht' : 'Leergewicht'} 1. Wiegung (kg)<input id="we-um-erst-${u.id}" class="input" type="number" value="${erst||''}"></label>
     </div>
+    ${duenger ? '' : `<div class="section-label">Qualität <span style="font-size:10px;color:var(--text2);font-weight:400">– wird mit der Fuhre gespeichert</span></div>
+    <div class="gewicht-grid" style="margin-bottom:6px">${qualGridHTML(p.fruchtart || '', p.qualitaet || {})}</div>`}
     <button class="btn btn-outline btn-full" style="margin-bottom:12px" onclick="weUmlaufAktualisieren(${u.id})"
       title="Änderungen speichern und im Umlauf behalten – ohne 2. Wiegung">&#128190; Im Umlauf speichern</button>
     <div class="section-label">${erstVoll ? 'Leergewicht (kg)' : 'Vollgewicht (kg)'} – 2. Wiegung</div>
@@ -561,9 +578,11 @@ export async function weUmlaufAktualisieren(id) {
   const kz = (document.getElementById('we-um-kz-'+id)?.value || '').trim().toUpperCase();
   const erst = parseGewicht(document.getElementById('we-um-erst-'+id)?.value);
   if(!erst || erst <= 0) { alert('Bitte ein gültiges Erstgewicht angeben.'); return; }
+  const p = u.payload || {};
+  const payload = p.kategorie === 'duenger' ? p : { ...p, qualitaet: leseQualitaeten(p.fruchtart || '', p.qualitaet || {}) };
   try {
-    await db.updateUmlauf(id, { kennzeichen: kz || null, erstgewicht: erst });
-    u.kennzeichen = kz || null; u.erstgewicht = erst;
+    await db.updateUmlauf(id, { kennzeichen: kz || null, erstgewicht: erst, payload });
+    u.kennzeichen = kz || null; u.erstgewicht = erst; u.payload = payload;
     showToast(`💾 ${kz || 'Fahrzeug'} im Umlauf gespeichert`);
     if(window.waUmlaufListe) window.waUmlaufListe();
   } catch(e) { showToast('⚠ Fehler: ' + e.message, 'error'); }
@@ -589,14 +608,17 @@ export async function weUmlaufAbschliessen(id) {
       if(saved) state.fremdzukauf.unshift(saved);
       showToast(`✓ Zukauf gespeichert · ${escapeHtml(p.artikel || '')} · ${kg2t(voll - leer)}`);
     } else {
+      // Qualitäten: aus der Zweitwiegungs-Maske, sonst aus der Payload der 1. Wiegung.
+      const q = leseQualitaeten(p.fruchtart || '', p.qualitaet || {});
+      const qual = { feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null };
       const res = await db.insertFuhreKomplett({
         status: 'fertig', drescherId: state.currentUser?.role === 'abfahrer' ? null : (state.currentUser?.id ?? null),
         abfahrerId: p.abfahrerId || null, feldId: p.feldId, fruchtart: p.fruchtart || '', sorte: p.sorte || null,
-        vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null,
+        vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null, ...qual,
         einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString()
       });
       state.fuhren.push({ id: res.id, nr: res.nr, status: 'fertig', feldId: p.feldId, fruchtart: p.fruchtart || '', sorte: p.sorte || null,
-        abfahrerId: p.abfahrerId || null, vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null,
+        abfahrerId: p.abfahrerId || null, vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null, ...qual,
         einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString() });
       showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(voll - leer)}`);
     }
