@@ -1,5 +1,5 @@
-import { db } from './db.js?v=144';
-import { getSb } from './db.js?v=144';
+import { db } from './db.js?v=145';
+import { getSb } from './db.js?v=145';
 
 let appReady = false;
 
@@ -169,9 +169,13 @@ export async function loadAppData() {
           state.umlauf = await db.getUmlauf().catch(()=>state.umlauf);
           // Nicht neu rendern, während jemand ein Gewicht eintippt – sonst wäre
           // die Eingabe weg. Die Liste zieht beim nächsten Klick nach.
+          // Gilt auch ohne Feld-Fokus, sobald in der Erfassung/Zweitwiegung schon
+          // Werte stehen (Gewichte, Qualitäten): ein Live-Update eines anderen
+          // Geräts würde die Maske sonst leer neu zeichnen.
           const akt = document.activeElement;
           const tippt = akt && ['INPUT','SELECT','TEXTAREA'].includes(akt.tagName);
-          if(!tippt && window.adminTab === 'waage' && window.renderWaageTab) {
+          const erfasst = !!(window.erfassungInProgress && window.erfassungInProgress());
+          if(!tippt && !erfasst && window.adminTab === 'waage' && window.renderWaageTab) {
             const el = document.getElementById('admintab');
             if(el) window.renderWaageTab(el);
           }
