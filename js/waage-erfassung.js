@@ -1,10 +1,10 @@
-import { state } from './state.js?v=146';
-import { db } from './db.js?v=146';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=146';
-import { isBioFeld } from './bio.js?v=146';
-import { getQualitaetsfelder } from './quality.js?v=146';
-import { parseGewicht } from './abfahrer.js?v=146';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=146';
+import { state } from './state.js?v=147';
+import { db } from './db.js?v=147';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=147';
+import { isBioFeld } from './bio.js?v=147';
+import { getQualitaetsfelder } from './quality.js?v=147';
+import { parseGewicht } from './abfahrer.js?v=147';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=147';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -614,7 +614,7 @@ export async function weUmlaufAbschliessen(id) {
       if(saved) state.fremdzukauf.unshift(saved);
       showToast(`✓ Zukauf gespeichert · ${escapeHtml(p.artikel || '')} · ${kg2t(voll - leer)}`);
       if(drucken) druckeWareneingangLieferschein({ feld: { name: p.lieferant || 'Zukauf Dünger' }, fruchtart: p.artikel || 'Dünger',
-        voll, leer, kennzeichen: u.kennzeichen, nr: '', zeitErst: u.erstwiegung, empfName: p.lieferant || '' });
+        voll, leer, kennzeichen: u.kennzeichen, nr: '', zeitErst: u.erstwiegung, empfName: p.lieferant || '', ohneQualitaet: true });
     } else {
       // Qualitäten: aus der Zweitwiegungs-Maske, sonst aus der Payload der 1. Wiegung.
       const q = leseQualitaeten(p.fruchtart || '', p.qualitaet || {});
@@ -725,24 +725,25 @@ function druckeWareneingangLieferschein(d) {
   const dt = x => { const t = x ? new Date(x) : null; return (t && !isNaN(t)) ? t.toLocaleDateString('de-DE', dOpt) + ' ' + t.toLocaleTimeString('de-DE', tOpt) : ''; };
   const zweit = d.zeitZweit ? new Date(d.zeitZweit) : new Date();
   const deW = n => Number(n).toLocaleString('de-DE');
-  const qTxt = Object.entries(getQualitaetsfelder(d.fruchtart || ''))
-    .filter(([key]) => d.qual && d.qual[key] != null && d.qual[key] !== '')
-    .map(([key, o]) => o.label.replace(/\s*\(%\)/, '') + ' ' + Number(d.qual[key]).toLocaleString('de-DE') + (o.label.includes('%') ? ' %' : ''))
-    .join(' · ');
+  // Qualität als feste Felder: alle Felder der Kultur, fehlende Werte als "–"
+  const qualitaet = d.ohneQualitaet ? [] : Object.entries(getQualitaetsfelder(d.fruchtart || '')).map(([key, o]) => {
+    const w = d.qual ? d.qual[key] : null;
+    return { label: o.label, wert: (w != null && w !== '') ? Number(w).toLocaleString('de-DE') : '–' };
+  });
   lieferscheinDrucken({
     ls_nummer: d.nr || '',
     datum: zweit.toLocaleDateString('de-DE', dOpt),
     empf_name: d.empfName || kontakt?.name || feld.name || '',
     empf_zusatz: '', empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
     artikel: bioPraefix(lieferscheinArtikelName(d.fruchtart || ''), !!(feld.id && isBioFeld(feld.id))),
-    kontrakt: d.einkaufskontrakt || '', herkunft: '', einheit: 't',
+    kontrakt: d.einkaufskontrakt || '', herkunft: d.herkunft || kontakt?.herkunft || '', einheit: 't',
     menge: (netto/1000).toLocaleString('de-DE', {minimumFractionDigits:3, maximumFractionDigits:3}),
     brutto_kg: deW(d.voll), tara_kg: deW(d.leer), netto_kg: deW(netto),
     zeit_erstwiegung: dt(d.zeitErst),
     zeit_zweitwiegung: dt(zweit),
     waage_nr: '', spedition: '', kennzeichen: d.kennzeichen || '',
-    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : '')
-      + (qTxt ? ' — Qualität: ' + qTxt : ''),
+    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : ''),
+    qualitaet,
     istRaps: false,
   });
 }

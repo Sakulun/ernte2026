@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=146';
+import { SB_URL, SB_KEY } from './config.js?v=147';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -278,7 +278,7 @@ export const db = {
   async insertKontakt(k) {
     const { data, error } = await sb.from('kontakte').insert({
       name:k.name, typ:k.typ,
-      strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null,
+      strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null, herkunft:k.herkunft||null,
       telefon:k.telefon||null,
       email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:true
     }).select().single();
@@ -287,7 +287,7 @@ export const db = {
   async updateKontakt(k) {
     const { error } = await sb.from('kontakte').update({
       name:k.name, typ:k.typ,
-      strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null,
+      strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null, herkunft:k.herkunft||null,
       telefon:k.telefon||null,
       email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:k.aktiv
     }).eq('id', k.id);

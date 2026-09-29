@@ -164,6 +164,16 @@ function esc(v) {
  * @returns {string} vollstaendiges HTML-Dokument (eine A4-Seite)
  */
 export function renderLieferschein(d = {}) {
+  // Qualität als feste Felder – nur wenn übergeben (Wareneingang): d.qualitaet = [{label, wert}]
+  const qualFelder = Array.isArray(d.qualitaet) ? d.qualitaet.filter(q => q && q.label) : [];
+  const qualBlock = qualFelder.length ? `
+  <section class="block">
+    <h2>Qualit&auml;t</h2>
+    <div class="raster">
+      ${qualFelder.map(q => `<div class="k">${esc(q.label)}</div><div class="v">${esc(q.wert)}</div>`).join('')}
+      ${qualFelder.length % 2 ? '<div class="k"></div><div class="v" style="border-bottom:none"></div>' : ''}
+    </div>
+  </section>` : '';
   // Zertifikate: explizit als d.zertifikate = [{label, nr}], sonst Fallback auf
   // Raps-Automatik (Nachhaltigkeits-Zertifikat), damit ältere Aufrufe gleich bleiben.
   const zerts = Array.isArray(d.zertifikate)
@@ -243,6 +253,7 @@ export function renderLieferschein(d = {}) {
       <div class="k">Waage-Nr. / Eichnr.</div><div class="v">${esc(d.waage_nr)}</div>
     </div>
   </section>
+${qualBlock}
 
   <section class="block">
     <h2>Spedition &amp; Kennzeichen</h2>
