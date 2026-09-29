@@ -1,10 +1,10 @@
-import { state } from './state.js?v=145';
-import { db } from './db.js?v=145';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=145';
-import { isBioFeld } from './bio.js?v=145';
-import { getQualitaetsfelder } from './quality.js?v=145';
-import { parseGewicht } from './abfahrer.js?v=145';
-import { lieferscheinDrucken, lieferscheinArtikelName } from './lieferschein-druck.js?v=145';
+import { state } from './state.js?v=146';
+import { db } from './db.js?v=146';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=146';
+import { isBioFeld } from './bio.js?v=146';
+import { getQualitaetsfelder } from './quality.js?v=146';
+import { parseGewicht } from './abfahrer.js?v=146';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=146';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -518,6 +518,7 @@ export function renderUmlaufEingangAbschluss(el, u) {
   _umlaufEntry = u;
   const p = u.payload || {};
   const duenger = p.kategorie === 'duenger';
+  const lieferantFeld = !duenger && getFeld(p.feldId)?.typ === 'lieferant';
   const erst = Number(u.erstgewicht || 0);
   const erstVoll = u.erst_typ === 'voll';
   const zweitId = erstVoll ? 'leer-' + WID : 'voll-' + WID;
@@ -551,6 +552,10 @@ export function renderUmlaufEingangAbschluss(el, u) {
       ${erstVoll ? `<button type="button" onclick="openHaengerzugWahl('${WID}')" title="Hängerzug wählen" style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>` : ''}
     </div>
     <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin:10px 0 2px">
+      <input type="checkbox" id="we-um-ls" ${(duenger || lieferantFeld) ? 'checked' : ''} style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer">
+      🖨 Lieferschein für den Fahrer drucken
+    </label>
     <div style="display:flex;gap:8px;margin-top:8px">
       <button class="btn btn-outline" style="flex-shrink:0" onclick="waUmlaufStornieren(${u.id})" title="Aus dem Umlauf nehmen">✕</button>
       <button class="btn btn-green btn-full" id="we-btn" onclick="weUmlaufAbschliessen(${u.id})">&#10003; Abschließen</button>
@@ -599,6 +604,7 @@ export async function weUmlaufAbschliessen(id) {
   const voll = erstVoll ? erst : zweit;
   const leer = erstVoll ? zweit : erst;
   if(!(voll > leer)) { alert('Vollgewicht muss größer als Leergewicht sein.'); return; }
+  const drucken = !!document.getElementById('we-um-ls')?.checked; // vor dem Neuzeichnen lesen
   const btn = document.getElementById('we-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
   try {
@@ -607,6 +613,8 @@ export async function weUmlaufAbschliessen(id) {
         vollgewicht: voll, leergewicht: leer, mengeKg: voll - leer, kennzeichen: u.kennzeichen || null, erstelltVon: state.currentUser?.id || null });
       if(saved) state.fremdzukauf.unshift(saved);
       showToast(`✓ Zukauf gespeichert · ${escapeHtml(p.artikel || '')} · ${kg2t(voll - leer)}`);
+      if(drucken) druckeWareneingangLieferschein({ feld: { name: p.lieferant || 'Zukauf Dünger' }, fruchtart: p.artikel || 'Dünger',
+        voll, leer, kennzeichen: u.kennzeichen, nr: '', zeitErst: u.erstwiegung, empfName: p.lieferant || '' });
     } else {
       // Qualitäten: aus der Zweitwiegungs-Maske, sonst aus der Payload der 1. Wiegung.
       const q = leseQualitaeten(p.fruchtart || '', p.qualitaet || {});
@@ -621,6 +629,8 @@ export async function weUmlaufAbschliessen(id) {
         abfahrerId: p.abfahrerId || null, vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null, ...qual,
         einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString() });
       showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(voll - leer)}`);
+      if(drucken) druckeWareneingangLieferschein({ feld: getFeld(p.feldId), fruchtart: p.fruchtart, voll, leer,
+        kennzeichen: u.kennzeichen, nr: res.nr, zeitErst: u.erstwiegung, qual: q, einkaufskontrakt: p.einkaufskontrakt });
     }
     await db.umlaufErledigt(id);
     state.umlauf = (state.umlauf || []).filter(x => x.id !== id);
@@ -672,7 +682,7 @@ async function weAbschliessenSpeichern() {
   const feld = getFeld(feldId);
   const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
   const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
-  const lieferscheinDrucke = feld.typ === 'lieferant' && document.getElementById('we-conf-ls')?.checked;
+  const lieferscheinDrucke = !!document.getElementById('we-conf-ls')?.checked;
   const qf = getQualitaetsfelder(fruchtart);
   const q = {};
   for(const key of Object.keys(qf)) { const el = document.getElementById('qual-'+key+'-'+WID); q[key] = el ? (parseFloat(el.value)||null) : null; }
@@ -691,7 +701,8 @@ async function weAbschliessenSpeichern() {
     const abfName = state.users.find(u => u.id === abfahrerId)?.name || '';
     showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(v-l)} · ${abfName}`);
     closeBestaetigung();
-    if(lieferscheinDrucke) druckeWareneingangLieferschein(feld, fruchtart, v, l, kennzeichen, res.nr);
+    if(lieferscheinDrucke) druckeWareneingangLieferschein({ feld, fruchtart, voll: v, leer: l, kennzeichen, nr: res.nr,
+      qual: q, einkaufskontrakt: newFuhre.einkaufskontrakt });
     reRenderOrClose();
   } catch(e) {
     if(sbtn) { sbtn.disabled = false; sbtn.innerHTML = '&#10003; Speichern'; }
@@ -700,26 +711,52 @@ async function weAbschliessenSpeichern() {
 }
 
 // Lieferschein/Wiegeschein für eine externe Anlieferung (Zukauf) drucken.
-function druckeWareneingangLieferschein(feld, fruchtart, voll, leer, kennzeichen, nr) {
-  const netto = voll - leer;
+// d: { feld, fruchtart, voll, leer, kennzeichen, nr, zeitErst, zeitZweit, qual, einkaufskontrakt, empfName }
+//  zeitErst  = Zeitpunkt der 1. Wiegung (Umlauf), leer bei Direktabschluss
+//  zeitZweit = Zeitpunkt des Abschlusses (Standard: jetzt)
+//  qual      = { feuchte, oelgehalt, hl, protein, gluten } – nur gefüllte werden gedruckt
+function druckeWareneingangLieferschein(d) {
+  const feld = d.feld || {};
+  const netto = d.voll - d.leer;
   const kontakt = feld.kontaktId ? state.kontakte.find(c => c.id === feld.kontaktId) : null;
   const adr = kontaktAnschrift(kontakt);
-  const jetzt = new Date();
   const dOpt = { day:'2-digit', month:'2-digit', year:'numeric' };
-  const deW = n => n.toLocaleString('de-DE');
+  const tOpt = { hour:'2-digit', minute:'2-digit' };
+  const dt = x => { const t = x ? new Date(x) : null; return (t && !isNaN(t)) ? t.toLocaleDateString('de-DE', dOpt) + ' ' + t.toLocaleTimeString('de-DE', tOpt) : ''; };
+  const zweit = d.zeitZweit ? new Date(d.zeitZweit) : new Date();
+  const deW = n => Number(n).toLocaleString('de-DE');
+  const qTxt = Object.entries(getQualitaetsfelder(d.fruchtart || ''))
+    .filter(([key]) => d.qual && d.qual[key] != null && d.qual[key] !== '')
+    .map(([key, o]) => o.label.replace(/\s*\(%\)/, '') + ' ' + Number(d.qual[key]).toLocaleString('de-DE') + (o.label.includes('%') ? ' %' : ''))
+    .join(' · ');
   lieferscheinDrucken({
-    ls_nummer: nr || '',
-    datum: jetzt.toLocaleDateString('de-DE', dOpt),
-    empf_name: kontakt?.name || feld.name || '',
+    ls_nummer: d.nr || '',
+    datum: zweit.toLocaleDateString('de-DE', dOpt),
+    empf_name: d.empfName || kontakt?.name || feld.name || '',
     empf_zusatz: '', empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
-    artikel: lieferscheinArtikelName(fruchtart || ''), kontrakt: '', herkunft: '', einheit: 't',
+    artikel: bioPraefix(lieferscheinArtikelName(d.fruchtart || ''), !!(feld.id && isBioFeld(feld.id))),
+    kontrakt: d.einkaufskontrakt || '', herkunft: '', einheit: 't',
     menge: (netto/1000).toLocaleString('de-DE', {minimumFractionDigits:3, maximumFractionDigits:3}),
-    brutto_kg: deW(voll), tara_kg: deW(leer), netto_kg: deW(netto),
-    zeit_erstwiegung: '',
-    zeit_zweitwiegung: jetzt.toLocaleDateString('de-DE', dOpt) + ' ' + jetzt.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'}),
-    waage_nr: '', spedition: '', kennzeichen: kennzeichen || '',
-    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : ''),
+    brutto_kg: deW(d.voll), tara_kg: deW(d.leer), netto_kg: deW(netto),
+    zeit_erstwiegung: dt(d.zeitErst),
+    zeit_zweitwiegung: dt(zweit),
+    waage_nr: '', spedition: '', kennzeichen: d.kennzeichen || '',
+    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : '')
+      + (qTxt ? ' — Qualität: ' + qTxt : ''),
     istRaps: false,
+  });
+}
+
+// Lieferschein/Wiegeschein zu einer gespeicherten Fuhre (nach)drucken – z.B. aus dem Fuhren-Tab.
+export function fuhreLieferscheinDrucken(fId) {
+  const f = state.fuhren.find(x => x.id === fId);
+  if(!f) { showToast('⚠ Fuhre nicht gefunden', 'error'); return; }
+  if(f.vollgewicht == null || f.leergewicht == null) { showToast('⚠ Gewichte fehlen – Druck erst nach dem Wiegen', 'error'); return; }
+  druckeWareneingangLieferschein({
+    feld: getFeld(f.feldId), fruchtart: f.fruchtart, voll: f.vollgewicht, leer: f.leergewicht,
+    kennzeichen: f.kennzeichen, nr: f.nr, zeitZweit: f.zeit,
+    qual: { feuchte: f.feuchte, protein: f.protein, gluten: f.gluten, hl: f.hlGewicht, oelgehalt: f.oelgehalt },
+    einkaufskontrakt: f.einkaufskontrakt,
   });
 }
 
@@ -761,10 +798,10 @@ function zeigeBestaetigung(d) {
       ${qHtml}
       ${row('Standort', standort)}
     </table>
-    ${istLieferant ? `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin:2px 0 8px">
-      <input type="checkbox" id="we-conf-ls" checked style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer">
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;margin:2px 0 8px">
+      <input type="checkbox" id="we-conf-ls" ${istLieferant ? 'checked' : ''} style="width:17px;height:17px;accent-color:var(--gold);cursor:pointer">
       🖨 Lieferschein für den Fahrer drucken
-    </label>` : ''}
+    </label>
     <div style="display:flex;gap:8px;margin-top:6px">
       <button class="btn btn-outline btn-full" id="we-conf-edit">&#9998; Bearbeiten</button>
       <button class="btn btn-green btn-full" id="we-conf-save">&#10003; Speichern</button>

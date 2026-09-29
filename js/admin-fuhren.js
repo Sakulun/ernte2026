@@ -1,10 +1,10 @@
-import { state } from './state.js?v=145';
-import { db } from './db.js?v=145';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=145';
-import { getFruchtFarbe } from './frucht.js?v=145';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=145';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=145';
-import { isBioFuhre, bioBadge } from './bio.js?v=145';
+import { state } from './state.js?v=146';
+import { db } from './db.js?v=146';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=146';
+import { getFruchtFarbe } from './frucht.js?v=146';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=146';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=146';
+import { isBioFuhre, bioBadge } from './bio.js?v=146';
 
 let _editOpenId = null;
 // Abfahrer-Verkaufslieferungen ein-/ausklappbar (Standard eingeklappt, damit man
@@ -229,6 +229,7 @@ export function renderAdminFuhren() {
           <button class="btn btn-sm btn-outline" onclick="toggleFuhreEdit(${f.id})">✏ Bearbeiten</button>
           <button class="btn btn-sm btn-amber" onclick="verifiziereFuhre(${f.id})">↺ Öffnen</button>
         `}
+        ${(f.vollgewicht!=null && f.leergewicht!=null) ? `<button class="btn btn-sm btn-outline" onclick="fuhreLieferscheinDrucken(${f.id})" title="Lieferschein/Wiegeschein für den Fahrer drucken">🖨 Lieferschein</button>` : ''}
         <button class="btn btn-sm" style="background:none;border:1px solid var(--red);color:var(--red);margin-left:auto" onclick="deleteFuhre(${f.id})">🗑 Löschen</button>
       </div>` : ''}
       <div id="edit-form-${f.id}" style="display:none"></div>
@@ -253,6 +254,7 @@ export function renderAdminFuhren() {
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="toggleFuhreEdit(${f.id})">✏ Bearbeiten</button>
         <button class="btn btn-sm" style="background:var(--blue);color:#fff;border:none" onclick="adminAbschliessen(${f.id})">⚖ Abschließen</button>
+        ${(f.vollgewicht!=null && f.leergewicht!=null) ? `<button class="btn btn-sm btn-outline" onclick="fuhreLieferscheinDrucken(${f.id})" title="Lieferschein/Wiegeschein für den Fahrer drucken">🖨 Lieferschein</button>` : ''}
         <button class="btn btn-sm" style="background:none;border:1px solid var(--red);color:var(--red);margin-left:auto" onclick="deleteFuhre(${f.id})">🗑 Löschen</button>
       </div>
       <div id="edit-form-${f.id}" style="display:none"></div>

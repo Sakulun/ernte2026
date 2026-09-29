@@ -1,4 +1,4 @@
-import { state } from './state.js?v=145';
+import { state } from './state.js?v=146';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
