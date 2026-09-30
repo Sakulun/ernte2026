@@ -1,5 +1,5 @@
-import { state } from './state.js?v=147';
-import { getFeld } from './helpers.js?v=147';
+import { state } from './state.js?v=148';
+import { getFeld, siloZyklusFuhren } from './helpers.js?v=148';
 
 // Fallback-Liste der Bio-Betriebe (nur relevant für Altdaten ohne pro-Feld-Bio-Flag).
 // Maßgeblich ist das bio-Feld in der felder-Tabelle (aus der Öko-Spalte der Flächenübersicht).
@@ -36,7 +36,8 @@ export function isBioFuhre(f, _seen) {
 }
 
 export function getSiloBioStatus(siloId) {
-  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  // nur der aktuelle Inhalt zählt – nicht längst ausgelagerte Fuhren
+  const fuhren = siloZyklusFuhren(siloId);
   if(!fuhren.length) return null;
   const bioCount = fuhren.filter(f => isBioFuhre(f)).length;
   if(bioCount === fuhren.length) return 'bio';

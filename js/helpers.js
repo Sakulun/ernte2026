@@ -1,4 +1,4 @@
-import { state } from './state.js?v=147';
+import { state } from './state.js?v=148';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
@@ -97,4 +97,34 @@ export function navigiereZuSchlag(feldId) {
     ? `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`
     : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
   window.open(url, '_blank');
+}
+
+// ── Füllzyklus eines Silos/Lagers ────────────────────────────────────────────
+// Liefert die Fuhren, die AKTUELL im Lager liegen: alles seit der letzten
+// vollständigen Leerung. Ein- (Fuhren) und Ausgänge (Warenbewegungen) werden
+// zeitlich sortiert aufsummiert; fällt der Saldo nach einem Ausgang auf ~0, gilt
+// das Lager als geleert und ältere Fuhren zählen nicht mehr. Kultur, Bio-Status,
+// Qualitäts-Durchschnitte und Feuchtewarnung beziehen sich damit nur auf den
+// heutigen Inhalt – nicht auf längst ausgelagerte Ware.
+// (Der Bestand selbst wird weiterhin über alle Buchungen gerechnet.)
+const LAGER_LEER_TOLERANZ_KG = 100;
+export function siloZyklusFuhren(siloId) {
+  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  if(!fuhren.length) return [];
+  const ausgaenge = (state.warenbewegungen || []).filter(w => w.silo_von_id === siloId && w.typ === 'ausgang');
+  if(!ausgaenge.length) return fuhren;
+  const zugangKg  = fuhren.reduce((sum, f) => sum + (netto(f) || 0), 0);
+  const ausgangKg = ausgaenge.reduce((sum, w) => sum + (Number(w.menge_kg) || 0), 0);
+  if(zugangKg - ausgangKg <= LAGER_LEER_TOLERANZ_KG) return [];   // heute leer
+  const ev = [
+    ...fuhren.map(f => ({ t: new Date(f.zeit).getTime() || 0, kg: netto(f) || 0, f })),
+    ...ausgaenge.map(w => ({ t: new Date(w.erstellt_am).getTime() || 0, kg: -(Number(w.menge_kg) || 0), f: null })),
+  ].sort((a, b) => a.t - b.t || (a.f ? -1 : 1));   // gleiche Zeit: Eingang vor Ausgang
+  let saldo = 0, zyklus = [];
+  for(const e of ev) {
+    saldo += e.kg;
+    if(e.f) zyklus.push(e.f);
+    else if(saldo <= LAGER_LEER_TOLERANZ_KG) { saldo = 0; zyklus = []; }   // geleert → neuer Zyklus
+  }
+  return zyklus;
 }

@@ -1,9 +1,9 @@
-import { state } from './state.js?v=147';
-import { db } from './db.js?v=147';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge } from './helpers.js?v=147';
-import { getFruchtFarbe } from './frucht.js?v=147';
-import { feuchteZuHoch } from './quality.js?v=147';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=147';
+import { state } from './state.js?v=148';
+import { db } from './db.js?v=148';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge, siloZyklusFuhren } from './helpers.js?v=148';
+import { getFruchtFarbe } from './frucht.js?v=148';
+import { feuchteZuHoch } from './quality.js?v=148';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=148';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -141,7 +141,7 @@ export function getSiloKultur(siloId) {
   // wurde ein gespeichertes silos.fruchtart bevorzugt, das dabei stale werden konnte).
   // Vermehrungs-Labels ("VERMEHRUNG:<Sorte>") ergeben sich über getFuhreKulturKey aus
   // der Sorte der Fuhre; bei gemischtem Inhalt gewinnt die häufigste Kultur.
-  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  const fuhren = siloZyklusFuhren(siloId);   // nur aktueller Inhalt (seit letzter Leerung)
   if(!fuhren.length) return null;
   const keyOf = f => window.getFuhreKulturKey ? window.getFuhreKulturKey(f) : (f.fruchtart || 'Unbekannt');
   const counts = new Map();
@@ -526,7 +526,7 @@ export async function reinigenSpeichern(quelleId) {
   if(gereinigtKg > rohKg + 0.5) { showToast('Gereinigte Menge größer als Rohware ('+(rohKg/1000).toFixed(2)+' t)', 'error'); return; }
 
   const kultur = getSiloKultur(quelleId);
-  const fuhren = state.fuhren.filter(f => f.siloId === quelleId && f.status === 'fertig');
+  const fuhren = siloZyklusFuhren(quelleId);   // nur aktueller Inhalt (seit letzter Leerung)
   // Sorte(n) und Fruchtart des Abgangs aus der Rohware bestimmen (vor dem Verschieben)
   const sorten = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))];
   const sorteStr = sorten.join(', ');
@@ -594,7 +594,7 @@ export function saatgutVerkaufDialog(siloId) {
   const bestKg = getSiloBestand(siloId);
   if(bestKg <= 0) { showToast('Silo ist leer', 'error'); return; }
   const bestT = bestKg / 1000;
-  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  const fuhren = siloZyklusFuhren(siloId);   // nur aktueller Inhalt (seit letzter Leerung)
   // Fruchtart aus den Fuhren (getSiloKultur liefert bei Vermehrungen 'VERMEHRUNG:<Sorte>')
   const kultur = fuhren.find(f => f.fruchtart)?.fruchtart || (getSiloKultur(siloId) || '–').replace(/^VERMEHRUNG:/, '');
   const sorteStr = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))].join(', ');
@@ -635,7 +635,7 @@ export async function saatgutVerkaufSpeichern(siloId) {
   const bestKg = getSiloBestand(siloId);
   const mengeKg = Math.round(mengeT * 1000);
   if(mengeKg > bestKg + 0.5) { showToast('Menge größer als Bestand (' + (bestKg/1000).toFixed(2) + ' t)', 'error'); return; }
-  const fuhren = state.fuhren.filter(f => f.siloId === siloId && f.status === 'fertig');
+  const fuhren = siloZyklusFuhren(siloId);   // nur aktueller Inhalt (seit letzter Leerung)
   // Fruchtart aus den Fuhren (getSiloKultur liefert bei Vermehrungen 'VERMEHRUNG:<Sorte>')
   const kultur = fuhren.find(f => f.fruchtart)?.fruchtart || (getSiloKultur(siloId) || '').replace(/^VERMEHRUNG:/, '');
   const sorteStr = [...new Set(fuhren.map(f => f.sorte).filter(Boolean))].join(', ');
@@ -693,11 +693,11 @@ export function renderSiloManagement() {
     const sz = isBig ? 150 : 110;
     const r = (sz/2)-9;
     const circ = 2*Math.PI*r;
-    const hasFeuchteWarn = state.fuhren.filter(f=>f.siloId===s.id).some(feuchteZuHoch);
+    const hasFeuchteWarn = siloZyklusFuhren(s.id).some(feuchteZuHoch);
     const fc = overfull?'#b03030':pct>85?'#b07820':pct>0?'#6b8f4e':'#c2c9b9';
     const active = _activeSiloId===s.id;
     const sd = (pct/100*circ).toFixed(1)+' '+circ.toFixed(1);
-    const cnt = state.fuhren.filter(f=>f.siloId===s.id).length;
+    const cnt = siloZyklusFuhren(s.id).length;
     const kl = kultur ? kultur
       .replace('Winterweichweizen','W.Weizen').replace('Wintergerste','W.Gerste')
       .replace('Winterraps','W.Raps').replace('Wintertriticale','W.Triticale')
@@ -1015,7 +1015,10 @@ function renderSiloDetail(siloId) {
   if(!panel) return;
   const silo = state.silos.find(s=>s.id===siloId);
   if(!silo) return;
-  const assignedFuhren = state.fuhren.filter(f=>f.siloId===siloId&&f.status==='fertig').sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+  // Nur der aktuelle Inhalt (seit der letzten Leerung); frühere, bereits ausgelagerte
+  // Fuhren werden nicht mehr gelistet und fließen nicht in die Durchschnitte ein.
+  const assignedFuhren = siloZyklusFuhren(siloId).sort((a,b)=>new Date(b.zeit)-new Date(a.zeit));
+  const frueherN = state.fuhren.filter(f=>f.siloId===siloId&&f.status==='fertig').length - assignedFuhren.length;
   const zsSet = gereinigteSorten();
   const eingangKg = getSiloFill(siloId);
   const ausgangKg = getSiloAusgang(siloId);
@@ -1106,7 +1109,8 @@ function renderSiloDetail(siloId) {
       📥 ${assignedFuhren.length} Fuhren im Silo · ✕ zum Entfernen
     </div>
     ${assignedFuhren.map(fuhreRow).join('')}
-    ${!assignedFuhren.length?`<div style="text-align:center;padding:32px 0;color:var(--text);font-size:14px">Leer</div>`:''}`;
+    ${!assignedFuhren.length?`<div style="text-align:center;padding:32px 0;color:var(--text);font-size:14px">Leer</div>`:''}
+    ${frueherN>0?`<div style="text-align:center;padding:8px 0 2px;color:var(--text3);font-size:11px">${frueherN} frühere Fuhre${frueherN===1?'':'n'} bereits ausgelagert – zählen nicht mehr zum Inhalt</div>`:''}`;
 }
 
 export async function removeFuhreFromSilo(fId) {

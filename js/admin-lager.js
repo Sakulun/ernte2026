@@ -1,9 +1,10 @@
-import { state } from './state.js?v=147';
-import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=147';
-import { getFruchtFarbe } from './frucht.js?v=147';
-import { getSiloBioStatus, bioBadge } from './bio.js?v=147';
-import { feuchteZuHoch } from './quality.js?v=147';
-import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=147';
+import { state } from './state.js?v=148';
+import { getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml, sorteBadge } from './helpers.js?v=148';
+import { getFruchtFarbe } from './frucht.js?v=148';
+import { getSiloBioStatus, bioBadge } from './bio.js?v=148';
+import { siloZyklusFuhren } from './helpers.js?v=148';
+import { feuchteZuHoch } from './quality.js?v=148';
+import { lagerGruppen, getSiloAusgang, fuhreHerkunft } from './silo.js?v=148';
 
 // Lagerübersicht: alle Lagerstätten nach Orten getrennt. Je Lager zunächst nur
 // Produkt, Ø-Qualität und Herkunft (Schläge) – Klick klappt die Einzelfuhren auf.
@@ -16,10 +17,11 @@ export function toggleLagerDetail(id) {
 }
 
 function lagerDaten(l) {
-  const fuhren = state.fuhren
-    .filter(f => f.siloId === l.id && f.status === 'fertig')
-    .sort((a,b) => new Date(b.zeit) - new Date(a.zeit));
-  const zugangKg  = fuhren.reduce((s,f) => s+(netto(f)||0), 0);
+  // Zugang/Bestand über alle Fuhren; Inhalt (Kultur, Qualität, Herkunft, Liste) nur aus
+  // dem aktuellen Füllzyklus – bereits ausgelagerte Alt-Fuhren zählen nicht mehr.
+  const alle = state.fuhren.filter(f => f.siloId === l.id && f.status === 'fertig');
+  const zugangKg  = alle.reduce((s,f) => s+(netto(f)||0), 0);
+  const fuhren = siloZyklusFuhren(l.id).sort((a,b) => new Date(b.zeit) - new Date(a.zeit));
   const ausgangKg = getSiloAusgang(l.id);
   const bestandKg = Math.max(0, zugangKg - ausgangKg);
   const avg = key => {
