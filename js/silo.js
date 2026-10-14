@@ -1,9 +1,9 @@
-import { state } from './state.js?v=148';
-import { db } from './db.js?v=148';
-import { getFeld, netto, showToast, escapeHtml, sorteBadge, siloZyklusFuhren } from './helpers.js?v=148';
-import { getFruchtFarbe } from './frucht.js?v=148';
-import { feuchteZuHoch } from './quality.js?v=148';
-import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=148';
+import { state } from './state.js?v=150';
+import { db } from './db.js?v=150';
+import { getFeld, netto, showToast, escapeHtml, sorteBadge, siloZyklusFuhren } from './helpers.js?v=150';
+import { getFruchtFarbe } from './frucht.js?v=150';
+import { feuchteZuHoch } from './quality.js?v=150';
+import { isBioFuhre, getSiloBioStatus, bioBadge } from './bio.js?v=150';
 
 let _activeSiloId = null;
 let _siloView = 'B';
@@ -585,6 +585,118 @@ export async function reinigenSpeichern(quelleId) {
   renderSiloManagement();
 }
 
+// ── Umlagern: (Teil-)Menge aus einem Silo in ein anderes Lager buchen ───────
+// Gleiches Modell wie die Umlagerungs-Fuhre der Waage: eine Fuhre über den
+// virtuellen Schlag "Umlagerung" (quelleLagerId → siloId) erhöht das Ziel, eine
+// verknüpfte Ausgangsbuchung (fuhre_id) reduziert die Quelle. Sorte/Kultur
+// wandern mit, der Bio-Status ergibt sich aus der Quelle (siehe isBioFuhre).
+// Wird die Fuhre später im Fuhren-Tab gelöscht, geht die Ausbuchung mit zurück.
+export function umlagernDialog(quelleId) {
+  const bestKg = getSiloBestand(quelleId);
+  if(bestKg <= 0) { showToast('Silo ist leer', 'error'); return; }
+  const bestT = bestKg / 1000;
+  const kultur = (getSiloKultur(quelleId) || '–').replace(/^VERMEHRUNG:/, '🌱 ');
+  const ziele = alleLagerOrte().filter(l => l.id !== quelleId && !FLACHLAGER[l.id]?.ausgangOnly);
+  const zielOpts = ziele.map(l => {
+    const k = (getSiloKultur(l.id) || '').replace(/^VERMEHRUNG:/, '');
+    const b = getSiloBestand(l.id) / 1000;
+    return `<option value="${escapeHtml(l.id)}">${escapeHtml(l.label)} · ${k ? escapeHtml(k) + ' · ' : ''}${b > 0 ? b.toFixed(1) + ' t' : 'leer'}</option>`;
+  }).join('');
+
+  document.getElementById('silo-umlagern-modal')?.remove();
+  const m = document.createElement('div');
+  m.id = 'silo-umlagern-modal';
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px';
+  m.innerHTML = `
+    <div style="background:var(--color-surface);border-radius:var(--radius-xl);padding:var(--space-6);width:100%;max-width:460px;box-shadow:var(--shadow-lg)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-family:var(--font-display);font-size:var(--text-xl);color:var(--color-text)">🔄 Umlagern · ${escapeHtml(lagerLabel(quelleId))}</div>
+        <button onclick="document.getElementById('silo-umlagern-modal').remove()" style="background:none;border:none;color:var(--color-text-muted);cursor:pointer;font-size:18px">✕</button>
+      </div>
+      <div style="background:var(--green-50);border:1px solid var(--green-200);border-radius:var(--radius-md);padding:14px;margin-bottom:16px">
+        <div style="font-size:var(--text-md);font-weight:700;color:var(--color-text)">Bestand: ${bestT.toFixed(2)} t · ${escapeHtml(kultur)}</div>
+        <div style="font-size:var(--text-base);color:var(--color-text-muted)">Teilmenge oder alles – das Ziel erhält eine Umlagerungs-Fuhre, die Quelle wird um die Menge ausgebucht</div>
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Ziel-Lager</label>
+        <select id="umlagern-ziel" class="form-control" style="font-size:13px">
+          <option value="">— Lager wählen —</option>${zielOpts}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block">Menge (t) <span style="font-weight:400;color:var(--text3)">– max. ${bestT.toFixed(3)} t</span></label>
+        <div style="display:flex;gap:6px">
+          <input type="number" id="umlagern-menge" class="form-control" min="0.001" max="${bestT.toFixed(3)}" step="0.001" placeholder="z.B. 25,000" style="font-size:15px;font-weight:700;flex:1">
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('umlagern-menge').value='${bestT.toFixed(3)}'" title="Gesamten Bestand umlagern">alles</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="umlagernSpeichern('${quelleId}')">🔄 Umlagern</button>
+        <button class="btn btn-outline" onclick="document.getElementById('silo-umlagern-modal').remove()">Abbrechen</button>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+}
+
+export async function umlagernSpeichern(quelleId) {
+  const zielId = document.getElementById('umlagern-ziel')?.value;
+  const mengeT = parseFloat(String(document.getElementById('umlagern-menge')?.value || '').replace(',', '.'));
+  if(!zielId) { showToast('Bitte Ziel-Lager wählen', 'error'); return; }
+  if(isNaN(mengeT) || mengeT <= 0) { showToast('Bitte Menge angeben', 'error'); return; }
+  const bestKg = getSiloBestand(quelleId);
+  const mengeKg = Math.round(mengeT * 1000);
+  if(mengeKg > bestKg + 0.5) { showToast('Menge größer als Bestand (' + (bestKg/1000).toFixed(2) + ' t)', 'error'); return; }
+  const umlFeld = state.felder.find(f => (f.typ || '') === 'umlagerung');
+  if(!umlFeld) { showToast('Virtueller Schlag „Umlagerung" fehlt in den Stammdaten', 'error'); return; }
+  // Kultur/Sorte aus dem aktuellen Inhalt der Quelle
+  const fuhren = siloZyklusFuhren(quelleId);
+  const kulturKey = getSiloKultur(quelleId) || '';
+  // Fruchtart passend zur Kultur des Silos (nicht die der zufaellig aeltesten Fuhre)
+  const sorte = kulturKey.startsWith('VERMEHRUNG:') ? kulturKey.slice(11) : null;
+  const fruchtart = sorte
+    ? (fuhren.find(f => f.sorte === sorte)?.fruchtart || fuhren.find(f => f.fruchtart)?.fruchtart || '')
+    : (kulturKey || fuhren.find(f => f.fruchtart)?.fruchtart || '');
+  // Verträglichkeit mit dem Ziel (Kultur/Bio) – weiche Warnung wie beim Einlagern
+  if(!FLACHLAGER[zielId]) {
+    const k = checkSiloKompatibel(zielId, [{ fruchtart, sorte, feldId: umlFeld.id, quelleLagerId: quelleId }]);
+    if(!k.ok && !confirm(`⚠ ${k.reason}.\n\nTrotzdem ${(mengeKg/1000).toFixed(2)} t nach ${lagerLabel(zielId)} umlagern?`)) return;
+  }
+  document.getElementById('silo-umlagern-modal')?.remove();
+
+  try {
+    const zeit = new Date().toISOString();
+    const res = await db.insertFuhreKomplett({
+      status: 'fertig', drescherId: state.currentUser?.id || null, abfahrerId: null,
+      feldId: umlFeld.id, fruchtart, sorte, vollgewicht: mengeKg, leergewicht: 0, zeit
+    });
+    // Quelle/Ziel setzen; interne Umbuchung gilt als bestätigt (keine Prüfung im Fuhren-Tab)
+    await db.updateFuhre(res.id, { siloId: zielId, quelleLagerId: quelleId, verifiziert: true });
+    state.fuhren.push({ id: res.id, nr: res.nr, status: 'fertig',
+      drescherId: state.currentUser?.id || null, abfahrerId: null, feldId: umlFeld.id,
+      fruchtart, sorte, vollgewicht: mengeKg, leergewicht: 0,
+      siloId: zielId, quelleLagerId: quelleId, verifiziert: true, zeit });
+    // Ausbuchung aus der Quelle – verknüpft über fuhre_id (gleiches Muster wie die Waage-Umlagerung)
+    const wb = await db.insertWarenbewegung({
+      typ: 'ausgang', siloVonId: quelleId, mengeKg, fuhreId: res.id,
+      notiz: 'Umlagerung ' + res.nr + ' → ' + lagerLabel(zielId),
+      erstelltVon: state.currentUser?.id || null
+    });
+    if(wb) state.warenbewegungen.unshift(wb);
+    // Ziel-Etikett (nur Info – die Anzeige leitet die Kultur aus den Fuhren ab)
+    const zielSilo = state.silos.find(s => s.id === zielId);
+    if(zielSilo && !zielSilo.fruchtart && kulturKey) {
+      zielSilo.fruchtart = kulturKey;
+      try { await db.updateSilo(zielId, { fruchtart: kulturKey }); } catch(e) {}
+    }
+    showToast(`🔄 ${(mengeKg/1000).toFixed(2)} t ${fruchtart} → ${lagerLabel(zielId)} umgelagert (${res.nr})`);
+  } catch(e) {
+    showToast('⚠ Umlagern fehlgeschlagen: ' + e.message, 'error');
+    try { state.fuhren = await db.getFuhren(); state.warenbewegungen = await db.getWarenbewegungen(); } catch(_) {}
+  }
+  _activeSiloId = null;
+  renderSiloManagement();
+}
+
 // ── Z-Saatgut verkauft: Menge aus dem Silo ausbuchen (Warenausgang) ─────────
 // Gereinigtes Z-Saatgut wird verkauft und das Silo leert sich. Bucht einen
 // Warenausgang (typ 'ausgang', silo_von_id) mit Notiz "Saatgutverkauf <Sorte>",
@@ -1088,6 +1200,7 @@ function renderSiloDetail(siloId) {
       </div>
     </div>
     ${bestandKg > 0 ? `
+    <button class="btn btn-full" style="background:var(--blue-500,var(--blue));color:#fff;border:none;margin-bottom:8px" onclick="umlagernDialog('${siloId}')">🔄 Umlagern → anderes Lager</button>
     <button class="btn btn-full" style="background:var(--blue);color:#fff;border:none;margin-bottom:8px" onclick="reinigenDialog('${siloId}')">🌀 Reinigen → anderes Silo</button>
     ${istZSaatgut ? `<button class="btn btn-full" style="background:var(--color-success);color:#fff;border:none;margin-bottom:10px" onclick="saatgutVerkaufDialog('${siloId}')">🌱 Als Saatgut verkauft (ausbuchen)</button>` : ''}
     <div style="font-size:10px;color:var(--text3);letter-spacing:1px;margin-bottom:12px;text-align:center">Auslagerungen → Warenwirtschaft › Warenbewegungen</div>` : ''}
