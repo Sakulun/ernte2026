@@ -1,10 +1,10 @@
-import { state } from './state.js?v=150';
-import { db } from './db.js?v=150';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=150';
-import { isBioFeld } from './bio.js?v=150';
-import { getQualitaetsfelder } from './quality.js?v=150';
-import { parseGewicht } from './abfahrer.js?v=150';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=150';
+import { state } from './state.js?v=151';
+import { db } from './db.js?v=151';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=151';
+import { isBioFeld } from './bio.js?v=151';
+import { getQualitaetsfelder } from './quality.js?v=151';
+import { parseGewicht } from './abfahrer.js?v=151';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=151';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -233,15 +233,13 @@ function formHTML() {
   } else { // zukauf getreide/ölsaaten
     const lief = state.felder.filter(f => f.status==='aktiv' && f.typ==='lieferant').sort((a,b)=>a.name.localeCompare(b.name,'de'));
     const opts = lief.map(f => `<option value="${f.id}">🚚 ${escapeHtml(f.name)}</option>`).join('');
-    const ekOpts = state.kontrakte.filter(k => (k.richtung||'verkauf')==='einkauf' && k.nummer)
-      .map(k => `<option value="${escapeHtml(k.nummer)}"></option>`).join('');
     quelleBlock = `${zukaufTypSel()}
       <div class="form-group"><label>Lieferant</label>
         <select id="we-feld" onchange="weFeldWahl()" ${!lief.length?'disabled':''}><option value="">— Lieferant wählen —</option>${opts}</select>
         ${lief.length?'':'<div style="font-size:11px;color:var(--amber);margin-top:4px">Keine Zukauf-Lieferanten aktiviert – unter „Kunden/Lieferanten" freischalten.</div>'}</div>
-      <div class="form-group"><label>Einkaufskontrakt <span style="font-size:10px;color:var(--text2);font-weight:400">– optional, wählbar oder Freitext</span></label>
-        <input id="we-ekontrakt" list="dl-ekontrakte" placeholder="Kontrakt-Nr. (optional)" autocomplete="off">
-        <datalist id="dl-ekontrakte">${ekOpts}</datalist></div>`;
+      <div class="form-group"><label>Einkaufskontrakt <span style="font-size:10px;color:var(--text2);font-weight:400">– optional</span></label>
+        <select id="we-ekontrakt-sel" onchange="weEkontraktWahl()">${ekKontraktOptionen(null)}</select>
+        <input id="we-ekontrakt" placeholder="Kontrakt-Nr. eingeben" autocomplete="off" style="display:none;margin-top:6px"></div>`;
   }
 
   const kzVisible = _herkunft === 'zukauf';
@@ -288,6 +286,57 @@ function reRenderOrClose() {
   if(_container) renderWaageErfassungInto(_container, { abfahrerId: _lockAbfahrer, modus: _modus });
 }
 
+// ── Einkaufskontrakt (Zukauf Getreide/Ölsaaten) ─────────────────────────────
+// Echte Auswahlliste statt <datalist>: die Datalist-Vorschläge erscheinen auf
+// Tablet und Waagen-PC oft gar nicht – der Kontrakt war dann "nicht auswählbar".
+// Kontrakte des gewählten Lieferanten stehen oben; Freitext bleibt möglich.
+// Gespeichert wird weiterhin die Kontrakt-Nummer als Text (fuhren.einkaufskontrakt),
+// das versteckte Eingabefeld #we-ekontrakt bleibt dafür die einzige Quelle.
+function ekKontrakte() {
+  return state.kontrakte
+    .filter(k => (k.richtung||'verkauf')==='einkauf' && k.nummer && (k.status||'aktiv')==='aktiv')
+    .sort((a,b) => String(a.nummer).localeCompare(String(b.nummer),'de'));
+}
+function ekOption(k) {
+  const kt  = state.kontakte.find(c => c.id === k.kontakt_id);
+  const art = state.artikel.find(a => a.id === k.artikel_id);
+  const bez = [kt?.name, art?.name || k.fruchtart_text, k.bio ? '🌿 Bio' : ''].filter(Boolean).join(' · ');
+  return `<option value="${escapeHtml(k.nummer)}">${escapeHtml(k.nummer)}${bez ? ' · ' + escapeHtml(bez) : ''}</option>`;
+}
+function ekKontraktOptionen(feld) {
+  const alle   = ekKontrakte();
+  const eigene = feld?.kontaktId ? alle.filter(k => k.kontakt_id === feld.kontaktId) : [];
+  const rest   = eigene.length ? alle.filter(k => !eigene.includes(k)) : alle;
+  let html = '<option value="">— kein Kontrakt —</option>';
+  if(eigene.length) html += `<optgroup label="Kontrakte des Lieferanten">${eigene.map(ekOption).join('')}</optgroup>`;
+  if(rest.length) html += eigene.length
+    ? `<optgroup label="Weitere Einkaufskontrakte">${rest.map(ekOption).join('')}</optgroup>`
+    : rest.map(ekOption).join('');
+  html += '<option value="__frei">✏ Andere Nummer eingeben …</option>';
+  return html;
+}
+// Nach Lieferantenwahl neu aufbauen; genau ein passender Kontrakt wird vorbelegt.
+function ekKontraktAktualisieren(feld) {
+  const sel = document.getElementById('we-ekontrakt-sel');
+  const inp = document.getElementById('we-ekontrakt');
+  if(!sel || !inp) return;
+  const vorher = sel.value;
+  sel.innerHTML = ekKontraktOptionen(feld);
+  if(vorher === '__frei') { sel.value = '__frei'; return; } // Freitext bleibt stehen
+  const eigene = feld?.kontaktId ? ekKontrakte().filter(k => k.kontakt_id === feld.kontaktId) : [];
+  if(vorher && [...sel.options].some(o => o.value === vorher)) sel.value = vorher;
+  else if(eigene.length === 1) sel.value = String(eigene[0].nummer);
+  else sel.value = '';
+  inp.value = sel.value; inp.style.display = 'none';
+}
+export function weEkontraktWahl() {
+  const sel = document.getElementById('we-ekontrakt-sel');
+  const inp = document.getElementById('we-ekontrakt');
+  if(!sel || !inp) return;
+  if(sel.value === '__frei') { inp.value = ''; inp.style.display = 'block'; inp.focus(); }
+  else { inp.value = sel.value; inp.style.display = 'none'; }
+}
+
 export function weFeldWahl() {
   const feldEl = document.getElementById('we-feld');
   const el = document.getElementById('we-fruchtart-display');
@@ -300,6 +349,7 @@ export function weFeldWahl() {
     el.textContent = '— wird automatisch gesetzt —'; el.style.color = 'var(--text3)';
     if(sorteGroup) sorteGroup.style.display = 'none';
     if(kzGroup && _herkunft !== 'zukauf') kzGroup.style.display = 'none';
+    ekKontraktAktualisieren(null);
     renderQualGrid();
     return;
   }
@@ -319,6 +369,7 @@ export function weFeldWahl() {
     el.style.color = 'var(--gold2)';
     if(sorteGroup) { sorteGroup.style.display = 'none'; if(sorteSelect) sorteSelect.value = ''; }
     if(feld.zukaufAbfahrerId) { const abf = document.getElementById('we-abf'); if(abf) abf.value = String(feld.zukaufAbfahrerId); }
+    if(feld.typ === 'lieferant') ekKontraktAktualisieren(feld);
     renderQualGrid();
     return;
   }

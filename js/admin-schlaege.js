@@ -1,7 +1,7 @@
-import { state } from './state.js?v=150';
-import { db } from './db.js?v=150';
-import { showToast } from './helpers.js?v=150';
-import { isBioFeld, bioBadge } from './bio.js?v=150';
+import { state } from './state.js?v=151';
+import { db } from './db.js?v=151';
+import { showToast } from './helpers.js?v=151';
+import { isBioFeld, bioBadge } from './bio.js?v=151';
 
 let schlagFilter = 'alle';
 let schlagSearch = '';
