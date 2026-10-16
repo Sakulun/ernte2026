@@ -1,10 +1,10 @@
-import { state } from './state.js?v=151';
-import { db } from './db.js?v=151';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=151';
-import { isBioFeld } from './bio.js?v=151';
-import { getQualitaetsfelder } from './quality.js?v=151';
-import { parseGewicht } from './abfahrer.js?v=151';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=151';
+import { state } from './state.js?v=152';
+import { db } from './db.js?v=152';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=152';
+import { isBioFeld } from './bio.js?v=152';
+import { getQualitaetsfelder } from './quality.js?v=152';
+import { parseGewicht } from './abfahrer.js?v=152';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=152';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -98,6 +98,9 @@ function abfahrerBlockHTML() {
     const name = state.users.find(u=>u.id===_lockAbfahrer)?.name || '';
     return `<div class="form-group"><label>Abfahrer</label><div class="fruchtart-fixed">${escapeHtml(name)}</div></div>`;
   }
+  // Zukauf extern: der Fahrer ist ein Fremder (Spedition/Lieferant) – kein Abfahrer
+  // nötig. Ein beim Lieferanten hinterlegter Standard-Abfahrer wird still übernommen.
+  if(_modus === 'abschluss' && _herkunft === 'zukauf') return '';
   const abfOptions = state.users.filter(u=>u.role==='abfahrer').map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
   return `<div class="form-group"><label>Abfahrer</label><select id="we-abf"><option value="">— Abfahrer wählen —</option>${abfOptions}</select></div>`;
 }
@@ -406,7 +409,17 @@ export function weSorteWahl() {
 }
 
 function leseAbfahrerId() {
-  return _lockAbfahrer != null ? _lockAbfahrer : parseInt(document.getElementById('we-abf')?.value);
+  if(_lockAbfahrer != null) return _lockAbfahrer;
+  const el = document.getElementById('we-abf');
+  if(el) return parseInt(el.value) || null;
+  // Keine Abfahrer-Auswahl in der Maske (Zukauf extern): Standard-Abfahrer des
+  // Lieferanten übernehmen, sonst ohne Abfahrer speichern (Spalte ist nullable).
+  const feld = getFeld(parseInt(document.getElementById('we-feld')?.value));
+  return feld?.zukaufAbfahrerId || null;
+}
+// Abfahrer ist Pflicht, sobald die Maske eine Auswahl anbietet oder fest vorgibt.
+function abfahrerPflicht() {
+  return _lockAbfahrer != null || !!document.getElementById('we-abf');
 }
 function erfasserDrescherId() {
   // Selbsterfassung durch Abfahrer hat keinen Drescher
@@ -418,12 +431,12 @@ export async function weStarten() {
   const feldId = parseInt(document.getElementById('we-feld')?.value);
   if(!feldId) { alert('Bitte Schlag wählen.'); return; }
   const abfahrerId = leseAbfahrerId();
-  if(!abfahrerId) { alert('Bitte Abfahrer wählen.'); return; }
+  if(!abfahrerId && abfahrerPflicht()) { alert('Bitte Abfahrer wählen.'); return; }
   const sorteEl = document.getElementById('we-sorte');
   const sorte = sorteEl ? (sorteEl.value || null) : null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   if((getFeld(feldId).typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
-  const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
+  const newFuhre = { status:'offen', drescherId: erfasserDrescherId(), abfahrerId: abfahrerId || null, feldId, fruchtart: fruchtart||'', sorte,
     lat: _gpsPos?.lat ?? null, lon: _gpsPos?.lon ?? null, zeit: new Date().toISOString() };
   const btn = document.getElementById('we-btn');
   if(btn) { btn.disabled = true; btn.textContent = 'Wird gestartet…'; }
@@ -532,13 +545,13 @@ export async function weInUmlauf() {
     const feldId = parseInt(document.getElementById('we-feld')?.value);
     if(!feldId) { alert('Bitte Herkunft/Schlag wählen.'); return; }
     const abfahrerId = leseAbfahrerId();
-    if(!abfahrerId) { alert('Bitte Abfahrer wählen.'); return; }
+    if(!abfahrerId && abfahrerPflicht()) { alert('Bitte Abfahrer wählen.'); return; }
     const sorte = document.getElementById('we-sorte')?.value || null;
     const fruchtart = fruchtartFuerSorte(feldId, sorte);
     const feld = getFeld(feldId);
     if((feld.typ || 'schlag') !== 'schlag' && !fruchtart) { alert('Bitte Fruchtart wählen.'); return; }
     const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
-    payload = { feldId, fruchtart: fruchtart || '', sorte, abfahrerId, herkunftName: feld.name || '',
+    payload = { feldId, fruchtart: fruchtart || '', sorte, abfahrerId: abfahrerId || null, herkunftName: feld.name || '',
       einkaufskontrakt: (feld.typ === 'lieferant' && einkaufskontrakt) ? einkaufskontrakt : null,
       // Qualitäten mitnehmen – sonst gehen sie zwischen 1. und 2. Wiegung verloren.
       qualitaet: leseQualitaeten(fruchtart) };
@@ -698,7 +711,8 @@ let _gpsFuerFuhre = null;
 export async function weAbschliessen() {
   const feldId = parseInt(document.getElementById('we-feld')?.value);
   const abfahrerId = leseAbfahrerId();
-  if(!feldId || !abfahrerId) { alert('Bitte Herkunft/Schlag und Abfahrer wählen.'); return; }
+  if(!feldId) { alert('Bitte Herkunft/Schlag wählen.'); return; }
+  if(!abfahrerId && abfahrerPflicht()) { alert('Bitte Abfahrer wählen.'); return; }
   const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
   const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
   if(!v || !l || v <= l) { alert('Bitte gültige Gewichte eingeben (Vollgew. > Leergew.).'); return; }
@@ -712,7 +726,7 @@ export async function weAbschliessen() {
     const raw = el ? el.value : '';
     return { label:o.label, val: (raw!=='' && raw!=null) ? raw : null };
   });
-  const abfName = state.users.find(u=>u.id===abfahrerId)?.name || '';
+  const abfName = abfahrerId ? (state.users.find(u=>u.id===abfahrerId)?.name || '') : '';
   const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
   const einkaufskontrakt = (document.getElementById('we-ekontrakt')?.value || '').trim();
   _gpsFuerFuhre = await erfasseGPS(4000);
@@ -727,7 +741,7 @@ async function weAbschliessenSpeichern() {
   const abfahrerId = leseAbfahrerId();
   const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
   const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
-  if(!feldId || !abfahrerId || !v || !l || v <= l) { closeBestaetigung(); showToast('⚠ Eingaben unvollständig', 'error'); return; }
+  if(!feldId || (!abfahrerId && abfahrerPflicht()) || !v || !l || v <= l) { closeBestaetigung(); showToast('⚠ Eingaben unvollständig', 'error'); return; }
   const sorte = document.getElementById('we-sorte')?.value || null;
   const fruchtart = fruchtartFuerSorte(feldId, sorte);
   const feld = getFeld(feldId);
@@ -738,7 +752,7 @@ async function weAbschliessenSpeichern() {
   const q = {};
   for(const key of Object.keys(qf)) { const el = document.getElementById('qual-'+key+'-'+WID); q[key] = el ? (parseFloat(el.value)||null) : null; }
   const newFuhre = {
-    status:'fertig', drescherId: erfasserDrescherId(), abfahrerId, feldId, fruchtart: fruchtart||'', sorte,
+    status:'fertig', drescherId: erfasserDrescherId(), abfahrerId: abfahrerId || null, feldId, fruchtart: fruchtart||'', sorte,
     vollgewicht: v, leergewicht: l,
     feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null,
     kennzeichen: kennzeichen || null,
@@ -749,7 +763,7 @@ async function weAbschliessenSpeichern() {
   try {
     const res = await db.insertFuhreKomplett(newFuhre);
     newFuhre.id = res.id; newFuhre.nr = res.nr; state.fuhren.push(newFuhre);
-    const abfName = state.users.find(u => u.id === abfahrerId)?.name || '';
+    const abfName = abfahrerId ? (state.users.find(u => u.id === abfahrerId)?.name || '') : (kennzeichen || 'Zukauf extern');
     showToast(`✓ Fuhre ${res.nr} abgeschlossen · ${kg2t(v-l)} · ${abfName}`);
     closeBestaetigung();
     if(lieferscheinDrucke) druckeWareneingangLieferschein({ feld, fruchtart, voll: v, leer: l, kennzeichen, nr: res.nr,
@@ -843,7 +857,7 @@ function zeigeBestaetigung(d) {
       ${artZeile}
       ${istLieferant && d.einkaufskontrakt ? row('Einkaufskontrakt', escapeHtml(d.einkaufskontrakt)) : ''}
       ${istLieferant && d.kennzeichen ? row('Kennzeichen', escapeHtml(d.kennzeichen)) : ''}
-      ${row('Abfahrer', escapeHtml(d.abfName||'–'))}
+      ${d.abfName ? row('Abfahrer', escapeHtml(d.abfName)) : ''}
       ${row('Vollgewicht', d.v.toLocaleString('de-DE') + ' kg')}
       ${row('Leergewicht', d.l.toLocaleString('de-DE') + ' kg')}
       ${row('Netto', '<b>' + n.toLocaleString('de-DE') + ' kg</b> · ' + kg2t(n))}

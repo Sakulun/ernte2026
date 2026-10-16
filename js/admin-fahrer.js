@@ -1,9 +1,9 @@
-import { state } from './state.js?v=151';
-import { getUser, getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=151';
-import { getFruchtFarbe } from './frucht.js?v=151';
-import { feuchteZuHoch } from './quality.js?v=151';
-import { fuhreKm, abladeStelle } from './geo.js?v=151';
-import { lagerLabel } from './silo.js?v=151';
+import { state } from './state.js?v=152';
+import { getUser, getFeld, netto, kg2t, fmtDate, fmtTime, escapeHtml } from './helpers.js?v=152';
+import { getFruchtFarbe } from './frucht.js?v=152';
+import { feuchteZuHoch } from './quality.js?v=152';
+import { fuhreKm, abladeStelle } from './geo.js?v=152';
+import { lagerLabel } from './silo.js?v=152';
 
 // Fahrer-Ranking: Tonnen je Produkt, Gesamtmenge und genäherte Fahrkilometer.
 // Klick auf einen Fahrer klappt seine Fuhren auf (neueste zuerst).

@@ -1,8 +1,15 @@
-import { state } from './state.js?v=151';
+import { state } from './state.js?v=152';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
 export const getUser = id => state.users.find(u=>u.id===id)||{};
+// Abfahrer-Anzeige einer Fuhre. Zukauf-extern-Fuhren haben keinen Abfahrer
+// (fremder Fahrer der Spedition) – dann Kennzeichen statt "undefined" zeigen.
+export const abfahrerName = f => {
+  if(!f) return '–';
+  if(f.abfahrerId) return getUser(f.abfahrerId).name || '–';
+  return f.kennzeichen ? 'extern · ' + f.kennzeichen : 'extern';
+};
 // Leergewicht 0 ist zulässig (z.B. Reinigungsabgang-Fuhre = reines Netto, kein
 // Fahrzeug). Daher != null statt truthy – für echte Fuhren (Tara > 0) identisch.
 export const netto = f => (f.vollgewicht != null && f.leergewicht != null) ? f.vollgewicht-f.leergewicht : null;

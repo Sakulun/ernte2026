@@ -1,11 +1,11 @@
-import { state } from './state.js?v=151';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt } from './helpers.js?v=151';
-import { getSiloFill, getSiloKultur } from './silo.js?v=151';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=151';
+import { state } from './state.js?v=152';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=152';
+import { getSiloFill, getSiloKultur } from './silo.js?v=152';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=152';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=151';
+} from './config.js?v=152';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -98,8 +98,8 @@ export function exportTagesbericht() {
       <td>${new Date(f.zeit).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</td>
       <td>${getFeld(f.feldId).name}</td>
       <td>${f.fruchtart}</td>
-      <td>${getUser(f.drescherId).name}</td>
-      <td>${getUser(f.abfahrerId).name}</td>
+      <td>${getUser(f.drescherId).name||'–'}</td>
+      <td>${abfahrerName(f)}</td>
       <td class="num bold">${n?(n/1000).toFixed(2):'–'}</td>
       <td class="num">${f.feuchte??'–'}</td>
       <td class="num">${f.protein??'–'}</td>

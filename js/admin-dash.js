@@ -1,7 +1,7 @@
-import { state } from './state.js?v=151';
-import { getFeld, getUser, netto, istErnteFuhre } from './helpers.js?v=151';
-import { getFruchtFarbe } from './frucht.js?v=151';
-import { fahrerRankingCard } from './admin-fahrer.js?v=151';
+import { state } from './state.js?v=152';
+import { getFeld, getUser, netto, istErnteFuhre, abfahrerName, escapeHtml } from './helpers.js?v=152';
+import { getFruchtFarbe } from './frucht.js?v=152';
+import { fahrerRankingCard } from './admin-fahrer.js?v=152';
 
 export function renderAdminDash() {
   // Nur echte Ernte-Fuhren – Umlagerungen/Zukauf würden die Erntemenge verfälschen
@@ -65,8 +65,8 @@ export function renderAdminDash() {
       <div class="fuhre-info">
         <div class="fuhre-kv"><span class="fk">Schlag </span><span class="fv">${getFeld(f.feldId).name}</span></div>
         <div class="fuhre-kv"><span class="fk">Fruchtart </span><span class="fv">${f.fruchtart}</span></div>
-        <div class="fuhre-kv"><span class="fk">Drescher </span><span class="fv">${getUser(f.drescherId).name}</span></div>
-        <div class="fuhre-kv"><span class="fk">Abfahrer </span><span class="fv">${getUser(f.abfahrerId).name}</span></div>
+        <div class="fuhre-kv"><span class="fk">Drescher </span><span class="fv">${getUser(f.drescherId).name||'–'}</span></div>
+        <div class="fuhre-kv"><span class="fk">Abfahrer </span><span class="fv">${escapeHtml(abfahrerName(f))}</span></div>
       </div>
       <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
         <button class="btn btn-sm btn-outline" onclick="adminTab='fuhren';renderAdmin();toggleFuhreEdit(${f.id})">✏ Bearbeiten</button>

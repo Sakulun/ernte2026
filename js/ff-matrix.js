@@ -1,10 +1,10 @@
 // Fruchtfolge: Matrix – Zeilen = Parzellen des Leitjahres (nach Betrieb gruppiert),
 // Spalten = alle Jahre. Zellen aus dem geometrischen Matching, farbcodiert nach Kultur.
-import { getSb } from './db.js?v=151';
-import { showToast, escapeHtml } from './helpers.js?v=151';
+import { getSb } from './db.js?v=152';
+import { showToast, escapeHtml } from './helpers.js?v=152';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen, ffJahr,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=151';
+         ffOffeneFlags } from './fruchtfolge.js?v=152';
 
 let zugeklappt = new Set(); // eingeklappte betrieb_id
 let alleNeben = null;       // parzelle_id → [nebenkulturen]

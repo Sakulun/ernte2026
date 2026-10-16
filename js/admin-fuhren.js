@@ -1,10 +1,10 @@
-import { state } from './state.js?v=151';
-import { db } from './db.js?v=151';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge } from './helpers.js?v=151';
-import { getFruchtFarbe } from './frucht.js?v=151';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=151';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=151';
-import { isBioFuhre, bioBadge } from './bio.js?v=151';
+import { state } from './state.js?v=152';
+import { db } from './db.js?v=152';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge, abfahrerName } from './helpers.js?v=152';
+import { getFruchtFarbe } from './frucht.js?v=152';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=152';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=152';
+import { isBioFuhre, bioBadge } from './bio.js?v=152';
 
 let _editOpenId = null;
 // Abfahrer-Verkaufslieferungen ein-/ausklappbar (Standard eingeklappt, damit man
@@ -198,7 +198,7 @@ export function renderAdminFuhren() {
             <span style="color:${fr.dot};font-weight:600">${f.fruchtart}</span>
             <span style="color:var(--text3)">· ${feld.name||'?'}</span>${sorteBadge(f)}
           </div>
-          <div style="font-size:11px;color:var(--text2)">${getUser(f.drescherId).name} → ${getUser(f.abfahrerId).name}</div>
+          <div style="font-size:11px;color:var(--text2)">${getUser(f.drescherId).name ? escapeHtml(getUser(f.drescherId).name) + ' → ' : ''}${escapeHtml(abfahrerName(f))}</div>
         </div>
         <div style="flex-shrink:0;text-align:right">
           <div style="font-family:var(--serif);font-size:16px;font-weight:600;color:var(--text)">${n?kg2t(n):'–'}</div>
@@ -248,7 +248,7 @@ export function renderAdminFuhren() {
             <span style="font-size:12px;font-weight:600;color:var(--text)">${f.nr} · ${fmtDate(f.zeit)} ${fmtTime(f.zeit)}</span>${bio?bioBadge(true):''}
           </div>
           <div style="font-size:11px;color:var(--text2);margin-top:2px">${feld.name||'?'} · ${f.fruchtart}${sorteBadge(f)}</div>
-          <div style="font-size:11px;color:var(--text2)">${getUser(f.drescherId).name} → ${getUser(f.abfahrerId).name}</div>
+          <div style="font-size:11px;color:var(--text2)">${getUser(f.drescherId).name ? escapeHtml(getUser(f.drescherId).name) + ' → ' : ''}${escapeHtml(abfahrerName(f))}</div>
         </div>
       </div>
       <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
@@ -403,7 +403,7 @@ export async function deleteFuhre(fId) {
   const n = netto(f);
   const info = `Fuhre ${f.nr} wirklich löschen?\n\n`
     + `${getFeld(f.feldId).name||'?'} · ${f.fruchtart||''}${f.sorte?' · '+f.sorte:''}\n`
-    + `Netto: ${n?kg2t(n):'–'} · ${getUser(f.abfahrerId).name||''}\n\n`
+    + `Netto: ${n?kg2t(n):'–'} · ${abfahrerName(f)}\n\n`
     + `Dies kann nicht rückgängig gemacht werden.`;
   if(!confirm(info)) return;
   const idx = state.fuhren.indexOf(f);
