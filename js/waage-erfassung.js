@@ -1,10 +1,10 @@
-import { state } from './state.js?v=152';
-import { db } from './db.js?v=152';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=152';
-import { isBioFeld } from './bio.js?v=152';
-import { getQualitaetsfelder } from './quality.js?v=152';
-import { parseGewicht } from './abfahrer.js?v=152';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix } from './lieferschein-druck.js?v=152';
+import { state } from './state.js?v=153';
+import { db } from './db.js?v=153';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=153';
+import { isBioFeld } from './bio.js?v=153';
+import { getQualitaetsfelder } from './quality.js?v=153';
+import { parseGewicht } from './abfahrer.js?v=153';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=153';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -783,8 +783,22 @@ async function weAbschliessenSpeichern() {
 function druckeWareneingangLieferschein(d) {
   const feld = d.feld || {};
   const netto = d.voll - d.leer;
-  const kontakt = feld.kontaktId ? state.kontakte.find(c => c.id === feld.kontaktId) : null;
+  // Lieferant = Kontakt des Zukauf-Lieferanten; bei eigener Ernte der erzeugende
+  // Betrieb des Schlags (als Kontakt angelegt, falls vorhanden).
+  const istSchlag = (feld.typ || 'schlag') === 'schlag' && !!feld.betrieb;
+  const kontakt = feld.kontaktId ? state.kontakte.find(c => c.id === feld.kontaktId)
+    : istSchlag ? state.kontakte.find(c => (c.name || '').trim().toLowerCase() === feld.betrieb.trim().toLowerCase()) || null
+    : null;
   const adr = kontaktAnschrift(kontakt);
+  const istBio = !!(feld.id && isBioFeld(feld.id));
+  // EU-Öko-Pflichtangaben (VO (EU) 2018/848 Anh. III Nr. 2): Bio-Bezeichnung,
+  // Code-Nr. der Kontrollstelle des Lieferanten, Partie.
+  const zertifikate = [];
+  if(istBio) {
+    const ks = kontakt?.oeko_kontrollstelle || '';
+    zertifikate.push(oekoZeile('EU-Öko · Kontrollstelle Lieferant', ks || '________________'));
+    if(!ks) showToast('⚠ Öko-Kontrollstelle des Lieferanten fehlt – bitte im Kontakt pflegen (auf dem Schein handschriftlich ergänzen)', 'error');
+  }
   const dOpt = { day:'2-digit', month:'2-digit', year:'numeric' };
   const tOpt = { hour:'2-digit', minute:'2-digit' };
   const dt = x => { const t = x ? new Date(x) : null; return (t && !isNaN(t)) ? t.toLocaleDateString('de-DE', dOpt) + ' ' + t.toLocaleTimeString('de-DE', tOpt) : ''; };
@@ -798,9 +812,12 @@ function druckeWareneingangLieferschein(d) {
   lieferscheinDrucken({
     ls_nummer: d.nr || '',
     datum: zweit.toLocaleDateString('de-DE', dOpt),
-    empf_name: d.empfName || kontakt?.name || feld.name || '',
-    empf_zusatz: '', empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
-    artikel: bioPraefix(lieferscheinArtikelName(d.fruchtart || ''), !!(feld.id && isBioFeld(feld.id))),
+    anschrift_label: 'Lieferant',
+    partie: d.nr || '',
+    empf_name: d.empfName || kontakt?.name || (istSchlag ? feld.betrieb : feld.name) || '',
+    empf_zusatz: istSchlag ? 'Schlag ' + (feld.name || '') : '',
+    empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
+    artikel: bioPraefix(lieferscheinArtikelName(d.fruchtart || ''), istBio),
     kontrakt: d.einkaufskontrakt || '', herkunft: d.herkunft || kontakt?.herkunft || '', einheit: 't',
     menge: (netto/1000).toLocaleString('de-DE', {minimumFractionDigits:3, maximumFractionDigits:3}),
     brutto_kg: deW(d.voll), tara_kg: deW(d.leer), netto_kg: deW(netto),
@@ -809,7 +826,7 @@ function druckeWareneingangLieferschein(d) {
     waage_nr: '', spedition: '', kennzeichen: d.kennzeichen || '',
     sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : ''),
     qualitaet,
-    istRaps: false,
+    zertifikate,
   });
 }
 

@@ -1,7 +1,7 @@
 // Fruchtfolge: Anbauverhältnis-Dashboard – Kulturanteile in ha/% je Jahr,
 // Kultur-/Gruppen-Ebene, Jahresvergleich, CSV-Export. Diagramme als Inline-SVG.
-import { showToast, escapeHtml } from './helpers.js?v=152';
-import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=152';
+import { showToast, escapeHtml } from './helpers.js?v=153';
+import { ffState, ffLoadParzellen, ffGefilterteParzellen, renderFruchtfolge } from './fruchtfolge.js?v=153';
 
 let ebene = 'kultur';        // 'kultur' | 'gruppe'
 let vergleichsJahre = new Set(); // jahr_id für den Jahresvergleich

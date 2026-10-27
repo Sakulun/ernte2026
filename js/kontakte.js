@@ -1,6 +1,6 @@
-import { state } from './state.js?v=152';
-import { db } from './db.js?v=152';
-import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=152';
+import { state } from './state.js?v=153';
+import { db } from './db.js?v=153';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=153';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -76,6 +76,7 @@ export function kontaktNeuDialog(id) {
         <div class="form-group"><label>Ort</label><input type="text" id="kt-ort" value="${k?escapeHtml(k.ort||''):''}" placeholder="Riesa"></div>
       </div>
       <div class="form-group"><label>Herkunft der Ware <span style="font-size:10px;color:var(--text3);font-weight:400">– Land, erscheint auf dem Wareneingangs-Lieferschein</span></label><input type="text" id="kt-herkunft" value="${k?escapeHtml(k.herkunft||''):''}" placeholder="z.B. DE" maxlength="40"></div>
+      <div class="form-group"><label>Öko-Kontrollstelle <span style="font-size:10px;color:var(--text3);font-weight:400">– Code-Nr. des Lieferanten, Pflicht auf Bio-Lieferscheinen</span></label><input type="text" id="kt-oeko" value="${k?escapeHtml(k.oeko_kontrollstelle||''):''}" placeholder="z.B. DE-ÖKO-006" maxlength="40"></div>
       <div class="form-group"><label>Telefon</label><input type="text" id="kt-telefon" value="${k?escapeHtml(k.telefon||''):''}" placeholder="+49 345 ..."></div>
       <div class="form-group"><label>E-Mail</label><input type="email" id="kt-email" value="${k?escapeHtml(k.email||''):''}" placeholder="name@firma.de"></div>
       <div class="form-group"><label>IBAN</label><input type="text" id="kt-iban" value="${k?escapeHtml(k.iban||''):''}" placeholder="DE12 3456 7890 1234 5678 90"></div>
@@ -98,6 +99,7 @@ export async function kontaktSpeichern(id) {
     plz:document.getElementById('kt-plz').value.trim()||null,
     ort:document.getElementById('kt-ort').value.trim()||null,
     herkunft:document.getElementById('kt-herkunft')?.value.trim()||null,
+    oeko_kontrollstelle:document.getElementById('kt-oeko')?.value.trim().toUpperCase()||null,
     telefon:document.getElementById('kt-telefon').value.trim()||null,
     email:document.getElementById('kt-email').value.trim()||null,
     iban:document.getElementById('kt-iban').value.trim()||null,

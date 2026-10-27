@@ -187,6 +187,18 @@ export function renderLieferschein(d = {}) {
       ${z.hinweis ? `<div style="font-size:9pt;font-weight:700;margin-top:1mm">${esc(z.hinweis)}</div>` : ''}
     </div>`
   ).join('');
+  // Siegel-Logos nur, wenn das Siegel für diese Ware auch zutrifft – explizit über
+  // d.siegel = {bio, gmp, redcert}, sonst aus den Zertifikatszeilen abgeleitet.
+  const siegel = d.siegel || {
+    bio:     zerts.some(z => /öko|oeko|bio/i.test(z.label)),
+    gmp:     zerts.some(z => /gmp/i.test(z.label)),
+    redcert: zerts.some(z => /redcert|nachhaltig/i.test(z.label)),
+  };
+  const logos = [
+    siegel.bio     ? `<img class="bio"     src="${LOGOS.bio}"     alt="EU-Bio">` : '',
+    siegel.gmp     ? `<img class="gmp"     src="${LOGOS.gmp}"     alt="GMP+ FSA certified">` : '',
+    siegel.redcert ? `<img class="redcert" src="${LOGOS.redcert}" alt="REDcert EU">` : '',
+  ].join('');
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -208,7 +220,7 @@ export function renderLieferschein(d = {}) {
 
   <section class="meta">
     <div class="anschrift">
-      <div class="label">Lieferanschrift</div>
+      <div class="label">${esc(d.anschrift_label || 'Lieferanschrift')}</div>
       <div class="zeile">${esc(d.empf_name)}</div>
       <div class="zeile">${esc(d.empf_zusatz)}</div>
       <div class="zeile">${esc(d.empf_strasse)}</div>
@@ -218,6 +230,7 @@ export function renderLieferschein(d = {}) {
     <table class="felder">
       <tr><td class="k">Lieferschein-Nr.</td> <td class="v">${esc(d.ls_nummer)}</td></tr>
       <tr><td class="k">Datum</td>            <td class="v">${esc(d.datum)}</td></tr>
+      ${d.partie ? `<tr><td class="k">Partie</td><td class="v">${esc(d.partie)}</td></tr>` : ''}
     </table>
   </section>
 
@@ -283,11 +296,7 @@ ${qualBlock}
   </section>
 
   <footer class="fuss">
-    <div class="zertifikate">
-      <img class="bio"     src="${LOGOS.bio}"     alt="EU-Bio">
-      <img class="gmp"     src="${LOGOS.gmp}"     alt="GMP+ FSA certified">
-      <img class="redcert" src="${LOGOS.redcert}" alt="REDcert EU">
-    </div>
+    <div class="zertifikate">${logos}</div>
     <div class="impressum">
       Saatgut- u. Agrarservice Beesenstedt GmbH · Bahnhofstrasse 11 · 06198 Salzatal OT Beesenstedt · Tel. +49 34773 39001 · office@landgut-nuscheler.de<br>
       Registergericht Stendal HRB 210422 · Geschäftsführer Johann Nuscheler · Steuernummer 110/299/41574 · USt-IdNr. DE139712562 · Öko-Kontrollstelle DE-ÖKO-006<br>

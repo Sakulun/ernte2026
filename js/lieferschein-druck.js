@@ -1,7 +1,7 @@
-import { state } from './state.js?v=152';
-import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=152';
-import { renderLieferschein } from './lieferschein.js?v=152';
-import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=152';
+import { state } from './state.js?v=153';
+import { escapeHtml, showToast, kontaktAnschrift } from './helpers.js?v=153';
+import { renderLieferschein } from './lieferschein.js?v=153';
+import { ZERT_NACHHALTIG, ZERT_OEKO, ZERT_GMP_REG, ZERT_GMP_ZERT } from './config.js?v=153';
 
 // Kundenübliche Kurznamen auf Lieferscheinen. Intern heißen die Artikel
 // "Winterraps"/"Winterweizen"/"Wintergerste" (für Gruppierung/Kontrakte),
@@ -33,8 +33,14 @@ export function kontraktZertifikate(kontrakt) {
   const z = [];
   if(kontrakt.zert_nachhaltig) z.push({ label: 'Nachhaltigkeit (REDcert)', nr: ZERT_NACHHALTIG });
   if(kontrakt.zert_gmp)        z.push({ label: 'GMP+ FSA', nr: 'Reg.-Nr. ' + ZERT_GMP_REG + ' · Zert.-Nr. ' + ZERT_GMP_ZERT, hinweis: 'Ware ist GMP+ FSA gesichert' });
-  if(kontrakt.bio)             z.push({ label: 'EU-Öko', nr: ZERT_OEKO });
+  if(kontrakt.bio)             z.push(oekoZeile('EU-Öko', ZERT_OEKO));
   return z;
+}
+
+// Pflichtsatz für Bio-Ware nach VO (EU) 2018/848 Anhang III Nr. 2.
+export const OEKO_HINWEIS = 'Ware aus ökologischer Produktion gem. VO (EU) 2018/848';
+export function oekoZeile(label, nr) {
+  return { label, nr, hinweis: OEKO_HINWEIS };
 }
 
 // Lieferschein zu einer Warenbewegung (Warenausgang) erzeugen und drucken.
@@ -90,6 +96,8 @@ export function lieferscheinDaten(w, override = {}) {
   // Zertifikatszeilen aus den Siegel-Flags des Kontrakts; bei Raps zusätzlich die
   // THG-Angaben direkt hinter das Nachhaltigkeits-Zertifikat einfügen.
   const zertifikate = kontraktZertifikate(kontrakt);
+  // Bio-Buchung ohne Bio-Kontrakt: EU-Öko-Angaben trotzdem drucken.
+  if(istBio && !zertifikate.some(z => /öko/i.test(z.label))) zertifikate.push(oekoZeile('EU-Öko', ZERT_OEKO));
   if(/raps/i.test(artikelName)) {
     const idx = zertifikate.findIndex(z => /nachhaltig|redcert/i.test(z.label));
     if(idx >= 0) zertifikate.splice(idx + 1, 0, ...RAPS_THG.map(z => ({ ...z })));
