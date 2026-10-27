@@ -1,10 +1,10 @@
 // Fruchtfolge: Tabellenansicht eines Jahres mit Sortierung, Volltextsuche,
 // Checkbox-Mehrfachauswahl und Massenbearbeitung (nur Planjahre).
-import { getSb } from './db.js?v=153';
-import { showToast, escapeHtml } from './helpers.js?v=153';
+import { getSb } from './db.js?v=154';
+import { showToast, escapeHtml } from './helpers.js?v=154';
 import { ffState, ffLoadParzellen, ffGefilterteParzellen, ffJahr, ffIstPlanjahr,
-         ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge, ffOffeneFlags } from './fruchtfolge.js?v=153';
-import { ffMatrixNebenInvalidate } from './ff-matrix.js?v=153';
+         ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge, ffOffeneFlags } from './fruchtfolge.js?v=154';
+import { ffMatrixNebenInvalidate } from './ff-matrix.js?v=154';
 
 let sortCol = 'nummer';
 let sortDir = 1;

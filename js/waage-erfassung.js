@@ -1,10 +1,10 @@
-import { state } from './state.js?v=153';
-import { db } from './db.js?v=153';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=153';
-import { isBioFeld } from './bio.js?v=153';
-import { getQualitaetsfelder } from './quality.js?v=153';
-import { parseGewicht } from './abfahrer.js?v=153';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=153';
+import { state } from './state.js?v=154';
+import { db } from './db.js?v=154';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=154';
+import { isBioFeld } from './bio.js?v=154';
+import { getQualitaetsfelder } from './quality.js?v=154';
+import { parseGewicht } from './abfahrer.js?v=154';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=154';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -815,7 +815,7 @@ function druckeWareneingangLieferschein(d) {
     anschrift_label: 'Lieferant',
     partie: d.nr || '',
     empf_name: d.empfName || kontakt?.name || (istSchlag ? feld.betrieb : feld.name) || '',
-    empf_zusatz: istSchlag ? 'Schlag ' + (feld.name || '') : '',
+    empf_zusatz: '',
     empf_strasse: adr.strasse, empf_plz_ort: adr.plzOrt, empf_land: '',
     artikel: bioPraefix(lieferscheinArtikelName(d.fruchtart || ''), istBio),
     kontrakt: d.einkaufskontrakt || '', herkunft: d.herkunft || kontakt?.herkunft || '', einheit: 't',
@@ -824,7 +824,8 @@ function druckeWareneingangLieferschein(d) {
     zeit_erstwiegung: dt(d.zeitErst),
     zeit_zweitwiegung: dt(zweit),
     waage_nr: '', spedition: '', kennzeichen: d.kennzeichen || '',
-    sonstige_angaben: 'Wareneingang · Anlieferung' + (feld.name ? ' von ' + feld.name : ''),
+    // Bei eigener Ernte erscheint der Schlag nirgends auf dem Schein – nur der Betrieb.
+    sonstige_angaben: 'Wareneingang · Anlieferung' + (!istSchlag && feld.name ? ' von ' + feld.name : ''),
     qualitaet,
     zertifikate,
   });
