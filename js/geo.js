@@ -1,5 +1,5 @@
-import { state } from './state.js?v=154';
-import { lagerOrtVon, naechstesLager } from './silo.js?v=154';
+import { state } from './state.js?v=155';
+import { lagerOrtVon, naechstesLager } from './silo.js?v=155';
 
 // Geo-Helfer: Schlagmittelpunkte, Abladestellen und Näherung der Fahrstrecke.
 

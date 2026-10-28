@@ -1,6 +1,6 @@
-import { state } from './state.js?v=154';
-import { db } from './db.js?v=154';
-import { showToast, escapeHtml } from './helpers.js?v=154';
+import { state } from './state.js?v=155';
+import { db } from './db.js?v=155';
+import { showToast, escapeHtml } from './helpers.js?v=155';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -57,14 +57,27 @@ export function kontraktFilterReset() {
   renderKontrakte();
 }
 
+// Eingangs-Fuhren (Zukauf über die Waage) eines Einkaufskontrakts, älteste zuerst.
+// Die Waage speichert den Kontrakt nur als Nummer (fuhren.einkaufskontrakt), nicht als ID.
+export function kontraktEingangFuhren(k) {
+  if(!k || (k.richtung||'verkauf') !== 'einkauf' || !k.nummer) return [];
+  const nr = String(k.nummer).trim();
+  return state.fuhren
+    .filter(f => f.status === 'fertig' && String(f.einkaufskontrakt || '').trim() === nr
+      && f.vollgewicht != null && f.leergewicht != null)
+    .sort((a,b) => new Date(a.zeit) - new Date(b.zeit));
+}
+
 export function getKontraktGeliefertKg(kontraktId) {
+  const eingKg = kontraktEingangFuhren(state.kontrakte.find(k => k.id === kontraktId))
+    .reduce((s,f) => s + Math.max(0, f.vollgewicht - f.leergewicht), 0);
   const ausKg = state.warenbewegungen
     .filter(w=>w.kontrakt_id===kontraktId && w.typ==='ausgang')
     .reduce((s,w)=>s+(Number(w.menge_kg)||0),0);
   const liefKg = state.lieferungen
     .filter(l=>l.kontrakt_id===kontraktId && l.status==='abgeschlossen' && l.vollgewicht && l.leergewicht)
     .reduce((s,l)=>s+(l.vollgewicht-l.leergewicht),0);
-  return ausKg + liefKg;
+  return eingKg + ausKg + liefKg;
 }
 
 // Auslieferungen (Warenausgänge) eines Kontrakts, älteste zuerst.
@@ -123,7 +136,35 @@ export async function kontraktFuhreFeld(id, feld, wert) {
   } catch(e) { showToast('⚠ '+e.message, 'error'); }
 }
 
+// Detail eines Einkaufskontrakts: die eingegangenen Fuhren (nur Anzeige, keine Gutschriften).
+function kontraktEingangDetailHTML(k) {
+  const fuhren = kontraktEingangFuhren(k);
+  if(!fuhren.length) return `<div style="padding:10px 2px;font-size:12px;color:var(--text3)">Noch keine Anlieferungen für diesen Kontrakt.</div>`;
+  const pct = v => v != null ? Number(v).toLocaleString('de-DE') + ' %' : null;
+  const rows = fuhren.map(f => {
+    const datum = f.zeit ? new Date(f.zeit).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) : '';
+    const nettoT = (Math.max(0, f.vollgewicht - f.leergewicht)/1000).toFixed(2);
+    const qual = [pct(f.feuchte) && 'Feuchte ' + pct(f.feuchte), pct(f.oelgehalt) && 'Öl ' + pct(f.oelgehalt),
+      pct(f.protein) && 'Protein ' + pct(f.protein)].filter(Boolean).join(' · ');
+    return `<div style="border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:var(--color-surface);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="min-width:0">
+        <div style="font-size:12px;color:var(--text)"><b>${escapeHtml(f.nr||'–')}</b> · ${escapeHtml(datum)}<span style="color:var(--text3)"> · ${escapeHtml(f.fruchtart||'–')}</span></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">🚚 ${escapeHtml(f.kennzeichen||'–')}${qual?' · '+escapeHtml(qual):''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
+        <button class="btn btn-sm btn-outline" onclick="fuhreLieferscheinDrucken(${f.id})" title="Lieferschein/Wiegeschein drucken">🖨</button>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${fuhren.length} Anlieferung${fuhren.length===1?'':'en'}</div>
+    ${rows}
+  </div>`;
+}
+
 function kontraktDetailHTML(k) {
+  if((k.richtung||'verkauf') === 'einkauf') return kontraktEingangDetailHTML(k);
   const fuhren = kontraktFuhren(k.id);
   if(!fuhren.length) return `<div style="padding:10px 2px;font-size:12px;color:var(--text3)">Noch keine Auslieferungen für diesen Kontrakt.</div>`;
   const raps = istRapsKontrakt(k);
@@ -243,7 +284,7 @@ export function renderKontrakte() {
     const kt        = state.kontakte.find(c=>c.id===k.kontakt_id);
     const art       = state.artikel.find(a=>a.id===k.artikel_id);
     const vonBis    = [k.lieferung_von,k.lieferung_bis].filter(Boolean).map(d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
-    const fuhren    = kontraktFuhren(k.id);
+    const fuhren    = einkauf ? kontraktEingangFuhren(k) : kontraktFuhren(k.id);
     const klaerenN  = fuhren.filter(w=>w.klaeren).length;
     const abr       = kontraktAbrechnung(k);
     const abrHTML   = abr.status==='offen'
@@ -620,7 +661,8 @@ export async function kontraktSpeichern(id) {
 export async function kontraktLoeschen(id) {
   const k = state.kontrakte.find(x=>x.id===id);
   if(!k) return;
-  const hatFuhren = kontraktFuhren(id).length > 0 || state.lieferungen.some(l=>l.kontrakt_id===id);
+  const hatFuhren = kontraktFuhren(id).length > 0 || kontraktEingangFuhren(k).length > 0
+    || state.lieferungen.some(l=>l.kontrakt_id===id);
   if(hatFuhren) { showToast('⚠ Kontrakt hat Auslieferungen – Löschen nicht möglich','error'); return; }
   if(!confirm(`Kontrakt ${k.nummer} wirklich löschen?`)) return;
   try {
