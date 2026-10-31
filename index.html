@@ -795,7 +795,11 @@ input::placeholder { color: var(--color-text-subtle); }
 .ff-db-wert { flex: 0 0 auto; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: .9; }
 @media (max-width: 640px) { .ff-db-name { flex-basis: 120px; font-size: 13px; } .ff-db-zeile { font-size: 13px; } }
 
+/* Liniensymbole der Navigation: nur im Theme Flächenverwaltung sichtbar */
+.sidebar-icon .icon-linie { display: none; }
 </style>
+<!-- Aktives Theme. Diese Zeile entfernen = zurück zum bisherigen Ernte-Design (siehe themes/README.md) -->
+<link rel="stylesheet" href="themes/flaechenverwaltung.css?v=1">
 </head>
 <body>
 <div id="login-screen">
@@ -831,7 +835,7 @@ input::placeholder { color: var(--color-text-subtle); }
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=157"></script>
+<script type="module" src="js/app.js?v=158"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

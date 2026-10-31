@@ -1,5 +1,5 @@
-import { db } from './db.js?v=157';
-import { getSb, mapFuhre } from './db.js?v=157';
+import { db } from './db.js?v=158';
+import { getSb, mapFuhre } from './db.js?v=158';
 
 let appReady = false;
 

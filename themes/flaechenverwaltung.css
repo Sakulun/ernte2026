@@ -1,0 +1,288 @@
+/* ============================================================
+   Theme „Flächenverwaltung"
+   Designkonzept des Nuscheler Pachtprogramms (app/globals.css):
+   Olivgrün als Hausfarbe, helle Flächen mit feiner Linie statt
+   Schatten, schmale Symbolleiste links, kompakte Bedienelemente.
+
+   Wird in index.html NACH dem Inline-<style> geladen und überschreibt
+   nur. Ohne diese Datei gilt wieder das bisherige Ernte-Design.
+   Auf dem Handy bleiben Knöpfe und Eingaben bewusst groß (Bedienung
+   auf dem Schlepper): Die kompakten Maße gelten erst ab 641 px.
+   ============================================================ */
+
+:root {
+  /* Palette der Flächenverwaltung */
+  --fv-grund: #fafbf9;
+  --fv-flaeche: #ffffff;
+  --fv-flaeche-2: #f1f3ef;
+  --fv-linie: #dcdfd8;
+  --fv-text: #20251f;
+  --fv-gedaempft: #69735f;
+  --fv-kopf: #344229;
+  --fv-primaer: #536942;
+  --fv-primaer-hover: #4a5e3b;
+  --fv-primaer-hell: #e9eee3;
+  --fv-warnung: #9a5b00;
+  --fv-fehler: #b3261e;
+  --fv-erfolg: #2f6b3f;
+
+  /* Grünrampe */
+  --green-950: #2f6b3f;
+  --green-900: #344229;
+  --green-700: #4a5e3b;
+  --green-600: #4a5e3b;
+  --green-500: #536942;
+  --green-400: #8fa37c;
+  --green-200: #c9d4bd;
+  --green-100: #e9eee3;
+  --green-50:  #f1f3ef;
+
+  /* Neutrale */
+  --neutral-25:  #f1f3ef;
+  --neutral-50:  #fafbf9;
+  --neutral-100: #f1f3ef;
+  --neutral-200: #e6e9e2;
+  --neutral-300: #dcdfd8;
+  --neutral-400: #c9cdc4;
+  --neutral-500: #9aa192;
+  --neutral-600: #69735f;
+  --neutral-700: #69735f;
+  --neutral-900: #20251f;
+
+  /* Funktionsfarben */
+  --amber-600: #9a5b00;
+  --amber-text: #9a5b00;
+  --amber-50: rgba(154, 91, 0, .1);
+  --amber-100: rgba(154, 91, 0, .1);
+  --red-600: #b3261e;
+  --red-text: #b3261e;
+  --red-50: rgba(179, 38, 30, .1);
+
+  /* Semantik */
+  --color-brand: var(--fv-primaer);
+  --color-brand-dark: var(--fv-kopf);
+  --color-surface-2: var(--fv-flaeche-2);
+  --color-accent: var(--fv-primaer-hell);
+  --color-success: var(--fv-erfolg);
+  --color-success-wash: rgba(47, 107, 63, .1);
+  --color-info: var(--fv-primaer);
+  --color-info-wash: var(--fv-primaer-hell);
+  --status-aktiv-bg: rgba(47, 107, 63, .1);
+  --status-aktiv-fg: var(--fv-erfolg);
+  --status-fertig-bg: var(--fv-primaer-hell);
+  --status-fertig-fg: var(--fv-primaer);
+  --status-inaktiv-bg: var(--fv-flaeche-2);
+  --status-inaktiv-fg: var(--fv-gedaempft);
+  --focus-ring: 0 0 0 2px var(--fv-primaer-hell);
+
+  /* Formen: kleinere Radien, keine Schatten */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 8px;
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-chrome: none;
+  --shadow-lg: 0 4px 16px rgba(32, 37, 31, .12);
+
+  /* Symbolleiste. Die Kopfhöhe bleibt 49 px: silo.js und admin-karte.js rechnen fest damit. */
+  --sidebar-width-rail: 84px;
+}
+
+/* ── ANMELDUNG & LADEBILDSCHIRM ── */
+#login-screen { background: var(--fv-grund); }
+.login-logo { font-size: var(--text-xl); font-weight: 600; letter-spacing: 0; color: var(--fv-text); }
+.login-app-name { font-size: var(--text-md); font-weight: 400; letter-spacing: 0; color: var(--fv-gedaempft); }
+.login-sub { font-weight: 500; letter-spacing: .05em; color: var(--fv-gedaempft); margin-bottom: var(--space-6); }
+.login-card { border: 1px solid var(--fv-linie); padding: var(--space-5); max-width: 384px; box-shadow: none; }
+.login-card h2 { font-size: var(--text-xl); font-weight: 600; margin-bottom: var(--space-4); }
+.user-btn { border-width: 1px; }
+#boot-overlay { background: var(--fv-kopf) !important; }
+
+/* ── KOPFLEISTE ── */
+.topbar { padding-top: 0; padding-bottom: 0; }
+.topbar-left { align-items: baseline; gap: var(--space-3); }
+.topbar-logo { font-size: var(--text-md); font-weight: 600; letter-spacing: .025em; text-transform: uppercase; }
+.topbar-appname { font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none; color: rgba(255, 255, 255, .7); padding: 0; }
+.topbar-user { font-size: var(--text-sm); color: rgba(255, 255, 255, .8); }
+.logout-btn,
+#topbar-nachricht-btn,
+#topbar-hilfe-btn {
+  background: none !important; border: 1px solid rgba(255, 255, 255, .3) !important;
+  color: #ffffff !important; padding: 2px 8px !important; border-radius: var(--radius-xs) !important;
+  font-size: var(--text-sm) !important; font-family: var(--font-sans) !important; line-height: 1.5;
+}
+.logout-btn:hover,
+#topbar-nachricht-btn:hover,
+#topbar-hilfe-btn:hover { background: rgba(255, 255, 255, .1) !important; }
+#topbar-menu-btn { border-radius: var(--radius-xs); }
+
+/* ── NAVIGATION: gemeinsame Grundlage ── */
+#admin-sidebar {
+  /* admin.js setzt die Schriftfarbe des Kopfeintrags auf diese Variable */
+  --color-text-on-brand: var(--fv-text);
+  background: var(--fv-flaeche); border-right: 1px solid var(--fv-linie); box-shadow: none;
+}
+.sidebar-toggle { color: var(--fv-gedaempft); border-bottom: 1px solid var(--fv-linie); }
+.sidebar-toggle:hover { color: var(--fv-text); }
+.sidebar-section { color: var(--fv-gedaempft); }
+.sidebar-btn { color: var(--fv-gedaempft); border-left: none; border-radius: var(--radius-sm); }
+.sidebar-btn:hover { background: var(--fv-flaeche-2); color: var(--fv-text); }
+.sidebar-btn.active { background: var(--fv-primaer-hell); color: var(--fv-primaer); font-weight: 600; }
+.sidebar-icon { color: inherit; }
+.sidebar-icon .icon-emoji { display: none; }
+.sidebar-icon .icon-linie { display: block; width: 20px; height: 20px; }
+@media (hover: none) {
+  .sidebar-btn:hover { background: none; color: var(--fv-gedaempft); }
+  .sidebar-btn.active:hover { background: var(--fv-primaer-hell); color: var(--fv-primaer); }
+}
+
+/* ── NAVIGATION: Schublade auf dem Handy ── */
+@media (max-width: 640px) {
+  #admin-sidebar { padding-bottom: var(--space-3); }
+  .sidebar-btn { margin: 1px var(--space-2); width: calc(100% - 2 * var(--space-2)); padding: 10px var(--space-3); }
+}
+
+/* ── NAVIGATION: schmale Symbolleiste ab Tablet ── */
+@media (min-width: 641px) {
+  #topbar-menu-btn { display: none; }
+  .sidebar-toggle { display: none; }
+
+  #admin-sidebar,
+  #admin-sidebar.collapsed { width: var(--sidebar-width-rail); padding: var(--space-2) 0; gap: 2px; scrollbar-width: none; }
+
+  /* Abschnittstitel werden zu feinen Trennlinien */
+  #admin-sidebar .sidebar-section,
+  #admin-sidebar.collapsed .sidebar-section {
+    display: block; flex-shrink: 0; height: 1px; padding: 0; margin: var(--space-1) 10px;
+    background: var(--fv-linie); font-size: 0; overflow: hidden;
+  }
+
+  #admin-sidebar .sidebar-btn,
+  #admin-sidebar.collapsed .sidebar-btn {
+    flex-direction: column; justify-content: flex-start; flex-shrink: 0; gap: 2px;
+    width: auto; margin: 0 6px; padding: 6px 2px;
+    border: none; text-align: center;
+  }
+  #admin-sidebar .sidebar-label,
+  #admin-sidebar.collapsed .sidebar-label {
+    display: block; max-width: 100%; font-size: var(--text-2xs); line-height: 1.2;
+    hyphens: manual; overflow-wrap: break-word;
+  }
+  #admin-sidebar .sidebar-btn.active,
+  #admin-sidebar.collapsed .sidebar-btn.active { background: var(--fv-primaer-hell); }
+}
+
+/* ── INHALTSBEREICH ── */
+@media (min-width: 1025px) {
+  #admin-main-inner { max-width: none; }
+}
+
+/* ── KARTEN & KENNZAHLEN ── */
+.card { border: 1px solid var(--fv-linie); box-shadow: none; }
+.card-title { font-size: var(--text-md); font-weight: 600; }
+.stat-box {
+  display: flex; flex-direction: column-reverse; justify-content: flex-end;
+  border: 1px solid var(--fv-linie); box-shadow: none; padding: var(--space-4); text-align: left;
+}
+.stat-val { font-size: 24px; font-weight: 600; }
+.stat-label {
+  font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none;
+  color: var(--fv-gedaempft); margin: 0 0 2px;
+}
+.schlag-item,
+.fuhre-item,
+.silo-card { background: var(--fv-flaeche); border: 1px solid var(--fv-linie); box-shadow: none; }
+.schlag-item.aktiv { border-left: 3px solid var(--fv-primaer); }
+.schlag-item.pausiert { border-left: 3px solid var(--fv-warnung); }
+.schlag-name { font-weight: 600; }
+.silo-name, .fuhre-nr { font-weight: 600; }
+.silo-kultur { letter-spacing: 0; text-transform: none; font-size: var(--text-xs); }
+.netto-display { border: 1px solid rgba(47, 107, 63, .3); box-shadow: none; }
+.netto-label { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: var(--text-sm); }
+.netto-val { font-weight: 600; color: var(--fv-erfolg); }
+.export-bar { border-radius: var(--radius-lg); }
+.verify-form { border-color: var(--fv-linie); }
+.fruchtart-fixed { border-width: 1px; font-weight: 500; }
+.fs-head { letter-spacing: 0; text-transform: none; font-size: var(--text-sm); }
+.fs-ertrag { font-weight: 600; color: var(--fv-primaer); }
+.fs-name { font-weight: 500; }
+
+/* ── ÜBERSCHRIFTEN ── */
+.section-label {
+  font-size: var(--text-md); font-weight: 600; letter-spacing: 0; text-transform: none;
+  color: var(--fv-text);
+}
+.section-label::after { background: var(--fv-linie); }
+
+/* ── REITER ── */
+.tabs { background: var(--fv-flaeche-2); border: 1px solid var(--fv-linie); border-radius: var(--radius-sm); padding: 2px; }
+.tab { border-radius: var(--radius-xs); color: var(--fv-gedaempft); }
+.tab.active { font-weight: 600; box-shadow: 0 0 0 1px var(--fv-linie); }
+
+/* ── KNÖPFE ── */
+.btn { border-width: 1px; border-radius: var(--radius-sm); font-weight: 500; }
+.btn-primary, .btn-green { border: 1px solid var(--fv-primaer); }
+.btn-outline { background: var(--fv-flaeche); color: var(--fv-text); border-color: var(--fv-linie); }
+.btn-outline:hover { background: var(--fv-flaeche-2); }
+.btn-amber { border: 1px solid var(--fv-warnung); }
+.btn-red { border: 1px solid var(--fv-fehler); }
+.filter-btn {
+  border: 1px solid var(--fv-linie); border-radius: var(--radius-sm); box-shadow: none;
+  font-weight: 500; padding: 5px 12px;
+}
+.filter-btn.active { border-color: var(--fv-primaer); background: var(--fv-primaer); }
+@media (min-width: 641px) {
+  .btn { padding: 7px 12px; font-size: var(--text-md); line-height: 1.4; }
+  .btn-sm { padding: 4px 10px; font-size: var(--text-sm); min-height: 0; }
+}
+
+/* ── STATUS-PILLEN ── */
+.badge {
+  padding: 2px 8px; font-size: var(--text-sm); font-weight: 500; letter-spacing: 0;
+  text-transform: none; line-height: 1.4; border: 1px solid transparent;
+}
+.badge-offen, .badge-pausiert, .badge-pending { border-color: rgba(154, 91, 0, .3); }
+.badge-aktiv, .badge-abgeerntet { border-color: rgba(47, 107, 63, .3); }
+.badge-fertig, .badge-verifiziert { border-color: rgba(83, 105, 66, .3); }
+.badge-inaktiv { border-color: var(--fv-linie); }
+
+/* ── FORMULARE ── */
+label {
+  font-size: var(--text-md); font-weight: 500; letter-spacing: 0; text-transform: none;
+  color: var(--fv-text); margin-bottom: 4px;
+}
+.verify-form label { font-size: var(--text-sm); color: var(--fv-gedaempft); }
+select, input[type=number], input[type=text], input[type=password], input[type=date], input[type=email], input[type=search], input[type=tel], textarea,
+.search-input {
+  background: var(--fv-flaeche); border: 1px solid var(--fv-linie); border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+@media (min-width: 641px) {
+  select, input[type=number], input[type=text], input[type=password], input[type=date], input[type=email], input[type=search], input[type=tel], textarea,
+  .search-input { padding: 6px 10px; font-size: var(--text-md); }
+  .form-group { margin-bottom: var(--space-3); }
+}
+input:disabled, select:disabled, textarea:disabled { background: var(--fv-flaeche-2); }
+
+/* ── HINWEISE ── */
+.alert { font-weight: 500; border: 1px solid transparent; }
+.alert-warn { color: var(--fv-warnung); border-color: rgba(154, 91, 0, .3); }
+.alert-err { border-color: rgba(179, 38, 30, .3); }
+.alert-info { border-color: rgba(83, 105, 66, .3); }
+
+/* ── TABELLEN ── */
+.content table th, .ff-tabelle th { background: var(--fv-flaeche-2); }
+.content table tbody tr:hover > td { background-color: rgba(233, 238, 227, .5); }
+
+/* ── KARTE ── */
+.schlag-popup .leaflet-popup-content-wrapper,
+.driver-popup .leaflet-popup-content-wrapper { box-shadow: var(--shadow-lg); }
+
+/* ── FRUCHTFOLGE: bisher Fallback auf Gold ── */
+.ff-chip { --chipfarbe: var(--fv-primaer-hell); }
+.ff-jahr-btn.active { color: #ffffff; }
+.ff-dropzone.drag { background: var(--fv-primaer-hell); }
+.ff-mx th.ff-mx-plan, .ff-mx td.ff-mx-plan { border-left-color: rgba(83, 105, 66, .5); }

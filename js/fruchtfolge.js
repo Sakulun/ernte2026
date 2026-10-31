@@ -1,8 +1,8 @@
 // Fruchtfolgemanagement – Modul-Shell, gemeinsamer Zustand und Datenzugriff.
 // Nur für die Rolle 'admin' (zusätzlich serverseitig via RLS ff_is_admin()).
-import { getSb } from './db.js?v=157';
-import { state } from './state.js?v=157';
-import { showToast, escapeHtml } from './helpers.js?v=157';
+import { getSb } from './db.js?v=158';
+import { state } from './state.js?v=158';
+import { showToast, escapeHtml } from './helpers.js?v=158';
 
 export const ffState = {
   loaded: false,

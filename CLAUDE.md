@@ -101,9 +101,11 @@ ernteneu/
 │   └── ff-stammdaten.js    # CRUD Kulturen/Kulturgruppen/Nutzungscodes/Betriebe
 ├── themes/
 │   ├── README.md           # Anleitung zum Theme-Wechsel
-│   ├── agrarmonitor.css    # Hell-Theme (Salbeigrün)
-│   ├── dark.css            # Dunkel-Theme (Neongrün)
-│   └── industrial.css      # Industrial-Theme (Bernstein) — AKTIV
+│   ├── flaechenverwaltung.css # Design der Flächenverwaltung (Olivgrün, Symbolleiste) — AKTIV
+│   ├── ernte-bisher/       # Sicherung des Stands vor der Umstellung (31.10.2026)
+│   ├── agrarmonitor.css    # Hell-Theme (Salbeigrün), Stand März 2026
+│   ├── dark.css            # Dunkel-Theme (Neongrün), Stand März 2026
+│   └── industrial.css      # Industrial-Theme (Bernstein), Stand März 2026
 ├── waage-bridge/
 │   ├── index.js            # Node.js TCP→Supabase Bridge für Waage
 │   ├── package.json        # Abhängigkeiten (nur @supabase/supabase-js v2)
@@ -252,7 +254,7 @@ sb.channel('tabelle-changes')
 
 - Inline-`<style>`-Block am Ende von `index.html` — hier CSS-Änderungen vornehmen
 - Theme-Overrides in `themes/*.css` — für vollständige Theme-Wechsel
-- Aktives Theme: **industrial.css** (Dunkel/Bernstein)
+- Aktives Theme: **flaechenverwaltung.css** (per `<link>` nach dem Inline-`<style>`; Zeile entfernen = bisheriges Ernte-Design)
 - CSS-Klassen direkt als Strings in Template-Literals — kein CSS-in-JS
 
 ---
