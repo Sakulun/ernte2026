@@ -1,10 +1,10 @@
-import { state } from './state.js?v=155';
-import { db } from './db.js?v=155';
-import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=155';
-import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=155';
-import { parseGewicht } from './abfahrer.js?v=155';
-import { renderWaageErfassungInto } from './waage-erfassung.js?v=155';
-import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=155';
+import { state } from './state.js?v=157';
+import { db } from './db.js?v=157';
+import { showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=157';
+import { getSiloBestand, getSiloKultur, lagerGruppen, lagerLabel, istAusgangLager } from './silo.js?v=157';
+import { parseGewicht } from './abfahrer.js?v=157';
+import { renderWaageErfassungInto } from './waage-erfassung.js?v=157';
+import { lieferscheinDaten, lieferscheinDrucken } from './lieferschein-druck.js?v=157';
 
 // ── Waage-Tab (Admin/Silomeister) ────────────────────────────────────────────
 // Erste Auswahl: Wareneingang oder Warenausgang.
@@ -105,7 +105,8 @@ export function renderWaageTab(el) {
 // ── Gemeinsamer Umlaufspeicher (Ein- & Ausgang) ──────────────────────────────
 function renderUmlaufShared(body) {
   if(_offeneEingangUmlauf) {
-    if(window.renderUmlaufEingangAbschluss) window.renderUmlaufEingangAbschluss(body, _offeneEingangUmlauf);
+    if(_offeneEingangUmlauf.payload?.abfahrerVerkauf && window.renderUmlaufVerkaufAbschluss) window.renderUmlaufVerkaufAbschluss(body, _offeneEingangUmlauf);
+    else if(window.renderUmlaufEingangAbschluss) window.renderUmlaufEingangAbschluss(body, _offeneEingangUmlauf);
     else body.innerHTML = '<div class="card">Eingangs-Abschluss nicht verfügbar.</div>';
     return;
   }
@@ -436,7 +437,8 @@ function umlaufListeHTML() {
     const seit  = new Date(u.erstwiegung);
     const zeit  = isNaN(seit) ? '' : seit.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
     const g     = Number(u.erstgewicht ?? u.leergewicht ?? 0);
-    const gTyp  = eingang ? (u.erst_typ === 'voll' ? 'Voll' : 'Leer') : 'Tara';
+    const verkauf = !!u.payload?.abfahrerVerkauf; // Abfahrer-Selbstlieferung auf Kontrakt
+    const gTyp  = (eingang || verkauf) ? (u.erst_typ === 'voll' ? 'Voll' : 'Leer') : 'Tara';
     const border = eingang ? 'var(--green)' : 'var(--amber)';
     let sub2 = '';
     let sub1 = '';
@@ -453,7 +455,9 @@ function umlaufListeHTML() {
       const kontr = state.kontrakte.find(k => k.id === u.kontrakt_id);
       const art   = state.artikel.find(a => a.id === u.artikel_id);
       sub1 = `<span style="color:var(--amber);font-weight:700">↑ Ausgang</span> · ${escapeHtml(kunde?.name || '–')}${kontr ? ' · Kontrakt ' + escapeHtml(kontr.nummer) : ''}`;
-      sub2 = `${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
+      sub2 = verkauf
+        ? `${escapeHtml(art?.name || '–')} · Abfahrer-Verkauf`
+        : `${escapeHtml(art?.name || '–')} · ${escapeHtml(lagerLabel(u.silo_von_id))}${u.spedition ? ' · ' + escapeHtml(u.spedition) : ''}`;
     }
     return `<div class="card" style="margin-bottom:8px;padding:0;overflow:hidden;border-left:4px solid ${border}">
       <div onclick="waUmlaufOeffnen(${u.id})" style="cursor:pointer;padding:12px 14px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
@@ -465,7 +469,7 @@ function umlaufListeHTML() {
         <div style="text-align:right;flex-shrink:0">
           <div style="font-size:15px;font-weight:700;color:var(--gold)">${g.toLocaleString('de-DE')} kg</div>
           <div style="font-size:10px;color:var(--text3)">${gTyp} · seit ${zeit}</div>
-          <div style="font-size:11px;color:${border};margin-top:3px">${eingang ? 'Zweitwiegung' : 'Vollwiegung'} ›</div>
+          <div style="font-size:11px;color:${border};margin-top:3px">${(eingang || verkauf) ? 'Zweitwiegung' : 'Vollwiegung'} ›</div>
         </div>
       </div>
     </div>`;
@@ -476,7 +480,7 @@ function umlaufListeHTML() {
 export function waUmlaufOeffnen(id) {
   const u = wartende().find(x => x.id === id);
   if(!u) return;
-  if(u.richtung === 'eingang') {
+  if(u.richtung === 'eingang' || u.payload?.abfahrerVerkauf) {
     _offeneEingangUmlauf = u; _offenesFahrzeug = null; _modus = 'umlauf';
   } else {
     _offenesFahrzeug = id; _offeneEingangUmlauf = null; _modus = 'ausgang';

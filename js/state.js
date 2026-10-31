@@ -1,5 +1,5 @@
-import { db } from './db.js?v=155';
-import { getSb } from './db.js?v=155';
+import { db } from './db.js?v=157';
+import { getSb, mapFuhre } from './db.js?v=157';
 
 let appReady = false;
 
@@ -75,10 +75,12 @@ export function startPolling() {
     if(active && (active.tagName==='INPUT'||active.tagName==='SELECT'||active.tagName==='TEXTAREA')) return;
     // Angefangene Erfassung nicht durch Hintergrund-Neurender zerstören (auch ohne Fokus).
     if(window.erfassungInProgress && window.erfassungInProgress()) return;
-    let fuhren;
+    // Erst nur die kurze Signatur holen (wenige Bytes) – die ganze Fuhren-Tabelle
+    // (~800 KB) nur bei echter Änderung laden. Spart den Großteil des Egress.
+    let sig, fuhren;
+    try { sig = await db.getFuhrenSignatur(); } catch(e) { return; }
+    if(sig === _lastFuhrenSig) return; // keine Änderung -> nichts laden, nicht neu rendern
     try { fuhren = await db.getFuhren(); } catch(e) { return; }
-    const sig = JSON.stringify(fuhren.map(f=>[f.id,f.status,f.abfahrerId,f.feldId,f.vollgewicht,f.leergewicht,f.siloId]));
-    if(sig === _lastFuhrenSig) return; // keine Änderung -> nicht neu rendern
     _lastFuhrenSig = sig;
     state.fuhren = fuhren;
     const nrs = fuhren.map(f=>parseInt((f.nr||'').replace('F-',''))).filter(n=>!isNaN(n));
@@ -95,6 +97,26 @@ export function startPolling() {
   }, 15000);
 }
 
+// Realtime-Event (INSERT/UPDATE/DELETE) direkt in state.fuhren übernehmen.
+// false = Event unbrauchbar → Aufrufer lädt komplett nach.
+function applyFuhrenEvent(payload) {
+  const typ = payload && payload.eventType;
+  if(typ === 'DELETE') {
+    const id = payload.old && payload.old.id;
+    if(id == null) return false;
+    state.fuhren = state.fuhren.filter(f => f.id !== id);
+    return true;
+  }
+  if((typ === 'INSERT' || typ === 'UPDATE') && payload.new && payload.new.id != null) {
+    const neu = mapFuhre(payload.new);
+    const idx = state.fuhren.findIndex(f => f.id === neu.id);
+    if(idx >= 0) state.fuhren = state.fuhren.map((f, i) => i === idx ? neu : f);
+    else state.fuhren = [...state.fuhren, neu].sort((a, b) => a.id - b.id);
+    return true;
+  }
+  return false;
+}
+
 let _subscribed = false;
 
 // Lädt alle Betriebsdaten + startet Echtzeit-Sync. Wird NACH dem Login aufgerufen
@@ -102,6 +124,8 @@ let _subscribed = false;
 export async function loadAppData() {
   try {
     state.felder = await db.getFelder().catch(e => { console.warn('getFelder:', e); return state.felder; });
+    // Signatur VOR den Daten holen: ändert sich dazwischen etwas, lädt der Poll einmal nach.
+    _lastFuhrenSig = await db.getFuhrenSignatur().catch(() => '');
     state.fuhren = await db.getFuhren().catch(e => { console.warn('getFuhren:', e); return []; });
     state.silos = await db.getSilos().catch(e => { console.warn('getSilos:', e); return []; });
     state.lieferungen = await db.getLieferungen().catch(e => { console.warn('getLieferungen:', e); return []; });
@@ -179,6 +203,8 @@ export async function loadAppData() {
             const el = document.getElementById('admintab');
             if(el) window.renderWaageTab(el);
           }
+          // Umlauf-Tab des Abfahrers (Liste offen, keine Maske) ebenfalls aktuell halten.
+          if(!tippt && !erfasst && document.getElementById('abf-umlauf') && window.renderAbfahrer) window.renderAbfahrer();
           return;
         }
         if(tbl === 'artikel') { state.artikel = await db.getArtikel().catch(()=>[]); return; }
@@ -192,7 +218,10 @@ export async function loadAppData() {
           return;
         }
         if(tbl === 'fuhren') {
-          state.fuhren = await db.getFuhren().catch(()=>[]);
+          // Nur die geänderte Fuhre aus dem Event einspielen statt die ganze Tabelle
+          // neu zu laden. Signatur nachziehen, damit der Poll nicht doppelt lädt.
+          if(!applyFuhrenEvent(payload)) state.fuhren = await db.getFuhren().catch(()=>state.fuhren);
+          _lastFuhrenSig = await db.getFuhrenSignatur().catch(() => _lastFuhrenSig);
           const nrs2 = state.fuhren.map(f=>parseInt((f.nr||'').replace('F-',''))).filter(n=>!isNaN(n));
           state.nextNr = nrs2.length ? Math.max(...nrs2)+1 : 1;
         } else if(tbl === 'felder') {

@@ -1,10 +1,10 @@
-import { state } from './state.js?v=155';
-import { db } from './db.js?v=155';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=155';
-import { isBioFeld } from './bio.js?v=155';
-import { getQualitaetsfelder } from './quality.js?v=155';
-import { parseGewicht } from './abfahrer.js?v=155';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=155';
+import { state } from './state.js?v=157';
+import { db } from './db.js?v=157';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=157';
+import { isBioFeld } from './bio.js?v=157';
+import { getQualitaetsfelder } from './quality.js?v=157';
+import { parseGewicht } from './abfahrer.js?v=157';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=157';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -200,7 +200,10 @@ function formHTML() {
         <div class="form-group"><label>Kennzeichen</label>
           <input type="text" id="we-kennzeichen" placeholder="z.B. SLK-XY 123" style="text-transform:uppercase"></div>
         ${gewichteHTML()}
-        <button class="btn btn-green btn-full" id="we-btn" onclick="weKontraktAbschliessen()">&#10003; Abschließen</button>`
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-outline" style="flex:1;min-width:0" onclick="weKontraktInUmlauf()" title="Mit nur einem Gewicht in den Umlaufspeicher – zweite Wiegung später">🅿 In Umlauf</button>
+          <button class="btn btn-green" style="flex:2;min-width:0" id="we-btn" onclick="weKontraktAbschliessen()">&#10003; Abschließen</button>
+        </div>`
       : `<div class="alert alert-warn">Zurzeit sind keine Verkaufskontrakte freigeschaltet.</div>`;
     return `${kopf}${herkunftSel}${body}`;
   }
@@ -523,6 +526,175 @@ export async function weKontraktAbschliessen() {
   }
 }
 
+// ── Kontrakt-Selbstlieferung zweistufig: Erstwiegung in den Umlaufspeicher ────
+// Kennzeichnung über payload.abfahrerVerkauf: Solche Einträge haben kein Lager und
+// werden deshalb nicht über die Warenausgangs-Maske der Waage abgeschlossen.
+let _verkaufOffenId = null; // geöffneter Eintrag im Umlauf-Tab des Abfahrers
+
+function istAbfahrerVerkauf(u) { return !!u?.payload?.abfahrerVerkauf; }
+function verkaufWartend() {
+  return (state.umlauf || []).filter(u => u.status === 'wartet' && istAbfahrerVerkauf(u));
+}
+// Zurück in die passende Liste: Umlauf-Tab des Abfahrers bzw. Umlauf der Waage.
+export function weVerkaufUmlaufListe() {
+  _verkaufOffenId = null;
+  _umlaufEntry = null;
+  if(state.currentUser?.role === 'abfahrer' && window.setATab) window.setATab('umlauf');
+  else if(window.waUmlaufListe) window.waUmlaufListe();
+}
+
+export async function weKontraktInUmlauf() {
+  const id = parseInt(document.getElementById('we-kontrakt')?.value);
+  if(!id) { alert('Bitte Kontrakt wählen.'); return; }
+  const k = state.kontrakte.find(x => x.id === id);
+  if(!k) { alert('Kontrakt nicht gefunden.'); return; }
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+  if(!kennzeichen) { alert('Bitte Kennzeichen angeben – daran wird das Fahrzeug im Umlauf wiedererkannt.'); return; }
+  const v = parseGewicht(document.getElementById('voll-'+WID)?.value);
+  const l = parseGewicht(document.getElementById('leer-'+WID)?.value);
+  if(!v && !l) { alert('Bitte ein Gewicht (Voll ODER Leer) für den Umlauf eingeben.'); return; }
+  if(v && l) { alert('Beide Gewichte vorhanden – dann bitte direkt „Abschließen". Für den Umlauf nur ein Gewicht.'); return; }
+  const erstgewicht = v || l;
+  const erstTyp = v ? 'voll' : 'leer';
+  const btn = document.getElementById('we-btn');
+  if(btn) btn.disabled = true;
+  try {
+    const saved = await db.insertUmlauf({
+      richtung: 'ausgang', kennzeichen, erstgewicht, erstTyp, leergewicht: l || null,
+      kontaktId: k.kontakt_id, kontraktId: k.id, artikelId: k.artikel_id || null,
+      payload: { abfahrerVerkauf: true }, erstelltVon: state.currentUser?.id || null
+    });
+    state.umlauf = state.umlauf || [];
+    if(saved && !state.umlauf.some(x => x.id === saved.id)) state.umlauf.push(saved);
+    showToast(`🅿 ${kennzeichen} in den Umlauf · ${erstTyp==='voll'?'Voll':'Leer'} ${erstgewicht.toLocaleString('de-DE')} kg`);
+    weVerkaufUmlaufListe();
+  } catch(e) {
+    if(btn) btn.disabled = false;
+    showToast('⚠ Fehler: ' + e.message, 'error');
+  }
+}
+
+// Umlauf-Tab des Abfahrers: wartende Verkaufs-Erstwiegungen aller Abfahrer – Erst-
+// und Zweitwiegung können so auch von verschiedenen Personen erfasst werden.
+export function renderAbfahrerUmlauf(el) {
+  if(!el) return;
+  const liste = verkaufWartend();
+  const offen = liste.find(u => u.id === _verkaufOffenId);
+  if(offen) { renderUmlaufVerkaufAbschluss(el, offen); return; }
+  _verkaufOffenId = null;
+  el.innerHTML = `<div id="abf-umlauf" style="max-width:560px;margin:0 auto">${liste.length ? liste.map(u => {
+    const k   = state.kontrakte.find(x => x.id === u.kontrakt_id);
+    const kt  = state.kontakte.find(c => c.id === u.kontakt_id);
+    const art = state.artikel.find(a => a.id === u.artikel_id);
+    const d   = new Date(u.erstwiegung);
+    const zeit = isNaN(d) ? '' : d.toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit'});
+    return `<div class="card" onclick="weVerkaufUmlaufOeffnen(${u.id})" style="margin-bottom:8px;cursor:pointer;border-left:4px solid var(--amber);display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:15px;font-weight:700;color:var(--color-text)">🚚 ${escapeHtml(u.kennzeichen || '—')}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px">${escapeHtml(kt?.name || '–')}${k ? ' · Kontrakt ' + escapeHtml(k.nummer) : ''}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:1px">${escapeHtml(art?.name || '–')}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0">
+        <div style="font-size:15px;font-weight:700;color:var(--gold)">${Number(u.erstgewicht || 0).toLocaleString('de-DE')} kg</div>
+        <div style="font-size:10px;color:var(--text3)">${u.erst_typ === 'voll' ? 'Voll' : 'Leer'} · seit ${zeit}</div>
+        <div style="font-size:11px;color:var(--amber);margin-top:3px">Zweitwiegung ›</div>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state">Kein Fahrzeug im Umlauf.<br>Erstwiegung unter „Fuhre erfassen" → „Verkauf" mit „In Umlauf" speichern.</div>`}</div>`;
+}
+export function weVerkaufUmlaufOeffnen(id) {
+  _verkaufOffenId = id;
+  if(window.setATab) window.setATab('umlauf');
+}
+
+// Zweitwiegung einer Verkaufs-Erstwiegung – im Umlauf-Tab und an der Waage dieselbe Maske.
+export function renderUmlaufVerkaufAbschluss(el, u) {
+  if(!el) return;
+  _umlaufEntry = u;
+  const k   = state.kontrakte.find(x => x.id === u.kontrakt_id);
+  const kt  = state.kontakte.find(c => c.id === u.kontakt_id);
+  const art = state.artikel.find(a => a.id === u.artikel_id);
+  const erstVoll = u.erst_typ === 'voll';
+  const zweitId = (erstVoll ? 'leer-' : 'voll-') + WID;
+  const widget = window.waageFuhreWidgetHTML ? window.waageFuhreWidgetHTML(WID) : '';
+  const row = (kk, val) => `<tr><td style="padding:5px 4px;color:var(--text2);width:44%">${escapeHtml(kk)}</td><td style="padding:5px 4px;font-weight:600">${escapeHtml(val)}</td></tr>`;
+  el.innerHTML = `<div class="card" style="max-width:560px;margin:0 auto">
+    <div class="card-header"><div>
+      <div class="card-title">🡒 Zweitwiegung · 🚚 ${escapeHtml(u.kennzeichen || '—')}</div>
+      <div class="card-sub">Verkauf auf Kontrakt abschließen</div></div>
+      <button onclick="weVerkaufUmlaufListe()" title="Zurück zur Liste" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--color-text-muted)">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:10px">
+      ${row('Kontrakt', k?.nummer || '–')}
+      ${row('Kunde', kt?.name || '–')}
+      ${row('Artikel', art?.name || '–')}
+    </table>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      <label style="font-size:11px;color:var(--text2)">Kennzeichen<input id="we-kennzeichen" class="input" type="text" value="${escapeHtml(u.kennzeichen||'')}" style="text-transform:uppercase"></label>
+      <label style="font-size:11px;color:var(--text2)">${erstVoll ? 'Vollgewicht' : 'Leergewicht'} 1. Wiegung (kg)<input id="we-vk-erst" class="input" type="text" inputmode="numeric" value="${Number(u.erstgewicht||0).toLocaleString('de-DE')}" oninput="fmtGewicht(this);weUmlaufNetto()"></label>
+    </div>
+    <div class="section-label">${erstVoll ? 'Leergewicht (kg)' : 'Vollgewicht (kg)'} – 2. Wiegung</div>
+    ${widget}
+    <div class="form-group" style="display:flex;gap:6px">
+      <input type="text" inputmode="numeric" id="${zweitId}" placeholder="Gewicht (kg)" style="font-size:20px;font-weight:700;letter-spacing:0.5px;flex:1;min-width:0" oninput="fmtGewicht(this);weUmlaufNetto()">
+      ${erstVoll ? `<button type="button" onclick="openHaengerzugWahl('${WID}')" title="Hängerzug wählen" style="flex-shrink:0;width:52px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-sm);font-size:22px;cursor:pointer">🚛</button>` : ''}
+    </div>
+    <div class="netto-display"><div class="netto-label">Netto</div><div class="netto-val" id="netto-${WID}" style="font-size:28px">—</div><div class="netto-unit">kg</div></div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-outline" style="flex-shrink:0" onclick="weVerkaufUmlaufStornieren(${u.id})" title="Aus dem Umlauf nehmen">✕</button>
+      <button class="btn btn-green btn-full" id="we-btn" onclick="weVerkaufUmlaufAbschliessen(${u.id})">&#10003; Abschließen</button>
+    </div>
+  </div>`;
+}
+
+// Bucht wie die direkte Selbstlieferung einen Warenausgang auf den Kontrakt.
+export async function weVerkaufUmlaufAbschliessen(id) {
+  const u = verkaufWartend().find(x => x.id === id);
+  if(!u) { showToast('⚠ Umlauf-Eintrag nicht gefunden', 'error'); return; }
+  const k = state.kontrakte.find(x => x.id === u.kontrakt_id);
+  const kennzeichen = (document.getElementById('we-kennzeichen')?.value || '').trim().toUpperCase();
+  if(!kennzeichen) { alert('Bitte Kennzeichen angeben.'); return; }
+  const erstVoll = u.erst_typ === 'voll';
+  const erst  = parseGewicht(document.getElementById('we-vk-erst')?.value);
+  const zweit = parseGewicht(document.getElementById((erstVoll ? 'leer-' : 'voll-') + WID)?.value);
+  if(!erst)  { alert('Bitte ein gültiges Erstgewicht angeben.'); return; }
+  if(!zweit) { alert('Bitte das zweite Gewicht eingeben.'); return; }
+  const v = erstVoll ? erst : zweit;
+  const l = erstVoll ? zweit : erst;
+  if(!(v > l)) { alert('Vollgewicht muss größer als Leergewicht sein.'); return; }
+  const kunde = state.kontakte.find(c => c.id === u.kontakt_id);
+  const btn = document.getElementById('we-btn');
+  if(btn) { btn.disabled = true; btn.textContent = 'Speichert…'; }
+  try {
+    const saved = await db.insertWarenbewegung({
+      typ: 'ausgang', kontraktId: u.kontrakt_id, artikelId: u.artikel_id || null,
+      mengeKg: v - l, vollgewicht: v, leergewicht: l,
+      kennzeichen, empfaenger: kunde?.name || null,
+      bio: !!k?.bio, erstelltVon: state.currentUser?.id || null
+    });
+    if(saved) state.warenbewegungen.unshift(saved);
+    await db.umlaufAbschliessen(id, saved.id);
+    state.umlauf = (state.umlauf || []).filter(x => x.id !== id);
+    showToast(`✓ Lieferung gebucht · ${kg2t(v - l)}${k ? ' · Kontrakt ' + k.nummer : ''}`);
+    weVerkaufUmlaufListe();
+  } catch(e) {
+    if(btn) { btn.disabled = false; btn.innerHTML = '&#10003; Abschließen'; }
+    showToast('⚠ Fehler: ' + e.message, 'error');
+  }
+}
+
+export async function weVerkaufUmlaufStornieren(id) {
+  const u = verkaufWartend().find(x => x.id === id);
+  if(!u) return;
+  if(!confirm(`Fahrzeug ${u.kennzeichen} aus dem Umlauf nehmen? Es wird keine Lieferung gebucht.`)) return;
+  try {
+    await db.umlaufStornieren(id);
+    state.umlauf = state.umlauf.filter(x => x.id !== id);
+    showToast(`🚚 ${u.kennzeichen} aus dem Umlauf genommen`);
+    weVerkaufUmlaufListe();
+  } catch(e) { showToast('⚠ ' + e.message, 'error'); }
+}
+
 // ── In den (gemeinsamen) Umlaufspeicher schicken – mit nur EINEM Gewicht ──────
 // Zweite Wiegung erfolgt später über den Umlauf-Bereich.
 export async function weInUmlauf() {
@@ -630,7 +802,8 @@ export function renderUmlaufEingangAbschluss(el, u) {
 export function weUmlaufNetto() {
   const el = document.getElementById('netto-' + WID);
   if(!el || !_umlaufEntry) return;
-  const erst = Number(_umlaufEntry.erstgewicht || 0);
+  const erstEl = document.getElementById('we-vk-erst'); // Verkauf: Erstgewicht direkt änderbar
+  const erst = erstEl ? parseGewicht(erstEl.value) : Number(_umlaufEntry.erstgewicht || 0);
   const erstVoll = _umlaufEntry.erst_typ === 'voll';
   const zweit = parseGewicht(document.getElementById(erstVoll ? 'leer-' + WID : 'voll-' + WID)?.value);
   const voll = erstVoll ? erst : zweit;

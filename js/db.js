@@ -1,4 +1,4 @@
-import { SB_URL, SB_KEY } from './config.js?v=155';
+import { SB_URL, SB_KEY } from './config.js?v=157';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -107,34 +107,14 @@ export const db = {
       rows.push(...(data || []));
       if(!data || data.length < CHUNK) break;
     }
-    return rows.map(f => ({
-      id: f.id, nr: f.nr, status: f.status,
-      drescherId: f.drescher_id, abfahrerId: f.abfahrer_id,
-      feldId: f.feld_id, fruchtart: f.fruchtart,
-      vollgewicht: f.vollgewicht ? parseFloat(f.vollgewicht) : null,
-      leergewicht: f.leergewicht != null ? parseFloat(f.leergewicht) : null,
-      feuchte: f.feuchte ? parseFloat(f.feuchte) : null,
-      fallzahl: f.fallzahl ? parseFloat(f.fallzahl) : null,
-      protein: f.protein ? parseFloat(f.protein) : null,
-      hlGewicht: f.hl_gewicht ? parseFloat(f.hl_gewicht) : null,
-      gluten: f.gluten ? parseFloat(f.gluten) : null,
-      oelgehalt: f.oelgehalt ? parseFloat(f.oelgehalt) : null,
-      sorte: f.sorte || null,
-      kennzeichen: f.kennzeichen || null,
-      lat: f.lat != null ? parseFloat(f.lat) : null,
-      lon: f.lon != null ? parseFloat(f.lon) : null,
-      quelleLagerId: f.quelle_lager_id || null,
-      einkaufskontrakt: f.einkaufskontrakt || null,
-      zeit: f.zeit,
-      verifiziert: f.verifiziert || false,
-      verifiziertVon: f.verifiziert_von || null,
-      siloId: f.silo_id || null,
-      feldIdKorr: f.feld_id_korr || null,
-      drescherId: f.drescher_id_korr || f.drescher_id,
-      abfahrerId: f.abfahrer_id_korr || f.abfahrer_id,
-      feldId: f.feld_id_korr || f.feld_id,
-      fruchtart: f.fruchtart_korr || f.fruchtart,
-    }));
+    return rows.map(mapFuhre);
+  },
+  // Kurze Signatur (Anzahl|max id|letzte Änderung) – zum Prüfen, ob sich Fuhren
+  // geändert haben, ohne die ganze Tabelle (~800 KB) zu übertragen (Egress!).
+  async getFuhrenSignatur() {
+    const { data, error } = await sb.rpc('fuhren_signatur');
+    if(error) throw error;
+    return data;
   },
   async insertFuhre(f) {
     // nr wird serverseitig per Trigger/Sequence vergeben (nutzerunabhängig eindeutig).
@@ -546,6 +526,38 @@ export const db = {
     return channel;
   }
 };
+
+// DB-Zeile (snake_case) → App-Objekt. Auch für Realtime-Payloads (payload.new).
+export function mapFuhre(f) {
+  return {
+    id: f.id, nr: f.nr, status: f.status,
+    drescherId: f.drescher_id, abfahrerId: f.abfahrer_id,
+    feldId: f.feld_id, fruchtart: f.fruchtart,
+    vollgewicht: f.vollgewicht ? parseFloat(f.vollgewicht) : null,
+    leergewicht: f.leergewicht != null ? parseFloat(f.leergewicht) : null,
+    feuchte: f.feuchte ? parseFloat(f.feuchte) : null,
+    fallzahl: f.fallzahl ? parseFloat(f.fallzahl) : null,
+    protein: f.protein ? parseFloat(f.protein) : null,
+    hlGewicht: f.hl_gewicht ? parseFloat(f.hl_gewicht) : null,
+    gluten: f.gluten ? parseFloat(f.gluten) : null,
+    oelgehalt: f.oelgehalt ? parseFloat(f.oelgehalt) : null,
+    sorte: f.sorte || null,
+    kennzeichen: f.kennzeichen || null,
+    lat: f.lat != null ? parseFloat(f.lat) : null,
+    lon: f.lon != null ? parseFloat(f.lon) : null,
+    quelleLagerId: f.quelle_lager_id || null,
+    einkaufskontrakt: f.einkaufskontrakt || null,
+    zeit: f.zeit,
+    verifiziert: f.verifiziert || false,
+    verifiziertVon: f.verifiziert_von || null,
+    siloId: f.silo_id || null,
+    feldIdKorr: f.feld_id_korr || null,
+    drescherId: f.drescher_id_korr || f.drescher_id,
+    abfahrerId: f.abfahrer_id_korr || f.abfahrer_id,
+    feldId: f.feld_id_korr || f.feld_id,
+    fruchtart: f.fruchtart_korr || f.fruchtart,
+  };
+}
 
 export function initSupabase() {
   if(typeof supabase !== 'undefined' && supabase.createClient) {

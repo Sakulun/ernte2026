@@ -1,9 +1,9 @@
-import { state } from './state.js?v=155';
-import { db } from './db.js?v=155';
-import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=155';
-import { isBioFuhre, bioBadge } from './bio.js?v=155';
-import { getFruchtFarbe } from './frucht.js?v=155';
-import { getQualitaetsfelder } from './quality.js?v=155';
+import { state } from './state.js?v=157';
+import { db } from './db.js?v=157';
+import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=157';
+import { isBioFuhre, bioBadge } from './bio.js?v=157';
+import { getFruchtFarbe } from './frucht.js?v=157';
+import { getQualitaetsfelder } from './quality.js?v=157';
 
 export let aTab = 'erfassen';
 export function setATab(tab) { aTab = tab; renderAbfahrer(); }
@@ -18,15 +18,21 @@ export function renderAbfahrer() {
   const uid=state.currentUser.id;
   const fertigAnz=state.fuhren.filter(f=>f.abfahrerId===uid&&f.status==='fertig').length
     + state.warenbewegungen.filter(w=>w.typ==='ausgang'&&w.kontrakt_id&&w.erstellt_von===uid).length;
+  const umlaufAnz=(state.umlauf||[]).filter(u=>u.status==='wartet'&&u.payload?.abfahrerVerkauf).length;
   document.getElementById('main-content').innerHTML=`
     <div class="tabs">
       <button class="tab ${aTab==='erfassen'?'active':''}" onclick="setATab('erfassen')">&#9878; Fuhre erfassen</button>
+      <button class="tab ${aTab==='umlauf'?'active':''}" onclick="setATab('umlauf')">🅿 Umlauf${umlaufAnz?' ('+umlaufAnz+')':''}</button>
       <button class="tab ${aTab==='fertig'?'active':''}" onclick="setATab('fertig')">Abgeschlossene Fuhren${fertigAnz?' ('+fertigAnz+')':''}</button>
       <button class="tab ${aTab==='felder'?'active':''}" onclick="setATab('felder')">Aktive Felder</button>
     </div>
     <div id="atab"></div>`;
   if(aTab==='fertig') { if(_navMap){_navMap.remove();_navMap=null;} renderAbfahrerFertig(); }
   else if(aTab==='felder') { renderAbfahrerSchlagsuche(); }
+  else if(aTab==='umlauf') {
+    if(_navMap){_navMap.remove();_navMap=null;}
+    if(window.renderAbfahrerUmlauf) window.renderAbfahrerUmlauf(document.getElementById('atab'));
+  }
   else {
     // Standard: gleiche "Fuhre erfassen"-Maske wie der Admin (Gewichte + Qualität,
     // direkt als "fertig" abschließen). Abfahrer ist fest der angemeldete Nutzer.
