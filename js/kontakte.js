@@ -1,6 +1,7 @@
-import { state } from './state.js?v=158';
-import { db } from './db.js?v=158';
-import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=158';
+import { state } from './state.js?v=159';
+import { db } from './db.js?v=159';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -149,7 +150,7 @@ export function zukaufKonfigDialog(kontaktId) {
   const feld = state.felder.find(f => f.typ === 'lieferant' && f.kontaktId === kontaktId);
   if(!feld) return;
   const k = state.kontakte.find(x => x.id === kontaktId);
-  const abfOpts = state.users.filter(u => u.role === 'abfahrer')
+  const abfOpts = state.users.filter(u => hatRecht(u, 'abfahrer'))
     .map(u => `<option value="${u.id}" ${u.id===feld.zukaufAbfahrerId?'selected':''}>${escapeHtml(u.name)}</option>`).join('');
   const m = document.createElement('div');
   m.id = 'zukauf-konfig-modal';

@@ -1,6 +1,7 @@
-import { state } from './state.js?v=158';
-import { sb } from './db.js?v=158';
-import { showToast } from './helpers.js?v=158';
+import { state } from './state.js?v=159';
+import { sb } from './db.js?v=159';
+import { showToast } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
 
 export async function adminSendNachricht(text, empfaenger='alle') {
   try {
@@ -38,7 +39,7 @@ export function showNachrichtenDialog() {
           <option value="alle">👥 Alle Fahrer</option>
           <option value="drescher">🌾 Nur Drescherfahrer</option>
           <option value="abfahrer">🚛 Nur Abfahrer</option>
-          ${state.users.filter(u=>u.role==='drescher'||u.role==='abfahrer').map(u=>
+          ${state.users.filter(u=>hatRecht(u,'drescher')||hatRecht(u,'abfahrer')).map(u=>
             `<option value="${u.id}">${u.name} (${u.label})</option>`
           ).join('')}
         </select>
@@ -101,9 +102,8 @@ export function initNachrichtenListener() {
       const n = payload.new;
       if(!state.currentUser) return;
       const uid = state.currentUser.id;
-      const role = state.currentUser.role;
       const relevant = n.empfaenger === 'alle'
-        || n.empfaenger === role
+        || ((n.empfaenger === 'drescher' || n.empfaenger === 'abfahrer') && hatRecht(state.currentUser, n.empfaenger))
         || n.empfaenger == uid;
       if(!relevant) return;
       showNachrichtBanner(n.text, n.von_name);

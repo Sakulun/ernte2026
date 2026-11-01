@@ -1,10 +1,11 @@
-import { state } from './state.js?v=158';
-import { db } from './db.js?v=158';
-import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge, abfahrerName } from './helpers.js?v=158';
-import { getFruchtFarbe } from './frucht.js?v=158';
-import { alleLagerOrte, lagerLabel } from './silo.js?v=158';
-import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=158';
-import { isBioFuhre, bioBadge } from './bio.js?v=158';
+import { state } from './state.js?v=159';
+import { db } from './db.js?v=159';
+import { getFeld, getUser, netto, kg2t, fmtDate, fmtTime, showToast, escapeHtml, sorteBadge, abfahrerName } from './helpers.js?v=159';
+import { hatRecht, istVerwaltung } from './rechte.js?v=159';
+import { getFruchtFarbe } from './frucht.js?v=159';
+import { alleLagerOrte, lagerLabel } from './silo.js?v=159';
+import { exportFuhrenCSV, exportFuhrenExcel } from './export.js?v=159';
+import { isBioFuhre, bioBadge } from './bio.js?v=159';
 
 let _editOpenId = null;
 // Abfahrer-Verkaufslieferungen ein-/ausklappbar (Standard eingeklappt, damit man
@@ -113,7 +114,7 @@ function sorteEditFeld(f) {
 // gebucht. Hier im Fuhren-Tab kann der Admin die Quelle (Silo) nachtragen –
 // dadurch wird der Bestand ausgebucht. Ohne Quelle zuerst.
 function abfahrerLieferungen() {
-  const abfIds = new Set(state.users.filter(u => u.role === 'abfahrer').map(u => u.id));
+  const abfIds = new Set(state.users.filter(u => hatRecht(u, 'abfahrer')).map(u => u.id));
   return state.warenbewegungen
     .filter(w => w.typ === 'ausgang' && w.kontrakt_id && abfIds.has(w.erstellt_von))
     .sort((a,b) => (a.silo_von_id?1:0) - (b.silo_von_id?1:0)
@@ -335,8 +336,8 @@ function renderFuhreEditForm(fId) {
   const feldOpts = state.felder.map(fd=>`<option value="${fd.id}" ${fd.id===f.feldId?'selected':''}>${fd.name}</option>`).join('');
   const sorten = [...new Set(state.felder.map(f=>f.fruchtart))].sort();
   const sortenOpts = sorten.map(s=>`<option ${s===f.fruchtart?'selected':''}>${s}</option>`).join('');
-  const drescher = state.users.filter(u=>u.role==='drescher'||u.role==='admin');
-  const abfahrer = state.users.filter(u=>u.role==='abfahrer'||u.role==='admin');
+  const drescher = state.users.filter(u=>hatRecht(u,'drescher')||istVerwaltung(u));
+  const abfahrer = state.users.filter(u=>hatRecht(u,'abfahrer')||istVerwaltung(u));
   const drOpts = drescher.map(u=>`<option value="${u.id}" ${u.id===f.drescherId?'selected':''}>${u.name}</option>`).join('');
   const abOpts = abfahrer.map(u=>`<option value="${u.id}" ${u.id===f.abfahrerId?'selected':''}>${u.name}</option>`).join('');
   el.innerHTML = `<div style="margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card)">
@@ -451,8 +452,8 @@ export function adminAbschliessen(fId) {
   const feldOpts = state.felder.map(fd=>`<option value="${fd.id}" ${fd.id===f.feldId?'selected':''}>${fd.name}</option>`).join('');
   const sorten = [...new Set(state.felder.map(x=>x.fruchtart))].sort();
   const sortenOpts = sorten.map(s=>`<option ${s===f.fruchtart?'selected':''}>${s}</option>`).join('');
-  const drescher = state.users.filter(u=>u.role==='drescher'||u.role==='admin');
-  const abfahrer = state.users.filter(u=>u.role==='abfahrer'||u.role==='admin');
+  const drescher = state.users.filter(u=>hatRecht(u,'drescher')||istVerwaltung(u));
+  const abfahrer = state.users.filter(u=>hatRecht(u,'abfahrer')||istVerwaltung(u));
   const drOpts = drescher.map(u=>`<option value="${u.id}" ${u.id===f.drescherId?'selected':''}>${u.name}</option>`).join('');
   const abOpts = abfahrer.map(u=>`<option value="${u.id}" ${u.id===f.abfahrerId?'selected':''}>${u.name}</option>`).join('');
   el.innerHTML = `<div style="margin-top:10px;padding:12px;border:2px solid var(--blue);border-radius:var(--radius);background:var(--card)">

@@ -70,6 +70,7 @@ ernteneu/
 │   ├── frucht.js           # getFruchtFarbe (Kulturfarben)
 │   ├── quality.js          # Qualitätsfelder, Feuchtegrenzwerte
 │   ├── login.js            # Login-Flow: Benutzerauswahl, Passwort, Session
+│   ├── rechte.js           # Programmbereiche (NAV), hatRecht, Ansichten
 │   ├── router.js           # renderMain — routet zu rollenspezifischem Dashboard
 │   ├── drescher.js         # Drescher-Dashboard: Feldwahl, Zuweisung
 │   ├── abfahrer.js         # Abfahrer-Dashboard: Fuhren, Gewichte, Schlagsuche
@@ -141,7 +142,7 @@ ernteneu/
 
 | Tabelle | Beschreibung |
 |---|---|
-| `nutzer` | Benutzerkonten mit Rollen |
+| `nutzer` | Benutzerkonten mit Rechten je Programmbereich (`rechte`, text[]) |
 | `felder` | Felder / Schläge |
 | `fuhren` | Erntefahrten (eine Fuhre = eine Transportfahrt) |
 | `lieferungen` | Lieferdatensätze |
@@ -164,24 +165,30 @@ ernteneu/
 | `parzellen_matching` | Fruchtfolge: Cache der geometrischen Jahres-Verschneidung (RPC `ff_recompute_matching`) |
 | `flags` | Fruchtfolge: Selbstfolge-/Anbaupause-Konflikte (RPC `ff_recompute_flags`) |
 
-**Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → `nutzer.rolle='admin'`). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. vereinfachtem GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. **Flags entstehen nur für Planjahre** (Vergangenheit = Fakt; Konfliktseite darf jedes Jahr sein). PostgREST liefert max. 1000 Zeilen/Request — Client lädt paginiert (`ffFetchAlle`). Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
+**Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → Recht `fruchtfolge` in `nutzer.rechte`; der Funktionsname ist historisch). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. vereinfachtem GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. **Flags entstehen nur für Planjahre** (Vergangenheit = Fakt; Konfliktseite darf jedes Jahr sein). PostgREST liefert max. 1000 Zeilen/Request — Client lädt paginiert (`ffFetchAlle`). Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
 
 ---
 
-## Benutzerrollen & Dashboards
+## Rechte & Ansichten
 
-| Rolle | Farbe | Hauptfunktionen |
-|---|---|---|
-| **Drescher** | Bernstein `#c8962e` | Ernteaufträge annehmen, Felder abarbeiten, Abschluss melden |
-| **Abfahrer** | Blau `#4a8ab0` | Fuhren mit Voll-/Leergewicht erfassen, Waagenwidget nutzen |
-| **Silomeister** | — | Silobestände verwalten, Warenbewegungen buchen |
-| **Admin** | Gold `#c8a84b` | Vollzugriff: Dashboard, Fortschritt, Fuhren, Schläge, Nutzer, Kontrakte, KDV |
+Es gibt keine Rollen mehr. `nutzer.rechte` (text[]) enthält je Programmbereich einen Schlüssel, das Nutzerfenster zeigt dafür Schalter. Alles dazu steht in `js/rechte.js`.
+
+| Rechte | Wirkung |
+|---|---|
+| Ein Schlüssel je Sidebar-Tab (`NAV` in `rechte.js`) | Tab sichtbar. Neue Tabs erscheinen automatisch als Schalter |
+| `abfahrer`, `drescher` | Eigene Vollbild-Ansicht, Nutzer steht in den Fahrer-Auswahllisten |
+| `nachrichten`, `haengerzuege`, `standort` | Nachrichten senden, Hängerzüge verwalten, GPS teilen und auf der Karte erscheinen |
+| `biogas_verwaltung` | Nur Biogas-App (`profil='biogas'`): Verwaltung statt Fahrer |
+
+Mehrere Hauptansichten (`state.ansicht`: `verwaltung`, `abfahrer`, `drescher`) lassen sich über den Knopf in der Kopfzeile umschalten. Wer `nutzer` hat, gilt in den Auswahllisten der Fuhrenbearbeitung als Verwaltung (`istVerwaltung`).
+
+**Datenbank:** Geprüft werden nur Nutzerverwaltung (`hat_recht('nutzer')`), Biogas-Verwaltung (`hat_recht('biogas_verwaltung')`) und Fruchtfolge (`ff_is_admin()`). Alle anderen Tabellen sind für jeden Angemeldeten offen, dort blendet nur die Oberfläche aus. Der Trigger `trg_nutzer_letzte_verwaltung` hält mindestens einen Ernte-Nutzer mit `nutzer`, das eigene Recht und das eigene Konto kann niemand selbst entfernen. Migrationen: `supabase/migrations/`.
 
 ### Haupt-Render-Funktionen
 
 ```
 renderLogin()          — Anmeldebildschirm
-renderMain()           — Router → rollenspezifisches Dashboard
+renderMain()           — Router → Ansicht passend zu den Rechten
 renderDrescher()       — Drescher-Dashboard
 renderAbfahrer()       — Abfahrer-Dashboard (offene Fuhren)
 renderAbfahrerOffen()  — Offene Lieferungen
@@ -314,6 +321,6 @@ Methode B (Extern): `<link rel="stylesheet" href="themes/industrial.css">` ans E
 | CSS-Klassen | 507 |
 | Supabase-Tabellen | 15 |
 | Datenbankoperationen | 132+ |
-| Benutzerrollen | 4 |
+| Rechte je Bereich | 22 (plus `biogas_verwaltung`) |
 | Externe Abhängigkeiten | 4 (Supabase JS, Leaflet, PDF.js, Google Fonts) |
 | Build-Prozess | Keiner |

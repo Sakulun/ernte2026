@@ -1,10 +1,11 @@
-import { state } from './state.js?v=158';
-import { db } from './db.js?v=158';
-import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=158';
-import { isBioFeld } from './bio.js?v=158';
-import { getQualitaetsfelder } from './quality.js?v=158';
-import { parseGewicht } from './abfahrer.js?v=158';
-import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=158';
+import { state } from './state.js?v=159';
+import { db } from './db.js?v=159';
+import { getFeld, showToast, escapeHtml, kg2t, kontaktAnschrift } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
+import { isBioFeld } from './bio.js?v=159';
+import { getQualitaetsfelder } from './quality.js?v=159';
+import { parseGewicht } from './abfahrer.js?v=159';
+import { lieferscheinDrucken, lieferscheinArtikelName, bioPraefix, oekoZeile } from './lieferschein-druck.js?v=159';
 
 // ── Modul "Ware annehmen / Fuhre erfassen" ───────────────────────────────────
 // Zwei Modi:
@@ -101,7 +102,7 @@ function abfahrerBlockHTML() {
   // Zukauf extern: der Fahrer ist ein Fremder (Spedition/Lieferant) – kein Abfahrer
   // nötig. Ein beim Lieferanten hinterlegter Standard-Abfahrer wird still übernommen.
   if(_modus === 'abschluss' && _herkunft === 'zukauf') return '';
-  const abfOptions = state.users.filter(u=>u.role==='abfahrer').map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
+  const abfOptions = state.users.filter(u=>hatRecht(u,'abfahrer')).map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');
   return `<div class="form-group"><label>Abfahrer</label><select id="we-abf"><option value="">— Abfahrer wählen —</option>${abfOptions}</select></div>`;
 }
 
@@ -288,7 +289,7 @@ export function weSetZukaufTyp(t) {
 
 function reRenderOrClose() {
   if(document.getElementById('we-overlay')) { closeWaageErfassung(); return; }
-  if(_modus === 'offen' && state.currentUser?.role === 'abfahrer' && window.setATab) { window.setATab('offen'); return; }
+  if(_modus === 'offen' && state.ansicht === 'abfahrer' && window.setATab) { window.setATab('offen'); return; }
   if(_container) renderWaageErfassungInto(_container, { abfahrerId: _lockAbfahrer, modus: _modus });
 }
 
@@ -426,7 +427,7 @@ function abfahrerPflicht() {
 }
 function erfasserDrescherId() {
   // Selbsterfassung durch Abfahrer hat keinen Drescher
-  return state.currentUser?.role === 'abfahrer' ? null : (state.currentUser?.id ?? null);
+  return state.ansicht === 'abfahrer' ? null : (state.currentUser?.id ?? null);
 }
 
 // Abfahrer-Selbsterfassung: offene Fuhre starten (wird danach im Tab "Offen" gewogen)
@@ -539,7 +540,7 @@ function verkaufWartend() {
 export function weVerkaufUmlaufListe() {
   _verkaufOffenId = null;
   _umlaufEntry = null;
-  if(state.currentUser?.role === 'abfahrer' && window.setATab) window.setATab('umlauf');
+  if(state.ansicht === 'abfahrer' && window.setATab) window.setATab('umlauf');
   else if(window.waUmlaufListe) window.waUmlaufListe();
 }
 
@@ -857,7 +858,7 @@ export async function weUmlaufAbschliessen(id) {
       const q = leseQualitaeten(p.fruchtart || '', p.qualitaet || {});
       const qual = { feuchte: q.feuchte||null, protein: q.protein||null, gluten: q.gluten||null, hlGewicht: q.hl||null, oelgehalt: q.oelgehalt||null };
       const res = await db.insertFuhreKomplett({
-        status: 'fertig', drescherId: state.currentUser?.role === 'abfahrer' ? null : (state.currentUser?.id ?? null),
+        status: 'fertig', drescherId: state.ansicht === 'abfahrer' ? null : (state.currentUser?.id ?? null),
         abfahrerId: p.abfahrerId || null, feldId: p.feldId, fruchtart: p.fruchtart || '', sorte: p.sorte || null,
         vollgewicht: voll, leergewicht: leer, kennzeichen: u.kennzeichen || null, ...qual,
         einkaufskontrakt: p.einkaufskontrakt || null, zeit: new Date().toISOString()
@@ -1098,7 +1099,7 @@ function renderHaengerzugWahl(editId = null) {
   let ov = document.getElementById('we-hz-overlay');
   if(!ov) { ov = document.createElement('div'); ov.id = 'we-hz-overlay'; document.body.appendChild(ov); }
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:7500;display:flex;align-items:center;justify-content:center;padding:16px';
-  const darfVerwalten = ['admin','silomeister'].includes(state.currentUser?.role);
+  const darfVerwalten = hatRecht(state.currentUser, 'haengerzuege');
   const hz = state.haengerzuege || [];
   const edit = editId != null ? hz.find(h => h.id === editId) : null;
   const btnStyle = 'flex-shrink:0;width:40px;background:none;border:1px solid var(--color-border);border-radius:var(--radius-sm);cursor:pointer;font-size:15px;color:var(--color-text-muted)';

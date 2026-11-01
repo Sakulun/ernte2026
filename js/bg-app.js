@@ -1,12 +1,12 @@
-import { SB_URL, SB_KEY } from './config.js?v=158';
+import { SB_URL, SB_KEY } from './config.js?v=159';
 import { renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
-         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=158';
+         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=159';
 import { renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV,
-         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=158';
+         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=159';
 import { renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
          bgLieferantEditToggle, bgLieferantEditSpeichern, bgLieferantLoeschen,
          bgKulturSpeichern, bgKulturToggle,
-         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=158';
+         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=159';
 
 // ── Biogas-App (Biomasse-Erfassung, Anlage Bayern) ───────────────────────────
 // Eigenständiger Einstieg (biogas/index.html) mit eigenem, schlankem Modulsatz.
@@ -56,7 +56,7 @@ export function setKennzeichen(kz) {
 function aktualisiereTopbar() {
   const nameEl = document.getElementById('topbar-name');
   const btn = document.getElementById('bg-auth-btn');
-  const admin = bgState.currentUser?.role === 'admin';
+  const admin = !!bgState.currentUser?.verwaltung;
   if(nameEl) nameEl.textContent = admin
     ? bgState.currentUser.name + ' · Verwaltung'
     : (getKennzeichen() ? '🚚 ' + getKennzeichen() : 'Fahrer');
@@ -86,7 +86,7 @@ export const bgDb = {
   async ladeNutzer() {
     const { data, error } = await sb.from('nutzer_public').select('*').eq('profil','biogas').order('id');
     if(error) throw error;
-    return (data||[]).map(u => ({ id: u.id, name: u.name, role: u.rolle }));
+    return (data||[]).map(u => ({ id: u.id, name: u.name, verwaltung: u.rechte.includes('biogas_verwaltung') }));
   },
   async ladeAlles() {
     const [l, f, k, h, fu] = await Promise.all([
@@ -128,7 +128,7 @@ export async function doLogin() {
     bgState.users = await bgDb.ladeNutzer();
     await bgDb.ladeAlles();
     errEl.style.display = 'none'; errEl.style.color = '';
-    bgState.currentUser = bgState.users.find(u => u.id === result.id) || { id: result.id, name: result.name, role: result.rolle };
+    bgState.currentUser = bgState.users.find(u => u.id === result.id) || { id: result.id, name: result.name, verwaltung: result.rechte.includes('biogas_verwaltung') };
     bgHideLogin();
     aktualisiereTopbar();
     renderBgMain();
@@ -154,7 +154,7 @@ let bgTab = 'erfassen';
 export function setBgTab(t) { bgTab = t; renderBgMain(); }
 
 export function renderBgMain() {
-  const admin = bgState.currentUser?.role === 'admin';
+  const admin = !!bgState.currentUser?.verwaltung;
   const tabs = admin
     ? [['erfassen','⚖ Erfassen'], ['uebersicht','📊 Übersicht'], ['stamm','⚙ Stammdaten']]
     : [['erfassen','⚖ Erfassen'], ['meine','🚛 Meine Fuhren']];

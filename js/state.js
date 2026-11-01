@@ -1,5 +1,5 @@
-import { db } from './db.js?v=158';
-import { getSb, mapFuhre } from './db.js?v=158';
+import { db } from './db.js?v=159';
+import { getSb, mapFuhre } from './db.js?v=159';
 
 let appReady = false;
 
@@ -14,6 +14,7 @@ export function hideLoader() {
 
 export const state = {
   currentUser: null,
+  ansicht: null, // aktuelle Hauptansicht: 'verwaltung' | 'abfahrer' | 'drescher' (siehe rechte.js)
   // Nutzer kommen ausschließlich aus der Datenbank (bootApp → db.getNutzer).
   // Keine Zugangsdaten oder Hashes im Code!
   users: [],
@@ -86,10 +87,10 @@ export function startPolling() {
     const nrs = fuhren.map(f=>parseInt((f.nr||'').replace('F-',''))).filter(n=>!isNaN(n));
     state.nextNr = nrs.length ? Math.max(...nrs)+1 : 1;
     try { state.felder = await db.getFelder(); } catch(e) {}
-    const role = state.currentUser.role;
-    if(role==='drescher' && window.renderDrescher) window.renderDrescher();
-    else if(role==='abfahrer' && window.renderAbfahrer) window.renderAbfahrer();
-    else if(role==='admin') {
+    const ansicht = state.ansicht;
+    if(ansicht==='drescher' && window.renderDrescher) window.renderDrescher();
+    else if(ansicht==='abfahrer' && window.renderAbfahrer) window.renderAbfahrer();
+    else if(ansicht==='verwaltung') {
       if(window.adminTab==='fuhren' && window.renderAdminFuhren) window.renderAdminFuhren();
       else if(window.adminTab==='dashboard' && window.renderAdminDash) window.renderAdminDash();
       else if(window.adminTab==='fortschritt' && window.renderAdminFortschritt) window.renderAdminFortschritt();
@@ -240,19 +241,19 @@ export async function loadAppData() {
         // gerade kein Feld fokussiert ist (Fahrer wiegt z.B. gerade) – sonst
         // ginge die halbfertige Eingabe beim Hintergrund-Update verloren.
         if(isInteracting || (window.erfassungInProgress && window.erfassungInProgress())) return;
-        const role = state.currentUser.role;
-        if(role === 'admin') {
+        const ansicht = state.ansicht;
+        if(ansicht === 'verwaltung') {
           if(window.adminTab === 'dashboard' && window.renderAdminDash) window.renderAdminDash();
           else if(window.adminTab === 'fortschritt' && window.renderAdminFortschritt) window.renderAdminFortschritt();
           else if(window.adminTab === 'fuhren' && window.renderAdminFuhren) window.renderAdminFuhren();
         }
-        else if(role === 'drescher') {
+        else if(ansicht === 'drescher') {
           const vorher = state.fuhren.filter(f=>f.drescherId===state.currentUser.id&&f.status==='offen').length;
           if(window.renderDrescher) window.renderDrescher();
           const nachher = state.fuhren.filter(f=>f.drescherId===state.currentUser.id&&f.status==='offen').length;
           if(nachher < vorher && window.showToast) window.showToast('✓ Abfahrer hat Fuhre abgeladen – Abfahrer wieder frei!');
         }
-        else if(role === 'abfahrer') {
+        else if(ansicht === 'abfahrer') {
           const vorher = state.fuhren.filter(f=>f.abfahrerId===state.currentUser.id&&f.status==='offen').length;
           if(window.renderAbfahrer) window.renderAbfahrer();
           const nachher = state.fuhren.filter(f=>f.abfahrerId===state.currentUser.id&&f.status==='offen').length;

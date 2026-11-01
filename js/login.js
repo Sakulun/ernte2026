@@ -1,6 +1,7 @@
-import { state, loadAppData } from './state.js?v=158';
-import { db, getSb } from './db.js?v=158';
-import { hashPW, hashPWLegacy } from './helpers.js?v=158';
+import { state, loadAppData } from './state.js?v=159';
+import { db, getSb } from './db.js?v=159';
+import { hashPW, hashPWLegacy } from './helpers.js?v=159';
+import { hatRecht, ansichtenVon, istVerwaltung } from './rechte.js?v=159';
 
 const _loginAttempts = {};
 
@@ -100,24 +101,53 @@ export function loginUser(user) {
   state.sessionStartMs = parseInt(localStorage.getItem('ernte_login_ts')) || Date.now();
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
-  const dc = user.role==='drescher'?'role-drescher':user.role==='abfahrer'?'role-abfahrer':'role-admin';
-  document.getElementById('topbar-dot').className = 'dot '+dc;
-  document.getElementById('topbar-name').textContent = user.name+' · '+user.label;
+  document.getElementById('topbar-name').textContent = user.name;
   document.getElementById('topbar-sync').style.display = 'inline-block';
+  state.ansicht = ansichtenVon(user)[0] || null;
   window.renderMain();
-  // Waage = stationäres Terminal: kein GPS-Tracking, keine Benachrichtigungs-Prompts.
-  const mobileRolle = user.role !== 'admin' && user.role !== 'waage';
-  if(mobileRolle && window.shareUserGPS) window.shareUserGPS(user.id);
+  ansichtAnzeigen();
+  // Stationäre Geräte (Verwaltung, Waage): kein GPS-Tracking, keine Benachrichtigungs-Prompts.
+  const mobil = hatRecht(user, 'standort');
+  if(mobil && window.shareUserGPS) window.shareUserGPS(user.id);
   if(window.initNachrichtenListener) window.initNachrichtenListener();
-  if(mobileRolle && window.requestBrowserNotification) window.requestBrowserNotification();
-  const nb = document.getElementById('topbar-nachricht-btn');
-  const hb = document.getElementById('topbar-hilfe-btn');
-  if(nb) nb.style.display = user.role === 'admin' ? 'block' : 'none';
-  if(hb) hb.style.display = (user.role === 'drescher' || user.role === 'abfahrer') ? 'block' : 'none';
-  if(window.checkShowOnboarding) window.checkShowOnboarding(user.role);
-  if(user.role === 'admin' && window.innerWidth <= 1024 && window.innerWidth > 640) {
+  if(mobil && window.requestBrowserNotification) window.requestBrowserNotification();
+  if(window.checkShowOnboarding) window.checkShowOnboarding(state.ansicht);
+  if(istVerwaltung(user) && window.innerWidth <= 1024 && window.innerWidth > 640) {
     window.sidebarCollapsed = true;
   }
+}
+
+const ANSICHT_NAMEN = { verwaltung:'Verwaltung', abfahrer:'Abfahrer', drescher:'Drescher' };
+
+// Kopfzeile passend zur aktuellen Ansicht und zu den Rechten.
+export function ansichtAnzeigen() {
+  const user = state.currentUser;
+  const a = state.ansicht;
+  const dc = a==='drescher'?'role-drescher':a==='abfahrer'?'role-abfahrer':'role-admin';
+  document.getElementById('topbar-dot').className = 'dot '+dc;
+  const nb = document.getElementById('topbar-nachricht-btn');
+  const hb = document.getElementById('topbar-hilfe-btn');
+  const ub = document.getElementById('topbar-ansicht-btn');
+  if(nb) nb.style.display = hatRecht(user, 'nachrichten') ? 'block' : 'none';
+  if(hb) hb.style.display = (a === 'drescher' || a === 'abfahrer') ? 'block' : 'none';
+  if(ub) {
+    const liste = ansichtenVon(user);
+    ub.style.display = liste.length > 1 ? 'block' : 'none';
+    if(liste.length > 1) ub.textContent = '⇄ ' + ANSICHT_NAMEN[liste[(liste.indexOf(a)+1) % liste.length]];
+  }
+}
+
+// Nur für Nutzer mit mehreren Hauptansichten (Knopf in der Kopfzeile).
+export function ansichtWechseln() {
+  const liste = ansichtenVon(state.currentUser);
+  state.ansicht = liste[(liste.indexOf(state.ansicht)+1) % liste.length];
+  if(window.hideSiloOverlay) window.hideSiloOverlay();
+  if(window.closeWaageErfassung) window.closeWaageErfassung();
+  if(window._drescherMap){window._drescherMap.remove();window._drescherMap=null;}
+  if(window._mapInstance){window._mapInstance.remove();window._mapInstance=null;}
+  window.renderMain();
+  ansichtAnzeigen();
+  if(window.checkShowOnboarding) window.checkShowOnboarding(state.ansicht);
 }
 
 export function logout() {
@@ -130,6 +160,7 @@ export function logout() {
   if(window._drescherMap){window._drescherMap.remove();window._drescherMap=null;}
   if(window._mapInstance){window._mapInstance.remove();window._mapInstance=null;}
   state.currentUser = null;
+  state.ansicht = null;
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app').classList.remove('active');
 }

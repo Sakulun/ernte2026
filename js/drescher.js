@@ -1,7 +1,8 @@
-import { state } from './state.js?v=158';
-import { db } from './db.js?v=158';
-import { getFeld, getUser, netto, kg2t, fmtTime, fmtDate, abfahrerIstFrei, showToast, escapeHtml, sorteBadge } from './helpers.js?v=158';
-import { isBioFeld } from './bio.js?v=158';
+import { state } from './state.js?v=159';
+import { db } from './db.js?v=159';
+import { getFeld, getUser, netto, kg2t, fmtTime, fmtDate, abfahrerIstFrei, showToast, escapeHtml, sorteBadge } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
+import { isBioFeld } from './bio.js?v=159';
 
 export let dTab = 'meine';
 let _drescherMap = null;
@@ -13,7 +14,7 @@ export function renderDrescher() {
   const uid = state.currentUser.id;
   const mf = state.fuhren.filter(f=>f.drescherId===uid);
   const aktiveFelder = state.felder.filter(f=>f.status==='aktiv');
-  const abfahrer = state.users.filter(u=>u.role==='abfahrer');
+  const abfahrer = state.users.filter(u=>hatRecht(u,'abfahrer'));
   const freieAbfahrer = abfahrer.filter(a=>abfahrerIstFrei(a.id));
 
   if(!document.getElementById('drescher-layout')) {

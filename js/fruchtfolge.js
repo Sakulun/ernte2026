@@ -1,8 +1,9 @@
 // Fruchtfolgemanagement – Modul-Shell, gemeinsamer Zustand und Datenzugriff.
-// Nur für die Rolle 'admin' (zusätzlich serverseitig via RLS ff_is_admin()).
-import { getSb } from './db.js?v=158';
-import { state } from './state.js?v=158';
-import { showToast, escapeHtml } from './helpers.js?v=158';
+// Nur mit dem Recht 'fruchtfolge' (zusätzlich serverseitig via RLS ff_is_admin()).
+import { getSb } from './db.js?v=159';
+import { state } from './state.js?v=159';
+import { showToast, escapeHtml } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
 
 export const ffState = {
   loaded: false,
@@ -20,7 +21,7 @@ export const ffState = {
 };
 
 export function ffIstAdmin() {
-  return state.currentUser?.role === 'admin';
+  return hatRecht(state.currentUser, 'fruchtfolge');
 }
 
 // ── Datenzugriff ──────────────────────────────────────────────
@@ -200,7 +201,7 @@ export async function renderFruchtfolge() {
   const el = document.getElementById('admintab');
   if (!el) return;
   if (!ffIstAdmin()) {
-    el.innerHTML = '<div class="card"><p>Das Fruchtfolgemanagement ist nur für Administratoren zugänglich.</p></div>';
+    el.innerHTML = '<div class="card"><p>Für das Fruchtfolgemanagement fehlt diesem Konto das Recht.</p></div>';
     return;
   }
   if (!ffState.loaded) {

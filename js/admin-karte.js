@@ -1,6 +1,7 @@
-import { state } from './state.js?v=158';
-import { db } from './db.js?v=158';
-import { getUser, netto } from './helpers.js?v=158';
+import { state } from './state.js?v=159';
+import { db } from './db.js?v=159';
+import { getUser, netto } from './helpers.js?v=159';
+import { hatRecht } from './rechte.js?v=159';
 
 let _mapInstance = null;
 let _gpsWatcher = null;
@@ -158,7 +159,7 @@ export function getDriverIcon(role) {
 }
 
 function updateGPSMarkers(map) {
-  state.users.filter(u => u.role !== 'admin').forEach(u => {
+  state.users.filter(u => hatRecht(u, 'standort')).forEach(u => {
     const loc = _userLocations[u.id];
     if(!loc) return;
     const latlng = [loc.lat, loc.lon];
@@ -171,7 +172,7 @@ function updateGPSMarkers(map) {
       _gpsMarkers[u.id].setLatLng(latlng);
       _gpsMarkers[u.id].setPopupContent(popupTxt);
     } else {
-      const m = L.marker(latlng, {icon: getDriverIcon(u.role), zIndexOffset:1000});
+      const m = L.marker(latlng, {icon: getDriverIcon(hatRecht(u, 'drescher') ? 'drescher' : 'abfahrer'), zIndexOffset:1000});
       m.bindPopup(popupTxt, {className:'driver-popup'});
       m.addTo(map);
       _gpsMarkers[u.id] = m;

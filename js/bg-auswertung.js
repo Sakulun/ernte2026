@@ -1,4 +1,4 @@
-import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain, getKennzeichen } from './bg-app.js?v=158';
+import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain, getKennzeichen } from './bg-app.js?v=159';
 
 // ── Übersicht: Tonnage nach Lieferant × Kultur (× Schlag), Fuhrenliste, Export ─
 
@@ -94,7 +94,7 @@ export function renderBgUebersicht(el) {
 
 function fuhreCard(f, mitLoeschen) {
   const n = nettoVon(f);
-  const admin = mitLoeschen && bgState.currentUser?.role === 'admin';
+  const admin = mitLoeschen && !!bgState.currentUser?.verwaltung;
   return `<div class="fuhre-item">
     <div class="fuhre-top"><span class="fuhre-nr">${escapeHtml(f.nr)} · ${fmtDatum(f.zeit)}</span>
       <span style="display:flex;gap:6px;align-items:center">

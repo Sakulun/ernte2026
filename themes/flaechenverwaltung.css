@@ -109,14 +109,16 @@
 .topbar-user { font-size: var(--text-sm); color: rgba(255, 255, 255, .8); }
 .logout-btn,
 #topbar-nachricht-btn,
-#topbar-hilfe-btn {
+#topbar-hilfe-btn,
+#topbar-ansicht-btn {
   background: none !important; border: 1px solid rgba(255, 255, 255, .3) !important;
   color: #ffffff !important; padding: 2px 8px !important; border-radius: var(--radius-xs) !important;
   font-size: var(--text-sm) !important; font-family: var(--font-sans) !important; line-height: 1.5;
 }
 .logout-btn:hover,
 #topbar-nachricht-btn:hover,
-#topbar-hilfe-btn:hover { background: rgba(255, 255, 255, .1) !important; }
+#topbar-hilfe-btn:hover,
+#topbar-ansicht-btn:hover { background: rgba(255, 255, 255, .1) !important; }
 #topbar-menu-btn { border-radius: var(--radius-xs); }
 
 /* ── NAVIGATION: gemeinsame Grundlage ── */

@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=158';
+import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=159';
 
 // ── Stammdaten (nur Admin): Lieferanten, Schläge, Hängerzüge, Nutzer ─────────
 
@@ -11,7 +11,7 @@ async function hashPW(name, pw) {
 }
 
 export function renderBgStammdaten(el) {
-  if(bgState.currentUser?.role !== 'admin') { el.innerHTML = '<div class="empty-state">Nur für die Verwaltung.</div>'; return; }
+  if(!bgState.currentUser?.verwaltung) { el.innerHTML = '<div class="empty-state">Nur für die Verwaltung.</div>'; return; }
   const tabs = [['lieferanten','Lieferanten'],['felder','Schläge'],['kulturen','Kulturen'],['hz','Hängerzüge'],['nutzer','Nutzer']];
   const tabBar = `<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap">${tabs.map(([id,label]) =>
     `<button class="btn btn-sm ${_stammTab===id?'btn-green':'btn-outline'}" onclick="setBgStammTab('${id}')">${label}</button>`).join('')}</div>`;
@@ -269,7 +269,7 @@ export async function bgHzLoeschen(id) {
 function nutzerHTML() {
   const rows = bgState.users.map(u => `
     <div class="fuhre-item" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-      <span><b>${escapeHtml(u.name)}</b> <span style="font-size:11px;color:var(--text3)">· ${u.role === 'admin' ? 'Verwaltung' : 'Fahrer'}</span></span>
+      <span><b>${escapeHtml(u.name)}</b> <span style="font-size:11px;color:var(--text3)">· ${u.verwaltung ? 'Verwaltung' : 'Fahrer'}</span></span>
       ${u.id === bgState.currentUser?.id ? '<span style="font-size:10px;color:var(--text3)">(du)</span>'
         : `<button class="btn btn-sm btn-outline" style="color:var(--red)" onclick="bgNutzerLoeschen(${u.id})">🗑</button>`}
     </div>`).join('');
@@ -282,8 +282,8 @@ function nutzerHTML() {
     </div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
       <select id="bg-neu-nutzer-rolle" style="flex:1">
-        <option value="abfahrer">Fahrer</option>
-        <option value="admin">Verwaltung (Admin)</option>
+        <option value="fahrer">Fahrer</option>
+        <option value="verwaltung">Verwaltung (Admin)</option>
       </select>
       <button class="btn btn-green" onclick="bgNutzerSpeichern()">+ Anlegen</button>
     </div>
@@ -293,11 +293,11 @@ function nutzerHTML() {
 export async function bgNutzerSpeichern() {
   const name = (document.getElementById('bg-neu-nutzer-name')?.value || '').trim();
   const pw = document.getElementById('bg-neu-nutzer-pw')?.value || '';
-  const rolle = document.getElementById('bg-neu-nutzer-rolle')?.value || 'abfahrer';
+  const verwaltung = document.getElementById('bg-neu-nutzer-rolle')?.value === 'verwaltung';
   if(!name || pw.length < 4) { showToast('Bitte Name und Passwort (min. 4 Zeichen) angeben', 'error'); return; }
   try {
     const hashed = await hashPW(name, pw);
-    const { error } = await sb.rpc('admin_create_nutzer_bg', { p_name: name, p_rolle: rolle, p_pw: hashed });
+    const { error } = await sb.rpc('admin_create_nutzer_bg', { p_name: name, p_verwaltung: verwaltung, p_pw: hashed });
     if(error) throw error;
     bgState.users = await bgDb.ladeNutzer();
     showToast('✓ Nutzer angelegt');

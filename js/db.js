@@ -1,4 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=158';
+import { SB_URL, SB_KEY } from './config.js?v=159';
+import { fahrerLabel } from './rechte.js?v=159';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -8,10 +9,7 @@ export const db = {
     // Nur Ernte-Nutzer – Biogas-Konten (profil='biogas') gehören zur Biogas-App (biogas/).
     const { data, error } = await sb.from('nutzer_public').select('*').eq('profil','ernte').order('id');
     if(error) throw error;
-    return data.map(u => {
-      const lbl = u.rolle==='drescher'?'Drescherfahrer':u.rolle==='abfahrer'?'Abfahrer / Waage':u.rolle==='silomeister'?'Silomeister':u.rolle==='waage'?'Waage':'Admin / Übersicht';
-      return { id: u.id, name: u.name, role: u.rolle, label: lbl };
-    });
+    return data.map(u => ({ id: u.id, name: u.name, rechte: u.rechte, label: fahrerLabel(u) }));
   },
   async checkPassword(name, hash, legacyHash) {
     const { data, error } = await sb.rpc('check_password', {
@@ -28,12 +26,12 @@ export const db = {
     // PostgREST 0 Zeilen treffen würden. pw nur übergeben, wenn vergeben (sonst behalten).
     if(u.id) {
       const { error } = await sb.rpc('admin_update_nutzer', {
-        p_id: u.id, p_name: u.name, p_rolle: u.role, p_pw: u.pw ?? null
+        p_id: u.id, p_name: u.name, p_rechte: u.rechte, p_pw: u.pw ?? null
       });
       if(error) throw error;
     } else {
       const { error } = await sb.rpc('admin_create_nutzer', {
-        p_name: u.name, p_rolle: u.role, p_pw: u.pw
+        p_name: u.name, p_rechte: u.rechte, p_pw: u.pw
       });
       if(error) throw error;
     }

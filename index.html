@@ -240,6 +240,16 @@ body {
 .role-abfahrer { background: var(--blue-500); }
 .role-admin    { background: var(--green-900); }
 .role-silomeister { background: var(--color-success); }
+.recht-gruppe { font-size: var(--text-2xs); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text2); margin: 12px 0 6px; }
+.recht-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+.recht-schalter { display: flex; align-items: center; gap: 8px; font-size: var(--text-sm); cursor: pointer; padding: 3px 0; }
+.recht-schalter.gesperrt { cursor: not-allowed; opacity: .65; }
+.recht-schalter input { position: absolute; opacity: 0; width: 0; height: 0; }
+.recht-regler { position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 9px; background: var(--neutral-300, #c9cdc9); transition: background .15s; }
+.recht-regler::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.recht-schalter input:checked + .recht-regler { background: var(--green-900); }
+.recht-schalter input:checked + .recht-regler::after { transform: translateX(14px); }
+.recht-schalter input:focus-visible + .recht-regler { outline: 2px solid var(--blue-500); outline-offset: 1px; }
 .uname { font-size: var(--text-md); font-weight: 600; }
 .urole { font-size: var(--text-sm); color: var(--color-text-subtle); }
 
@@ -282,7 +292,7 @@ body {
   color: #ffffff; padding: 5px 9px; border-radius: var(--radius-xs); cursor: pointer;
   font-size: 16px; line-height: 1;
 }
-#topbar-nachricht-btn, #topbar-hilfe-btn {
+#topbar-nachricht-btn, #topbar-hilfe-btn, #topbar-ansicht-btn {
   color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.3);
   border-radius: var(--radius-sm); font-size: var(--text-sm);
 }
@@ -831,11 +841,11 @@ input::placeholder { color: var(--color-text-subtle); }
       <span class="topbar-appname">Betriebs- &amp; Ernteverwaltung</span>
       <span class="topbar-user"><span class="dot" id="topbar-dot"></span><span id="topbar-name"></span><span id="topbar-sync" style="width:7px;height:7px;border-radius:50%;background:#6b8f4e;display:none;margin-left:8px;flex-shrink:0;vertical-align:middle"></span></span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center"><button id="topbar-menu-btn" onclick="toggleSidebar()">☰</button><button id="topbar-nachricht-btn" onclick="showNachrichtenDialog()" style="display:none;background:none;border:1px solid #d8dcd8;color:var(--text2);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--mono)">📢</button><button id="topbar-hilfe-btn" onclick="showOnboarding(state.currentUser?.role)" style="display:none;background:none;border:1px solid #d8dcd8;color:var(--text2);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--mono)">? Hilfe</button><button class="logout-btn" onclick="logout()">Abmelden</button></div>
+    <div style="display:flex;gap:8px;align-items:center"><button id="topbar-menu-btn" onclick="toggleSidebar()">☰</button><button id="topbar-nachricht-btn" onclick="showNachrichtenDialog()" style="display:none;background:none;border:1px solid #d8dcd8;color:var(--text2);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--mono)">📢</button><button id="topbar-ansicht-btn" onclick="ansichtWechseln()" style="display:none;background:none;border:1px solid #d8dcd8;color:var(--text2);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--mono)"></button><button id="topbar-hilfe-btn" onclick="showOnboarding(state.ansicht)" style="display:none;background:none;border:1px solid #d8dcd8;color:var(--text2);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-family:var(--mono)">? Hilfe</button><button class="logout-btn" onclick="logout()">Abmelden</button></div>
   </div>
   <div class="content" id="main-content"></div>
 </div>
-<script type="module" src="js/app.js?v=158"></script>
+<script type="module" src="js/app.js?v=159"></script>
 <script>
   // Service Worker registrieren: lädt neue App-Versionen automatisch (kein Hard-Reload nötig).
   if ('serviceWorker' in navigator) {

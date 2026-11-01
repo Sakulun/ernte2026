@@ -1,20 +1,11 @@
-import { state } from './state.js?v=158';
+import { state } from './state.js?v=159';
+import { NAV, erlaubteTabs } from './rechte.js?v=159';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
 export let schlagSearch = '';
 export let sidebarCollapsed = false;
 
-// Sidebar-Navigation als Daten (Reihenfolge wie bisher): [tab, icon, label] je Eintrag.
-const NAV = [
-  { section: null,             items: [['waage','⚖','Waage']] },
-  { section: 'Übersicht',      items: [['dashboard','📊','Dashboard'],['fortschritt','📈','Fortschritt'],['karte','🗺','Karte'],['vermehrungen','🌱','Vermeh&shy;rungen']] },
-  { section: 'Verwaltung',     items: [['schlaege','🌾','Schläge'],['fuhren','🚛','Fuhren'],['nutzer','👥','Nutzer']] },
-  { section: 'Lager',          items: [['lager','📦','Lager&shy;übersicht'],['silos','🏭','Silo&shy;management']] },
-  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Waren&shy;bewegungen'],['kontrakte','📋','Kontrakte'],['zukauf','🧪','Zukauf (Dünger)'],['kontakte','👔','Kunden/&shy;Lieferanten'],['artikel','🗂','Artikel']] },
-  { section: 'Flächen',        items: [['fruchtfolge','🌻','Frucht&shy;folge']] },
-  { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
-];
 // Liniensymbole je Tab (24er Raster, Strich) für das Theme Flächenverwaltung; das bisherige Design zeigt die Emojis aus NAV.
 const NAV_SYMBOLE = {
   waage: 'M12 3v18M7 21h10M5 7h14M5 7l-3 7a3 3 0 0 0 6 0zM19 7l-3 7a3 3 0 0 0 6 0z',
@@ -35,25 +26,19 @@ const NAV_SYMBOLE = {
   fruchtfolge: 'M12 3a9 9 0 1 1-9 9M12 3l-3-2M12 3 9 6M12 8a4 4 0 1 1-4 4',
   erntejahr: 'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4M12 13v5M9.5 15.5h5',
 };
-// Rollen mit eingeschränkter Navigation. Silomeister sieht nur diese Bereiche.
-const ROLE_TABS = {
-  silomeister: ['waage','fuhren','vermehrungen','silos','zukauf'],
-  waage:       ['waage','fuhren','warenausgang','zukauf'],
-};
-function erlaubteTabs() { return ROLE_TABS[state.currentUser?.role] || null; } // null = alle
 
 export function renderAdmin() {
-  const allowed = erlaubteTabs();
-  // Aktuellen Tab auf einen erlaubten zwingen (z.B. Silomeister startet auf "Waage").
-  if(allowed && !allowed.includes(adminTab)) { adminTab = allowed[0]; window.adminTab = adminTab; }
+  const allowed = erlaubteTabs(state.currentUser);
+  // Aktuellen Tab auf einen erlaubten zwingen (z.B. ohne "Schläge" startet die Navigation beim ersten erlaubten).
+  if(!allowed.includes(adminTab)) { adminTab = allowed[0]; window.adminTab = adminTab; }
 
   if(adminTab !== 'karte' && window._mapInstance) {
     window._mapInstance.remove(); window._mapInstance = null; window._schlagLayers = {};
   }
 
-  // Bei Rollenwechsel (ohne Reload) die Sidebar neu aufbauen, sonst bliebe die alte Navigation stehen.
+  // Bei geänderten Rechten (ohne Reload) die Sidebar neu aufbauen, sonst bliebe die alte Navigation stehen.
   const layout = document.getElementById('admin-layout');
-  if(layout && layout.dataset.role !== (state.currentUser?.role || '')) layout.remove();
+  if(layout && layout.dataset.tabs !== allowed.join(',')) layout.remove();
 
   if(!document.getElementById('admin-layout')) {
     const btn = (tab, icon, label) =>
@@ -61,13 +46,13 @@ export function renderAdmin() {
         <span class="sidebar-icon"><span class="icon-emoji">${icon}</span><svg class="icon-linie" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${NAV_SYMBOLE[tab]}"/></svg></span><span class="sidebar-label">${label}</span>
       </button>`;
     const navHtml = NAV.map(grp => {
-      const items = grp.items.filter(([tab]) => !allowed || allowed.includes(tab));
+      const items = grp.items.filter(([tab]) => allowed.includes(tab));
       if(!items.length) return '';
       return (grp.section ? `<div class="sidebar-section">${grp.section}</div>` : '') + items.map(it => btn(...it)).join('');
     }).join('');
     document.getElementById('main-content').innerHTML = `
       <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
-      <div id="admin-layout" data-role="${state.currentUser?.role || ''}">
+      <div id="admin-layout" data-tabs="${allowed.join(',')}">
         <nav id="admin-sidebar" class="${sidebarCollapsed?'collapsed':''}">
           <button class="sidebar-toggle" onclick="toggleSidebar()">
             <span style="font-size:18px">${sidebarCollapsed?'☰':'✕'}</span>
