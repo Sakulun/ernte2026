@@ -1,6 +1,6 @@
-import { state } from './state.js?v=159';
-import { db } from './db.js?v=159';
-import { showToast, escapeHtml } from './helpers.js?v=159';
+import { state } from './state.js?v=161';
+import { db } from './db.js?v=161';
+import { showToast, escapeHtml } from './helpers.js?v=161';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -86,18 +86,32 @@ export function kontraktFuhren(kId) {
     .filter(w => w.typ==='ausgang' && w.kontrakt_id===kId)
     .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
 }
-// Abrechnungsstatus eines Kontrakts anhand der Gutschrift-Nr. je Auslieferung:
-// 'keine' (noch keine Auslieferung), 'offen' (mind. eine ohne Gutschrift), 'fertig'.
-export function kontraktAbrechnung(k) {
-  const fuhren = kontraktFuhren(k.id);
-  if(!fuhren.length) return { status:'keine', fehlen:0, gesamt:0 };
-  const fehlen = fuhren.filter(w => !String(w.gutschrift_nr||'').trim()).length;
-  return { status: fehlen ? 'offen' : 'fertig', fehlen, gesamt: fuhren.length };
+// Fuhren eines Kontrakts mit Belegprüfung: Verkauf = Auslieferungen (warenbewegungen),
+// Einkauf = Zukauf-Fuhren der Waage (fuhren).
+function kontraktBelegFuhren(k) {
+  return (k.richtung||'verkauf') === 'einkauf' ? kontraktEingangFuhren(k) : kontraktFuhren(k.id);
 }
-// Raps-Kontrakt? (dann Zusatzspalte Qualitätsabrechnung)
+// Abrechnungsstatus eines Kontrakts je Fuhre: Gutschrift-Nr. immer, bei Raps
+// zusätzlich die Qualitätsabrechnung-Nr. (andere Früchte haben keine).
+// 'keine' (noch keine Fuhre), 'offen' (mind. ein Beleg fehlt), 'fertig'.
+export function kontraktAbrechnung(k) {
+  const fuhren = kontraktBelegFuhren(k);
+  if(!fuhren.length) return { status:'keine', fehlen:0, fehlenGs:0, fehlenQuali:0, gesamt:0 };
+  const leer = v => !String(v||'').trim();
+  const raps = istRapsKontrakt(k);
+  const fehlenGs    = fuhren.filter(w => leer(w.gutschrift_nr)).length;
+  const fehlenQuali = raps ? fuhren.filter(w => leer(w.quali_nr)).length : 0;
+  const fehlen      = fuhren.filter(w => leer(w.gutschrift_nr) || (raps && leer(w.quali_nr))).length;
+  return { status: fehlen ? 'offen' : 'fertig', fehlen, fehlenGs, fehlenQuali, gesamt: fuhren.length };
+}
+// Raps-Kontrakt? (nur dann gibt es eine Qualitätsabrechnung). Bei Einkaufskontrakten
+// ohne Artikel zählt auch die Fruchtart der Zukauf-Fuhren.
 function istRapsKontrakt(k) {
   const art = state.artikel.find(a=>a.id===k.artikel_id)?.name || '';
-  return /raps/i.test(art + ' ' + (k.fruchtart_text||''));
+  if(/raps/i.test(art + ' ' + (k.fruchtart_text||''))) return true;
+  if((k.richtung||'verkauf') === 'einkauf' && !art && !k.fruchtart_text)
+    return kontraktEingangFuhren(k).some(f => /raps/i.test(f.fruchtart||''));
+  return false;
 }
 
 export function toggleKontraktDetail(id) {
@@ -122,43 +136,77 @@ export async function kontraktAbfahrerFrei(id, frei) {
   }
 }
 
-// Ein Abrechnungsfeld einer Auslieferung speichern (Gutschrift-Nr., Fracht-Nr., Quali-Nr., Klären, Bemerkung).
-export async function kontraktFuhreFeld(id, feld, wert) {
-  const w = state.warenbewegungen.find(x => x.id === id);
+// Ein Abrechnungsfeld einer Fuhre speichern (Gutschrift-Nr., Fracht-Nr., Quali-Nr., Klären, Bemerkung).
+// quelle 'fuhre' = Zukauf-Fuhre eines Einkaufskontrakts, sonst Auslieferung (warenbewegung).
+export async function kontraktFuhreFeld(id, feld, wert, quelle) {
+  const istFuhre = quelle === 'fuhre';
+  const w = (istFuhre ? state.fuhren : state.warenbewegungen).find(x => x.id === id);
   if(!w) return;
   w[feld] = wert;
   const keyMap = { gutschrift_nr:'gutschriftNr', fracht_nr:'frachtNr', quali_nr:'qualiNr', klaeren:'klaeren', bemerkung:'bemerkung' };
   try {
-    await db.updateWarenbewegungAbrechnung(id, { [keyMap[feld]]: wert });
+    if(istFuhre) await db.updateFuhreAbrechnung(id, { [keyMap[feld]]: wert });
+    else await db.updateWarenbewegungAbrechnung(id, { [keyMap[feld]]: wert });
     // Nur bei "klären" neu rendern (Markierung/Zähler); Textfelder still speichern,
     // um Fokus/Tippfluss nicht zu unterbrechen.
     if(feld === 'klaeren') renderKontrakte();
   } catch(e) { showToast('⚠ '+e.message, 'error'); }
 }
 
-// Detail eines Einkaufskontrakts: die eingegangenen Fuhren (nur Anzeige, keine Gutschriften).
+// Belegfelder (Gutschrift/Fracht/Quali + zu klären + Bemerkung) einer Fuhre –
+// gemeinsam für Verkauf (warenbewegung) und Einkauf (Zukauf-Fuhre, quelle 'fuhre').
+function belegFelderHTML(w, { quelle, fracht, raps, gutschriftLabel }) {
+  const q = quelle ? `,'${quelle}'` : '';
+  const feldInput = (feld, val, ph) =>
+    `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${w.id},'${feld}',this.value${q})"
+      style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
+  const warn = !!w.klaeren;
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
+        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">${gutschriftLabel}</label>${feldInput('gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
+        ${fracht?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput('fracht_nr',w.fracht_nr,'Nummer')}</div>`:''}
+        ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput('quali_nr',w.quali_nr,'Nummer')}</div>`:''}
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:${warn?'700':'400'};color:${warn?'var(--color-warning)':'var(--text2)'};cursor:pointer;white-space:nowrap">
+          <input type="checkbox" ${warn?'checked':''} onchange="kontraktFuhreFeld(${w.id},'klaeren',this.checked${q})" style="width:16px;height:16px;accent-color:var(--color-warning);cursor:pointer">⚠ zu klären
+        </label>
+        <div style="flex:1;min-width:150px">${feldInput('bemerkung',w.bemerkung,'Bemerkung…')}</div>
+      </div>`;
+}
+// Rahmen einer Fuhren-Karte: hervorgehoben bei "zu klären".
+function belegKarteStil(w) {
+  if(w.klaeren) return 'border:1px solid var(--color-warning);background:var(--status-offen-bg)';
+  return 'border:1px solid var(--color-border);background:var(--color-surface)';
+}
+
+// Detail eines Einkaufskontrakts: die eingegangenen Fuhren mit Belegprüfung wie beim Verkauf.
 function kontraktEingangDetailHTML(k) {
   const fuhren = kontraktEingangFuhren(k);
   if(!fuhren.length) return `<div style="padding:10px 2px;font-size:12px;color:var(--text3)">Noch keine Anlieferungen für diesen Kontrakt.</div>`;
+  const raps = istRapsKontrakt(k);
+  // Frachtabrechnung nur, wenn wir die Fracht tragen. Bei Parität "frei …"
+  // (frei Hof/Lager) liefert der Verkäufer – dann keine Frachtabrechnung.
+  const fracht = !/\bfrei\b/i.test(k.paritaet || '');
   const pct = v => v != null ? Number(v).toLocaleString('de-DE') + ' %' : null;
   const rows = fuhren.map(f => {
     const datum = f.zeit ? new Date(f.zeit).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) : '';
     const nettoT = (Math.max(0, f.vollgewicht - f.leergewicht)/1000).toFixed(2);
     const qual = [pct(f.feuchte) && 'Feuchte ' + pct(f.feuchte), pct(f.oelgehalt) && 'Öl ' + pct(f.oelgehalt),
       pct(f.protein) && 'Protein ' + pct(f.protein)].filter(Boolean).join(' · ');
-    return `<div style="border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:var(--color-surface);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      <div style="min-width:0">
+    return `<div style="${belegKarteStil(f)};border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
         <div style="font-size:12px;color:var(--text)"><b>${escapeHtml(f.nr||'–')}</b> · ${escapeHtml(datum)}<span style="color:var(--text3)"> · ${escapeHtml(f.fruchtart||'–')}</span></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:2px">🚚 ${escapeHtml(f.kennzeichen||'–')}${qual?' · '+escapeHtml(qual):''}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
+          <button class="btn btn-sm btn-outline" onclick="fuhreLieferscheinDrucken(${f.id})" title="Lieferschein/Wiegeschein drucken">🖨</button>
+        </div>
       </div>
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
-        <button class="btn btn-sm btn-outline" onclick="fuhreLieferscheinDrucken(${f.id})" title="Lieferschein/Wiegeschein drucken">🖨</button>
-      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(f.kennzeichen||'–')}${qual?' · '+escapeHtml(qual):''}</div>
+      ${belegFelderHTML(f, { quelle:'fuhre', fracht, raps, gutschriftLabel:'Gutschrift-/Rechnung-Nr.' })}
     </div>`;
   }).join('');
   return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${fuhren.length} Anlieferung${fuhren.length===1?'':'en'}</div>
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${fuhren.length} Anlieferung${fuhren.length===1?'':'en'} · Abrechnung</div>
     ${rows}
   </div>`;
 }
@@ -171,31 +219,17 @@ function kontraktDetailHTML(k) {
   // Frachtabrechnung nur, wenn der Verkäufer die Fracht trägt. Bei Parität
   // "ab Hof" holt der Käufer ab – dann keine Frachtabrechnung.
   const abHof = /\bab\s*hof/i.test(k.paritaet || '');
-  const feldInput = (id, feld, val, ph) =>
-    `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${id},'${feld}',this.value)"
-      style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
   const rows = fuhren.map(w => {
     const art = state.artikel.find(a=>a.id===w.artikel_id);
     const datum = w.erstellt_am ? new Date(w.erstellt_am).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}) : '';
     const nettoT = ((Number(w.menge_kg)||0)/1000).toFixed(2);
-    const warn = !!w.klaeren;
-    return `<div style="border:1px solid ${warn?'var(--color-warning)':'var(--color-border)'};border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:${warn?'var(--status-offen-bg)':'var(--color-surface)'}">
+    return `<div style="${belegKarteStil(w)};border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px">
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:6px">
         <div style="font-size:12px;color:var(--text)"><b>LS ${escapeHtml(w.lieferschein_nr||'–')}</b> · ${escapeHtml(datum)}<span style="color:var(--text3)"> · ${escapeHtml(art?.name||'–')}</span></div>
         <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}${w.sonstige_angaben?` · <span style="color:var(--gold);font-weight:600" title="Freitexteingabe">📝 ${escapeHtml(w.sonstige_angaben)}</span>`:''}</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
-        <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Gutschrift-Nr.</label>${feldInput(w.id,'gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
-        ${abHof?'':`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Frachtabrechnung-Nr.</label>${feldInput(w.id,'fracht_nr',w.fracht_nr,'Nummer')}</div>`}
-        ${raps?`<div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">Qualitätsabrechnung-Nr.</label>${feldInput(w.id,'quali_nr',w.quali_nr,'Nummer')}</div>`:''}
-      </div>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:${warn?'700':'400'};color:${warn?'var(--color-warning)':'var(--text2)'};cursor:pointer;white-space:nowrap">
-          <input type="checkbox" ${warn?'checked':''} onchange="kontraktFuhreFeld(${w.id},'klaeren',this.checked)" style="width:16px;height:16px;accent-color:var(--color-warning);cursor:pointer">⚠ zu klären
-        </label>
-        <div style="flex:1;min-width:150px">${feldInput(w.id,'bemerkung',w.bemerkung,'Bemerkung…')}</div>
-      </div>
+      ${belegFelderHTML(w, { quelle:'', fracht:!abHof, raps, gutschriftLabel:'Gutschrift-Nr.' })}
     </div>`;
   }).join('');
   return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
@@ -284,11 +318,16 @@ export function renderKontrakte() {
     const kt        = state.kontakte.find(c=>c.id===k.kontakt_id);
     const art       = state.artikel.find(a=>a.id===k.artikel_id);
     const vonBis    = [k.lieferung_von,k.lieferung_bis].filter(Boolean).map(d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
-    const fuhren    = einkauf ? kontraktEingangFuhren(k) : kontraktFuhren(k.id);
+    const fuhren    = kontraktBelegFuhren(k);
     const klaerenN  = fuhren.filter(w=>w.klaeren).length;
     const abr       = kontraktAbrechnung(k);
+    const fehltTxt  = (n, sg, pl) => `${n} von ${abr.gesamt} ${abr.gesamt===1?sg:pl} fehl${n===1?'t':'en'}`;
+    const abrTeile  = [
+      abr.fehlenGs    ? '💶 ' + fehltTxt(abr.fehlenGs, 'Gutschrift', 'Gutschriften') : '',
+      abr.fehlenQuali ? '🧪 ' + fehltTxt(abr.fehlenQuali, 'Qualitätsabrechnung', 'Qualitätsabrechnungen') : ''
+    ].filter(Boolean).join(' · ');
     const abrHTML   = abr.status==='offen'
-      ? ` · <span style="color:var(--red);font-weight:700" title="Auslieferungen ohne Gutschrift-Nr.">💶 ${abr.fehlen} von ${abr.gesamt} Gutschrift${abr.gesamt===1?'':'en'} fehl${abr.fehlen===1?'t':'en'}</span>`
+      ? ` · <span style="color:var(--red);font-weight:700" title="${einkauf?'Anlieferungen':'Auslieferungen'} ohne Gutschrift${einkauf?'-/Rechnung':''}-Nr. oder (bei Raps) ohne Qualitätsabrechnung-Nr.">${abrTeile}</span>`
       : abr.status==='fertig' ? ` · <span style="color:var(--green2);font-weight:600">✓ abgerechnet</span>` : '';
     const offen     = _offenerKontrakt === k.id;
     return `<div class="card${abr.status==='offen'?' kontrakt-unabgerechnet':''}" style="margin-bottom:8px">
@@ -351,11 +390,11 @@ export function renderKontrakte() {
       <input type="file" id="kontrakt-file-input" accept=".pdf" style="display:none" onchange="kontraktPDFDatei(this)">
       <button class="btn btn-sm btn-outline" style="margin-top:12px" onclick="document.getElementById('kontrakt-file-input').click()">Datei wählen</button>
     </div>`}
-    <div style="display:grid;grid-template-columns:repeat(${einkauf?3:4},1fr);gap:8px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">
       <div class="stat-box"><div class="stat-val" style="font-size:22px">${aktiv.length}</div><div class="stat-label">aktive Kontrakte</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${gesamtT.toFixed(0)}</div><div class="stat-label">t kontraktiert</div></div>
       <div class="stat-box"><div class="stat-val" style="font-size:20px">${geliefT.toFixed(1)}</div><div class="stat-label">t geliefert</div></div>
-      ${einkauf ? '' : `<div class="stat-box" title="Kontrakte mit Auslieferungen ohne Gutschrift-Nr."><div class="stat-val" style="font-size:22px;color:${unabgerechnetN?'var(--red)':'var(--green2)'}">${unabgerechnetN}</div><div class="stat-label">Gutschriften offen</div></div>`}
+      <div class="stat-box" title="Kontrakte mit ${einkauf?'Anlieferungen':'Auslieferungen'} ohne Gutschrift${einkauf?'-/Rechnung':''}-Nr. oder (bei Raps) ohne Qualitätsabrechnung-Nr."><div class="stat-val" style="font-size:22px;color:${unabgerechnetN?'var(--red)':'var(--green2)'}">${unabgerechnetN}</div><div class="stat-label">Abrechnung offen</div></div>
     </div>
     ${fruchtartUebersichtHTML()}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px">
@@ -376,14 +415,14 @@ export function renderKontrakte() {
           <option value="">Alle</option>${kundeOpts}
         </select>
       </label>
-      ${einkauf ? '' : `<label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Abrechnung
+      <label style="font-size:11px;color:var(--text2);display:inline-flex;align-items:center;gap:4px">Abrechnung
         <select class="input" style="width:auto;padding:5px 8px;font-size:13px" onchange="setKontraktFilter('abrechnung', this.value)">
           <option value="">Alle</option>
-          <option value="offen" ${_kFilterAbrechnung==='offen'?'selected':''}>⚠ Gutschriften fehlen</option>
+          <option value="offen" ${_kFilterAbrechnung==='offen'?'selected':''}>⚠ Belege fehlen</option>
           <option value="fertig" ${_kFilterAbrechnung==='fertig'?'selected':''}>✓ Abgerechnet</option>
-          <option value="keine" ${_kFilterAbrechnung==='keine'?'selected':''}>– Ohne Auslieferung</option>
+          <option value="keine" ${_kFilterAbrechnung==='keine'?'selected':''}>– Ohne ${einkauf?'Anlieferung':'Auslieferung'}</option>
         </select>
-      </label>`}
+      </label>
       ${filterAktiv ? `<button class="btn btn-sm btn-outline" onclick="kontraktFilterReset()">✕ Zurücksetzen</button>` : ''}
     </div>`;
 

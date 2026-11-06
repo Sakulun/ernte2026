@@ -1,11 +1,12 @@
-import { state } from './state.js?v=159';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=159';
-import { getSiloFill, getSiloKultur } from './silo.js?v=159';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=159';
+import { state } from './state.js?v=161';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=161';
+import { getSiloFill, getSiloKultur } from './silo.js?v=161';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=161';
+import { kontraktEingangFuhren } from './kontrakte.js?v=161';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=159';
+} from './config.js?v=161';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -394,9 +395,17 @@ export async function exportKontrakteExcel() {
   if(!kontrakte.length) { showToast('Keine Kontrakte zum Exportieren.', 'error'); return; }
   const artName   = id => state.artikel.find(a => a.id === id)?.name || '';
   const kundeName = id => state.kontakte.find(c => c.id === id)?.name || '';
-  const ausOf     = kId => state.warenbewegungen
-    .filter(w => w.typ === 'ausgang' && w.kontrakt_id === kId)
-    .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
+  // Fuhren je Kontrakt: Verkauf = Auslieferungen, Einkauf = Zukauf-Fuhren der Waage
+  // (auf die gleichen Felder abgebildet, damit beide Blätter einheitlich bleiben).
+  const ausOf     = k => (k.richtung||'verkauf') === 'einkauf'
+    ? kontraktEingangFuhren(k).map(f => ({
+        lieferschein_nr: f.nr, erstellt_am: f.zeit, artikel_id: null, artikel_text: f.fruchtart || '',
+        spedition: '', kennzeichen: f.kennzeichen, menge_kg: Math.max(0, f.vollgewicht - f.leergewicht),
+        gutschrift_nr: f.gutschrift_nr, fracht_nr: f.fracht_nr, quali_nr: f.quali_nr,
+        klaeren: f.klaeren, bemerkung: f.bemerkung }))
+    : state.warenbewegungen
+      .filter(w => w.typ === 'ausgang' && w.kontrakt_id === k.id)
+      .sort((a,b) => new Date(a.erstellt_am) - new Date(b.erstellt_am));
   const deDat = d => d ? new Date(d).toLocaleDateString('de-DE') : '';
   const wb = XLSX.utils.book_new();
 
@@ -408,7 +417,7 @@ export async function exportKontrakteExcel() {
   const kHead = ['Nummer','Kunde','Artikel','Menge_t','Geliefert_t','Rest_t','Preis_EUR_t','Parität','Von','Bis','Status','Fuhren','Zu_klären','Nachhaltig','GMP+','EU-Öko'];
   const kAoa = [kHead];
   kontrakte.forEach(k => {
-    const fuhren = ausOf(k.id);
+    const fuhren = ausOf(k);
     const geliefT = fuhren.reduce((s,w) => s + (Number(w.menge_kg)||0), 0) / 1000;
     const mengeT = parseFloat(k.menge_t) || 0;
     kAoa.push([
@@ -430,10 +439,10 @@ export async function exportKontrakteExcel() {
   const fHead = ['Kontrakt','Kunde','Lieferschein_Nr','Datum','Artikel','Spedition','Kennzeichen','Netto_t','Gutschrift_Nr','Frachtabrechnung_Nr','Qualitätsabrechnung_Nr','Zu_klären','Bemerkung','Nachhaltig','GMP+','EU-Öko'];
   const fAoa = [fHead];
   kontrakte.forEach(k => {
-    ausOf(k.id).forEach(w => {
+    ausOf(k).forEach(w => {
       fAoa.push([
         k.nummer||'', kundeName(k.kontakt_id), w.lieferschein_nr||'', deDat(w.erstellt_am),
-        artName(w.artikel_id), w.spedition||'', w.kennzeichen||'',
+        artName(w.artikel_id) || w.artikel_text || '', w.spedition||'', w.kennzeichen||'',
         Math.round((Number(w.menge_kg)||0)/10)/100,
         w.gutschrift_nr||'', w.fracht_nr||'', w.quali_nr||'', w.klaeren?'ja':'', w.bemerkung||'',
         ja(k.zert_nachhaltig), ja(k.zert_gmp), ja(k.bio)

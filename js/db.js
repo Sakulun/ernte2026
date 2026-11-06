@@ -1,5 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=159';
-import { fahrerLabel } from './rechte.js?v=159';
+import { SB_URL, SB_KEY } from './config.js?v=161';
+import { fahrerLabel } from './rechte.js?v=161';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -164,6 +164,17 @@ export const db = {
     if(updates.drescherId !== undefined) map.drescher_id_korr = updates.drescherId;
     if(updates.abfahrerId !== undefined) map.abfahrer_id_korr = updates.abfahrerId;
     if(updates.fruchtartKorr !== undefined) { map.fruchtart_korr = updates.fruchtartKorr; map.fruchtart = updates.fruchtartKorr; }
+    const { error } = await sb.from('fuhren').update(map).eq('id', id);
+    if(error) throw error;
+  },
+  // Abrechnungsfelder einer Zukauf-Fuhre (Einkaufskontrakt) – wie updateWarenbewegungAbrechnung.
+  async updateFuhreAbrechnung(id, u) {
+    const map = {};
+    if(u.gutschriftNr !== undefined) map.gutschrift_nr = u.gutschriftNr || null;
+    if(u.frachtNr !== undefined)     map.fracht_nr = u.frachtNr || null;
+    if(u.qualiNr !== undefined)      map.quali_nr = u.qualiNr || null;
+    if(u.klaeren !== undefined)      map.klaeren = !!u.klaeren;
+    if(u.bemerkung !== undefined)    map.bemerkung = u.bemerkung || null;
     const { error } = await sb.from('fuhren').update(map).eq('id', id);
     if(error) throw error;
   },
@@ -545,6 +556,12 @@ export function mapFuhre(f) {
     lon: f.lon != null ? parseFloat(f.lon) : null,
     quelleLagerId: f.quelle_lager_id || null,
     einkaufskontrakt: f.einkaufskontrakt || null,
+    // Belegprüfung Einkaufskontrakt (gleiche Schlüssel wie bei warenbewegungen)
+    gutschrift_nr: f.gutschrift_nr || null,
+    fracht_nr: f.fracht_nr || null,
+    quali_nr: f.quali_nr || null,
+    klaeren: !!f.klaeren,
+    bemerkung: f.bemerkung || null,
     zeit: f.zeit,
     verifiziert: f.verifiziert || false,
     verifiziertVon: f.verifiziert_von || null,
