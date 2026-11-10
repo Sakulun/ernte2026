@@ -1,5 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=161';
-import { fahrerLabel } from './rechte.js?v=161';
+import { SB_URL, SB_KEY } from './config.js?v=162';
+import { fahrerLabel } from './rechte.js?v=162';
 
 export let sb = null;
 export function getSb() { return sb; }

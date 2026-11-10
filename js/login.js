@@ -1,7 +1,7 @@
-import { state, loadAppData } from './state.js?v=161';
-import { db, getSb } from './db.js?v=161';
-import { hashPW, hashPWLegacy } from './helpers.js?v=161';
-import { hatRecht, ansichtenVon, istVerwaltung } from './rechte.js?v=161';
+import { state, loadAppData } from './state.js?v=162';
+import { db, getSb } from './db.js?v=162';
+import { hashPW, hashPWLegacy } from './helpers.js?v=162';
+import { hatRecht, ansichtenVon, istVerwaltung } from './rechte.js?v=162';
 
 const _loginAttempts = {};
 
@@ -95,7 +95,32 @@ export async function doLogin() {
   }
 }
 
+// Geht die Supabase-Session verloren (z. B. Token-Erneuerung gescheitert, weil ein
+// zweiter Tab das Refresh-Token schon verbraucht hat), liefen Schreibzugriffe bisher
+// als anon und scheiterten an RLS ("new row violates row-level security policy").
+// Jetzt: zurück zur Anmeldung mit Hinweis.
+let _authWatch = false;
+function beobachteAuth() {
+  if(_authWatch) return;
+  const sb = getSb();
+  if(!sb?.auth?.onAuthStateChange) return;
+  _authWatch = true;
+  sb.auth.onAuthStateChange((event, session) => {
+    if(event !== 'SIGNED_OUT') return;
+    if(!state.currentUser) return; // gewollte Abmeldung (logout setzt currentUser vorher auf null)
+    logout();
+    renderLogin();
+    const errEl = document.getElementById('login-error');
+    if(errEl) {
+      errEl.style.color = 'var(--red)';
+      errEl.textContent = 'Sitzung abgelaufen – bitte erneut anmelden.';
+      errEl.style.display = 'block';
+    }
+  });
+}
+
 export function loginUser(user) {
+  beobachteAuth();
   state.currentUser = user;
   // Login-Zeit (Original, auch bei Session-Wiederherstellung aus localStorage).
   state.sessionStartMs = parseInt(localStorage.getItem('ernte_login_ts')) || Date.now();
