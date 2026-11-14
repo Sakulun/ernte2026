@@ -1,7 +1,7 @@
-import { state } from './state.js?v=163';
-import { db } from './db.js?v=163';
-import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=163';
-import { hatRecht } from './rechte.js?v=163';
+import { state } from './state.js?v=164';
+import { db } from './db.js?v=164';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=164';
+import { hatRecht } from './rechte.js?v=164';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -83,6 +83,7 @@ export function kontaktNeuDialog(id) {
       <div class="form-group"><label>IBAN</label><input type="text" id="kt-iban" value="${k?escapeHtml(k.iban||''):''}" placeholder="DE12 3456 7890 1234 5678 90"></div>
       <div class="form-group"><label>Notiz</label><input type="text" id="kt-notiz" value="${k?escapeHtml(k.notiz||''):''}" ></div>
       <div class="section-label" style="margin:18px 0 10px">Rechnungsdaten (E-Rechnung)</div>
+      <div class="form-group"><label>Kunden-/Lieferantennr. (DATEV) <span style="font-size:10px;color:var(--text3);font-weight:400">– Debitor/Kreditor, erscheint auf Rechnung/Gutschrift</span></label><input type="text" id="kt-kundennr" value="${k?escapeHtml(k.kundennummer||''):''}" placeholder="z. B. 10000018"></div>
       <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
         <div class="form-group"><label>USt-IdNr.</label><input type="text" id="kt-ustid" value="${k?escapeHtml(k.ust_id||''):''}" placeholder="DE123456789"></div>
         <div class="form-group"><label>Land</label><input type="text" id="kt-land" maxlength="2" value="${k?escapeHtml(k.land||'DE'):'DE'}" placeholder="DE"></div>
@@ -121,6 +122,7 @@ export async function kontaktSpeichern(id) {
     email:document.getElementById('kt-email').value.trim()||null,
     iban:document.getElementById('kt-iban').value.trim()||null,
     notiz:document.getElementById('kt-notiz').value.trim()||null,
+    kundennummer:document.getElementById('kt-kundennr')?.value.trim()||null,
     ust_id:(document.getElementById('kt-ustid')?.value||'').replace(/\s+/g,'').toUpperCase()||null,
     land:(document.getElementById('kt-land')?.value||'DE').trim().toUpperCase()||'DE',
     steuernummer:document.getElementById('kt-stnr')?.value.trim()||null,

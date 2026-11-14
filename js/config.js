@@ -5,7 +5,8 @@ export const SB_KEY = 'sb_publishable_HPUpEywyC27cmVfthrqY4A_aWeuYth1';
 // Firma
 export const FIRMA_NAME = 'Saatgut- & Agrarservice Beesenstedt GmbH';
 export const FIRMA_GF = 'Geschäftsführer: Johann Nuscheler';
-export const FIRMA_HRB = 'Registergericht Halle HRB 10 422';
+// Registerführung für Sachsen-Anhalt beim AG Stendal (alte Halle-Nr. 10 422 → HRB 210422), Stand DATEV-Rechnung 11/2026.
+export const FIRMA_HRB = 'Registergericht Stendal HRB 210422';
 export const FIRMA_STNR = 'St. Nr. 110/299/41574';
 export const FIRMA_UST = 'UST-ID DE 139712562';
 export const FIRMA_BANK1 = 'Saalkreissparkasse Halle';
@@ -15,18 +16,23 @@ export const FIRMA_BANK2 = 'Raiffeisenbank Pfaffenwinkel';
 export const FIRMA_IBAN2 = 'IBAN: DE10 7016 9509 0000 3126 14';
 export const FIRMA_BIC2 = 'BIC: GENODEF1PEI';
 
-// Stammdaten für E-Rechnungen (ZUGFeRD / EN 16931) – maschinenlesbare Form.
-export const FIRMA_STRASSE = 'Bahnhofstraße 11';
+// Stammdaten für E-Rechnungen (ZUGFeRD / EN 16931) – abgeglichen mit den DATEV-Ausgangsrechnungen.
+export const FIRMA_NAME_RECHNUNG = 'Saatgut- u. Agrarservice Beesenstedt GmbH'; // Schreibweise wie in DATEV
+export const FIRMA_STRASSE = 'Bahnhofstrasse 11';
 export const FIRMA_PLZ     = '06198';
 export const FIRMA_ORT     = 'Salzatal OT Beesenstedt';
 export const FIRMA_LAND    = 'DE';
-export const FIRMA_TEL     = '034773 39001';
+export const FIRMA_TEL     = '+49 34773 39001';
 export const FIRMA_EMAIL   = 'office@landgut-nuscheler.de';
+export const FIRMA_ANSPRECHPARTNER = 'Frau Raabe';
+export const FIRMA_GF_NAME = 'Johann Nuscheler';
+export const FIRMA_REGISTER = 'Registergericht Stendal HRB 210422';
 export const FIRMA_USTID_ROH = 'DE139712562';
 export const FIRMA_STNR_ROH  = '110/299/41574';
-export const FIRMA_IBAN_ROH  = 'DE17800537620387301820';   // Zahlungskonto auf Rechnungen
-export const FIRMA_BIC_ROH   = 'NOLADE21HAL';
-export const FIRMA_BANK_NAME = 'Saalkreissparkasse Halle';
+export const FIRMA_IBAN_ROH  = 'DE10701695090000312614';   // Zahlungskonto auf Rechnungen (wie DATEV)
+export const FIRMA_BIC_ROH   = 'GENODEF1PEI';
+export const FIRMA_BANK_NAME = 'Raiffbk Pfaffenwinkel';
+export const RECHNUNG_LOGO   = 'assets/rechnung/logo-saatgutservice.jpg';
 export const FIRMA_OEKO_KONTROLLSTELLE = 'DE-ÖKO-006';
 
 // Zertifikats-/Siegel-Nummern für den Lieferschein (je nach Kontrakt-Auswahl).

@@ -1,5 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=163';
-import { fahrerLabel } from './rechte.js?v=163';
+import { SB_URL, SB_KEY } from './config.js?v=164';
+import { fahrerLabel } from './rechte.js?v=164';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -8,6 +8,7 @@ export function getSb() { return sb; }
 // (z.B. Aufruf aus Altcode), bleiben die DB-Defaults erhalten.
 function kontaktRechnungsFelder(k) {
   const o = {};
+  if(k.kundennummer !== undefined)      o.kundennummer = k.kundennummer || null;
   if(k.ust_id !== undefined)            o.ust_id = k.ust_id || null;
   if(k.steuernummer !== undefined)      o.steuernummer = k.steuernummer || null;
   if(k.land !== undefined)              o.land = (k.land || 'DE').toUpperCase();

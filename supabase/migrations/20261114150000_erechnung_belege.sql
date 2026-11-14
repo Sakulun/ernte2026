@@ -175,3 +175,6 @@ alter publication supabase_realtime add table belege;
 -- Recht "rechnungen" (Sidebar-Bereich) allen geben, die Kontrakte verwalten
 update nutzer set rechte = array_append(rechte, 'rechnungen')
   where 'kontrakte' = any(rechte) and not ('rechnungen' = any(rechte));
+
+-- DATEV-Debitor-/Kreditornummer (Kundennummer auf Belegen)
+alter table kontakte add column if not exists kundennummer text;

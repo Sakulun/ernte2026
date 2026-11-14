@@ -3,13 +3,13 @@
 // Einkaufskontrakte → Gutschriften aus erhaltener Ware (Fuhren mit Einkaufskontrakt).
 // Ablauf: Entwurf → Festschreiben (Nummer, GoBD-Sperre, PDF/A-3 + XML archiviert) → Versand.
 
-import { state } from './state.js?v=163';
-import { db } from './db.js?v=163';
-import { showToast, escapeHtml } from './helpers.js?v=163';
-import { FIRMA_NAME } from './config.js?v=163';
+import { state } from './state.js?v=164';
+import { db } from './db.js?v=164';
+import { showToast, escapeHtml } from './helpers.js?v=164';
+import { FIRMA_NAME_RECHNUNG as FIRMA_NAME } from './config.js?v=164';
 import { r2, r3, eur, num, datumDE, isoDatum, pos, summen, regelnAnwenden, partnerSnapshot,
          pruefeBeleg, erzeugePdf, downloadBytes, oeffneBytes, QUALI_FELDER, REGEL_ARTEN,
-         EINHEITEN, UST_SAETZE } from './erechnung.js?v=163';
+         EINHEITEN, UST_SAETZE, STEUERFAELLE, steuerfallVorschlag, istSteuerfrei } from './erechnung.js?v=164';
 
 let _view = 'offen';            // 'offen' | 'belege' | 'regeln'
 let _belege = [];
@@ -344,7 +344,7 @@ export function rechnungFreiStart() {
   document.getElementById('frei-modal')?.remove();
   if(!kontaktId) { showToast('⚠ Kontakt wählen', 'error'); return; }
   const kontakt = kontaktVon(kontaktId);
-  _ed = { id: null, art, kontaktId, kontraktId: null, datum: isoDatum(new Date()),
+  _ed = { id: null, art, kontaktId, kontraktId: null, datum: isoDatum(new Date()), steuerfall: steuerfallVorschlag(kontakt),
     zahlungszielTage: kontakt?.zahlungsziel_tage ?? 14, bemerkung: '', lief: [], deaktiviert: new Set(),
     freie: [{ bezeichnung: '', beschreibung: '', vorz: '+', menge: 1, einheit: 'C62', preis: 0, ust_satz: art === 'gutschrift' && kontakt?.ust_modus === 'pauschal24' ? 7.8 : 19 }] };
   editorRender();
@@ -358,7 +358,7 @@ export function rechnungNeu(kontraktId) {
   const art = kontraktArt(k);
   const kontakt = kontaktVon(k.kontakt_id);
   const ust = ustFuer(art, k, kontakt);
-  _ed = { id: null, art, kontaktId: k.kontakt_id, kontraktId: k.id, datum: isoDatum(new Date()),
+  _ed = { id: null, art, kontaktId: k.kontakt_id, kontraktId: k.id, datum: isoDatum(new Date()), steuerfall: steuerfallVorschlag(kontakt),
     zahlungszielTage: kontakt?.zahlungsziel_tage ?? 14, bemerkung: '', deaktiviert: new Set(), freie: [],
     lief: kontraktLieferungen(k).map(l => ({ ...l, gewaehlt: true, preis: Number(k.preis_eur) || 0, ust_satz: ust })) };
   editorRender();
@@ -376,6 +376,7 @@ export function belegOeffnen(id) {
     return { ...l, gewaehlt: !!p, preis: p ? p.preis : Number(k.preis_eur) || 0, ust_satz: p ? p.ust_satz : ust, quali: { ...l.quali, ...(p?.quali || {}) } };
   }) : [];
   _ed = { id: b.id, art: b.art, kontaktId: b.kontakt_id, kontraktId: b.kontrakt_id, datum: isoDatum(new Date()),
+    steuerfall: b.art === 'rechnung' && STEUERFAELLE[b.ust_modus] ? b.ust_modus : steuerfallVorschlag(kontakt),
     zahlungszielTage: b.zahlungsziel_tage ?? 14, bemerkung: b.bemerkung || '', lief, deaktiviert: new Set(),
     freie: b.positionen.filter(p => p.typ === 'frei').map(p => ({ bezeichnung: p.bezeichnung, beschreibung: p.beschreibung,
       vorz: p.menge < 0 ? '-' : '+', menge: Math.abs(p.menge), einheit: p.einheit, preis: p.preis, ust_satz: p.ust_satz })) };
@@ -396,7 +397,7 @@ function liefPositionen() {
   return _ed.lief.filter(l => l.gewaehlt).map(l => {
     const qs = Object.entries(l.quali || {}).filter(([f, v]) => v != null && v !== '' && QUALI_FELDER[f])
       .map(([f, v]) => `${QUALI_FELDER[f].label} ${num(v, 1, 2)} ${QUALI_FELDER[f].einheit}`);
-    return pos({ typ: 'lieferung', quelle: l.quelle, quelle_id: l.quelle_id, bezeichnung: name,
+    return pos({ typ: 'lieferung', quelle: l.quelle, quelle_id: l.quelle_id, bezeichnung: name, ls: l.ls,
       beschreibung: [`LS ${l.ls} vom ${datumDE(l.datum)}`, l.info, qs.join(', ')].filter(Boolean).join(' · '),
       datum: l.datum, menge: l.menge_t, einheit: 'TNE', preis: l.preis, ust_satz: l.ust_satz,
       quali: Object.fromEntries(Object.entries(l.quali || {}).filter(([, v]) => v != null && v !== '')) });
@@ -420,14 +421,16 @@ function freiePositionen() {
 }
 function edBeleg() {
   const { kontakt } = edKontext();
-  const positionen = [...liefPositionen(), ...regelPositionen(), ...freiePositionen()];
+  const frei = _ed.art === 'rechnung' && istSteuerfrei(_ed.steuerfall);
+  const positionen = [...liefPositionen(), ...regelPositionen(), ...freiePositionen()]
+    .map(p => frei ? { ...p, ust_satz: 0 } : p);
   const daten = _ed.lief.filter(l => l.gewaehlt).map(l => l.datum).sort();
   const s = summen(positionen);
   return { id: _ed.id, art: _ed.art, kontakt_id: _ed.kontaktId, kontrakt_id: _ed.kontraktId,
     datum: _ed.datum, leistung_von: daten[0] || _ed.datum, leistung_bis: daten[daten.length - 1] || _ed.datum,
     zahlungsziel_tage: _ed.zahlungszielTage, empfaenger: partnerSnapshot(kontakt), positionen,
     steuern: s.steuern, netto: s.netto, ust: s.ust, brutto: s.brutto,
-    ust_modus: _ed.art === 'gutschrift' ? (kontakt?.ust_modus || 'regel') : 'regel', bemerkung: _ed.bemerkung || null,
+    ust_modus: _ed.art === 'gutschrift' ? (kontakt?.ust_modus || 'regel') : (_ed.steuerfall || 'regel'), bemerkung: _ed.bemerkung || null,
     erstellt_von: state.currentUser?.id || null };
 }
 
@@ -443,6 +446,7 @@ function editorRender() {
   const th = (t, r) => `<th style="padding:6px;text-align:${r ? 'right' : 'left'};font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);white-space:nowrap">${t}</th>`;
   const ustOpts = v => UST_SAETZE.map(s => `<option value="${s}"${Number(v) === s ? ' selected' : ''}>${num(s, 0, 1)} %</option>`).join('');
 
+  const ustFrei = _ed.art === 'rechnung' && istSteuerfrei(_ed.steuerfall);
   const liefRows = _ed.lief.map((l, i) => `<tr style="border-top:1px solid var(--color-border);${l.gewaehlt ? '' : 'opacity:.45'}">
       <td style="padding:5px 6px"><input type="checkbox" ${l.gewaehlt ? 'checked' : ''} onchange="edLiefToggle(${i},this.checked)" style="width:16px;height:16px"></td>
       <td style="padding:5px 6px;white-space:nowrap">${datumDE(l.datum)}</td>
@@ -450,7 +454,7 @@ function editorRender() {
       <td style="padding:5px 6px;text-align:right;white-space:nowrap">${num(l.menge_t, 3, 3)} t</td>
       ${qFelder.map(f => `<td style="padding:5px 6px"><input type="number" step="0.01" value="${l.quali?.[f] ?? ''}" placeholder="–" onchange="edQuali(${i},'${f}',this.value)" style="${inpS};width:70px"></td>`).join('')}
       <td style="padding:5px 6px"><input type="number" step="0.01" min="0" value="${l.preis}" onchange="edLiefFeld(${i},'preis',this.value)" style="${inpS};width:90px"></td>
-      <td style="padding:5px 6px"><select onchange="edLiefFeld(${i},'ust_satz',this.value)" style="${inpS}">${ustOpts(l.ust_satz)}</select></td>
+      <td style="padding:5px 6px"><select onchange="edLiefFeld(${i},'ust_satz',this.value)" style="${inpS}" ${ustFrei ? 'disabled title="steuerfrei lt. Steuerfall"' : ''}>${ustOpts(ustFrei ? 0 : l.ust_satz)}</select></td>
       <td id="ed-lb-${i}" style="padding:5px 6px;text-align:right;font-weight:600;white-space:nowrap">${l.gewaehlt ? eur(r2(r3(l.menge_t) * l.preis)) : '–'}</td>
     </tr>`).join('');
 
@@ -461,7 +465,7 @@ function editorRender() {
       <td style="padding:5px 6px"><input type="number" step="0.001" min="0" value="${f.menge}" onchange="edFreiFeld(${i},'menge',this.value)" style="${inpS};width:80px"></td>
       <td style="padding:5px 6px"><select onchange="edFreiFeld(${i},'einheit',this.value)" style="${inpS}">${Object.entries(EINHEITEN).filter(([c]) => c !== 'LS').map(([c, l]) => `<option value="${c}"${f.einheit === c ? ' selected' : ''}>${l}</option>`).join('')}</select></td>
       <td style="padding:5px 6px"><input type="number" step="0.01" min="0" value="${f.preis}" onchange="edFreiFeld(${i},'preis',this.value)" style="${inpS};width:90px"></td>
-      <td style="padding:5px 6px"><select onchange="edFreiFeld(${i},'ust_satz',this.value)" style="${inpS}">${ustOpts(f.ust_satz)}</select></td>
+      <td style="padding:5px 6px"><select onchange="edFreiFeld(${i},'ust_satz',this.value)" style="${inpS}" ${ustFrei ? 'disabled title="steuerfrei lt. Steuerfall"' : ''}>${ustOpts(ustFrei ? 0 : f.ust_satz)}</select></td>
       <td id="ed-fb-${i}" style="padding:5px 6px;text-align:right;font-weight:600;white-space:nowrap"></td>
       <td style="padding:5px 6px"><button class="btn btn-sm btn-outline" onclick="edFreiLoeschen(${i})" title="Position entfernen">✕</button></td>
     </tr>`).join('');
@@ -478,6 +482,7 @@ function editorRender() {
       </div>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <div class="form-group" style="margin:0"><label style="font-size:10px">Belegdatum</label><input type="date" value="${_ed.datum}" onchange="edFeld('datum',this.value)" style="${inpS}"></div>
+        ${_ed.art === 'rechnung' ? `<div class="form-group" style="margin:0"><label style="font-size:10px">Steuerfall</label><select onchange="edSteuerfall(this.value)" style="${inpS}">${Object.entries(STEUERFAELLE).map(([k, l]) => `<option value="${k}"${_ed.steuerfall === k ? ' selected' : ''}>${l}</option>`).join('')}</select></div>` : ''}
         <div class="form-group" style="margin:0"><label style="font-size:10px">Zahlungsziel (Tage)</label><input type="number" min="0" step="1" value="${_ed.zahlungszielTage}" onchange="edFeld('zahlungszielTage',this.value)" style="${inpS};width:90px"></div>
       </div>
     </div>
@@ -566,6 +571,7 @@ export function edFeld(feld, val) {
   else _ed[feld] = val;
   edAktualisieren();
 }
+export function edSteuerfall(v) { if(!_ed) return; _ed.steuerfall = STEUERFAELLE[v] ? v : 'regel'; editorRender(); }
 export function edLiefToggle(i, an) { if(!_ed?.lief[i]) return; _ed.lief[i].gewaehlt = an; editorRender(); }
 export function edLiefAlle(an) { if(!_ed) return; _ed.lief.forEach(l => l.gewaehlt = an); editorRender(); }
 export function edLiefFeld(i, feld, val) {
@@ -793,7 +799,7 @@ export function rechnungKontaktAktualisiert() {
 export const RECHNUNGEN_WINDOW = {
   renderRechnungen, rechnungenView, belegFilter, rechnungNeu, rechnungFreiDialog, rechnungFreiStart,
   belegOeffnen, belegLoeschen, belegPdf, belegXml, belegPdfNeu, belegStornieren, belegSendenDialog, belegOutlook, belegAlsVersendet,
-  edFeld, edLiefToggle, edLiefAlle, edLiefFeld, edQuali, edRegelToggle, edFreiNeu, edFreiFeld, edFreiLoeschen,
+  edFeld, edSteuerfall, edLiefToggle, edLiefAlle, edLiefFeld, edQuali, edRegelToggle, edFreiNeu, edFreiFeld, edFreiLoeschen,
   edSchliessen, edVorschau, edSpeichern, edFestschreiben,
   regelDialog, regelArtWechsel, regelSpeichern, regelToggle, regelLoeschen,
 };

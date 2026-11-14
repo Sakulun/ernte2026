@@ -8,11 +8,38 @@
 // Abzüge haben eine NEGATIVE Menge bei positivem Preis (EN 16931: BR-27 verbietet
 // negative Preise).
 
-import { FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STRASSE, FIRMA_PLZ, FIRMA_ORT, FIRMA_LAND,
-         FIRMA_TEL, FIRMA_EMAIL, FIRMA_USTID_ROH, FIRMA_STNR_ROH, FIRMA_IBAN_ROH, FIRMA_BIC_ROH,
-         FIRMA_BANK_NAME, FIRMA_OEKO_KONTROLLSTELLE, FIRMA_STNR, FIRMA_UST,
-         FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2,
-         LOGO_DATA_URL } from './config.js?v=163';
+// Auf Belegen gilt die Firmen-Schreibweise aus DATEV (FIRMA_NAME_RECHNUNG).
+import { FIRMA_NAME_RECHNUNG as FIRMA_NAME, FIRMA_GF_NAME, FIRMA_REGISTER, FIRMA_STRASSE, FIRMA_PLZ,
+         FIRMA_ORT, FIRMA_LAND, FIRMA_TEL, FIRMA_EMAIL, FIRMA_ANSPRECHPARTNER, FIRMA_USTID_ROH,
+         FIRMA_STNR_ROH, FIRMA_IBAN_ROH, FIRMA_BIC_ROH, FIRMA_BANK_NAME, FIRMA_OEKO_KONTROLLSTELLE,
+         RECHNUNG_LOGO } from './config.js?v=164';
+
+// ─── Steuerfälle ───────────────────────────────────────────────────────────
+// belege.ust_modus: Rechnungen 'regel' | 'ig' (innergemeinschaftl. Lieferung) | 'ausfuhr' (Drittland);
+// Gutschriften 'regel' | 'pauschal24' (§ 24 UStG).
+export const EU_LAENDER = ['AT','BE','BG','CY','CZ','DK','EE','ES','FI','FR','GR','HR','HU','IE','IT','LT','LU','LV','MT','NL','PL','PT','RO','SE','SI','SK'];
+export const STEUERFAELLE = {
+  regel:   'Inland (Umsatzsteuer lt. Artikel)',
+  ig:      'Innergemeinschaftliche Lieferung (steuerfrei, EU)',
+  ausfuhr: 'Ausfuhrlieferung (steuerfrei, Drittland)',
+};
+export function steuerfallVorschlag(kontakt) {
+  const land = (kontakt?.land || 'DE').toUpperCase();
+  if(land === 'DE') return 'regel';
+  return EU_LAENDER.includes(land) ? 'ig' : 'ausfuhr';
+}
+// Ländernamen für die Anschrift (Auslandsadressen enden mit dem Land in Klarschrift).
+const LAENDER = { AT: 'Österreich', BE: 'Belgien', BG: 'Bulgarien', CH: 'Schweiz', CZ: 'Tschechien', DK: 'Dänemark',
+  EE: 'Estland', ES: 'Spanien', FI: 'Finnland', FR: 'Frankreich', GB: 'Vereinigtes Königreich', GR: 'Griechenland',
+  HR: 'Kroatien', HU: 'Ungarn', IE: 'Irland', IT: 'Italien', LT: 'Litauen', LU: 'Luxemburg', LV: 'Lettland',
+  NL: 'Niederlande', NO: 'Norwegen', PL: 'Polen', PT: 'Portugal', RO: 'Rumänien', SE: 'Schweden', SI: 'Slowenien',
+  SK: 'Slowakei', UA: 'Ukraine' };
+export const landName = code => LAENDER[code] || code;
+export const istSteuerfrei = modus => modus === 'ig' || modus === 'ausfuhr';
+const BEFREIUNG = {
+  ig:      { kat: 'K', code: 'VATEX-EU-IC', text: p => `Umsatzsteuerfrei aufgrund innergemeinschaftlicher Lieferung (§ 4 Nr. 1b i. V. m. § 6a UStG). Ihre USt-IdNr.: ${p.ust_id || ''}` },
+  ausfuhr: { kat: 'G', code: 'VATEX-EU-G',  text: () => 'Steuerfreie Ausfuhrlieferung (§ 4 Nr. 1a i. V. m. § 6 UStG).' },
+};
 
 // ─── Zahlen & Formate ──────────────────────────────────────────────────────
 export const r2 = n => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
@@ -103,7 +130,11 @@ export function pos(p) {
     regel_id: p.regel_id ?? null, bezeichnung: String(p.bezeichnung || '').trim() || 'Position',
     beschreibung: p.beschreibung || '', datum: p.datum || null, menge: r4(menge),
     einheit: p.einheit || 'TNE', preis: r4(preis), ust_satz: Number(p.ust_satz ?? 7),
-    betrag: r2(r4(menge) * r4(preis)), quali: p.quali || undefined };
+    betrag: r2(r4(menge) * r4(preis)), quali: p.quali || undefined, ls: p.ls || undefined };
+}
+// Lieferscheinnummern eines Belegs (für Kopfzeile "Kontrakt: … || Lieferschein: …")
+export function belegLieferscheine(b) {
+  return [...new Set((b.positionen || []).filter(p => p.typ === 'lieferung' && p.ls).map(p => p.ls))].join(', ');
 }
 
 export function summen(positionen) {
@@ -124,9 +155,11 @@ export function firmaPartei() {
   return { name: FIRMA_NAME, strasse: FIRMA_STRASSE, plz: FIRMA_PLZ, ort: FIRMA_ORT, land: FIRMA_LAND,
     ust_id: FIRMA_USTID_ROH, steuernummer: FIRMA_STNR_ROH, email: FIRMA_EMAIL, telefon: FIRMA_TEL };
 }
+// Kunden-/Lieferantennummer auf dem Beleg: DATEV-Debitor/-Kreditor, sonst interne Kontakt-ID.
+export const partnerNr = p => String(p?.kundennummer || p?.kontakt_id || '');
 export function partnerSnapshot(k) {
   if(!k) return null;
-  return { kontakt_id: k.id, name: k.name, strasse: (k.strasse || k.adresse || '').trim(), plz: (k.plz || '').trim(),
+  return { kontakt_id: k.id, kundennummer: (k.kundennummer || '').trim(), name: k.name, strasse: (k.strasse || k.adresse || '').trim(), plz: (k.plz || '').trim(),
     ort: (k.ort || '').trim(), land: (k.land || 'DE').toUpperCase(), ust_id: k.ust_id || '', steuernummer: k.steuernummer || '',
     email: k.rechnung_email || k.email || '', iban: (k.iban || '').replace(/\s+/g, '').toUpperCase(), telefon: k.telefon || '',
     oeko_kontrollstelle: k.oeko_kontrollstelle || '' };
@@ -145,7 +178,14 @@ export function pruefeBeleg(b) {
   if(!b.positionen?.length) fehler.push('Keine Positionen.');
   if(b.positionen?.some(x => !(Number(x.preis) >= 0))) fehler.push('Preise dürfen nicht negativ sein.');
   if(b.positionen?.some(x => x.typ === 'lieferung' && !(Number(x.preis) > 0))) hinweise.push('Mindestens eine Lieferung hat keinen Preis.');
-  if(p.land && p.land !== 'DE') hinweise.push('Auslandspartner: Steuerbefreiung/Reverse-Charge wird nicht automatisch behandelt – Steuersätze prüfen.');
+  if(b.art === 'rechnung' && b.ust_modus === 'ig') {
+    if(!p.ust_id) fehler.push('Innergemeinschaftliche Lieferung: USt-IdNr. des Kunden ist Pflicht (§ 14a Abs. 3 UStG) – bitte im Kontakt ergänzen.');
+    if(!EU_LAENDER.includes(p.land)) fehler.push('Innergemeinschaftliche Lieferung nur an Kunden in einem anderen EU-Land.');
+    hinweise.push('Gelangensbestätigung bzw. CMR für den Nachweis der Beförderung ins EU-Ausland aufbewahren; Lieferung in der Zusammenfassenden Meldung angeben.');
+  }
+  if(b.art === 'rechnung' && b.ust_modus === 'ausfuhr') hinweise.push('Ausfuhrlieferung: Ausfuhrnachweis (z. B. Ausgangsvermerk ATLAS) aufbewahren.');
+  if(b.art === 'rechnung' && b.ust_modus === 'regel' && p.land && p.land !== 'DE') hinweise.push('Kunde sitzt im Ausland, Steuerfall ist „Inland“ – bitte prüfen.');
+  if(b.art === 'gutschrift' && p.land && p.land !== 'DE') hinweise.push('Auslandslieferant: innergemeinschaftlicher Erwerb/Reverse-Charge wird nicht automatisch behandelt – Steuersätze prüfen.');
   if(!p.email) hinweise.push('Keine E-Mail-Adresse beim Partner – Versand nur nach manueller Eingabe.');
   return { fehler, hinweise };
 }
@@ -179,13 +219,22 @@ function parteiXml(tag, p, opts = {}) {
     + `</ram:${tag}>`;
 }
 
-function steuerKat(satz) { return Number(satz) === 0 ? 'E' : 'S'; }
+// Steuerkategorie (UNTDID 5305): S Standard, K innergemeinschaftlich, G Ausfuhr, E befreit
+function steuerKat(b, satz) {
+  if(b.art === 'rechnung' && BEFREIUNG[b.ust_modus]) return BEFREIUNG[b.ust_modus].kat;
+  return Number(satz) === 0 ? 'E' : 'S';
+}
+// Hinweistext zur Steuerbefreiung (PDF + XML), sonst ''
+export function befreiungsText(b) {
+  return b.art === 'rechnung' && BEFREIUNG[b.ust_modus] ? BEFREIUNG[b.ust_modus].text(b.empfaenger || {}) : '';
+}
 
 // ctx: { kontrakt, original (Storno-Bezug), titel }
 export function erzeugeXml(b, ctx = {}) {
   const gut = b.art === 'gutschrift';
   const firma = firmaPartei();
   const partner = b.empfaenger || {};
+  const bef = !gut ? BEFREIUNG[b.ust_modus] : null;
   const seller = gut ? partner : firma;
   const buyer = gut ? firma : partner;
   const sums = summen(b.positionen);
@@ -196,7 +245,9 @@ export function erzeugeXml(b, ctx = {}) {
   if(b.ust_modus === 'pauschal24' && gut) notes.push('Umsatzsteuer nach Durchschnittssatz gemäß § 24 Abs. 1 UStG.');
   if(ctx.kontrakt?.bio) notes.push(`Öko-Kontrollstelle: ${FIRMA_OEKO_KONTROLLSTELLE}.`);
   if(b.bemerkung) notes.push(b.bemerkung);
-  const regNote = `${FIRMA_NAME} · ${FIRMA_STRASSE} · ${FIRMA_PLZ} ${FIRMA_ORT} · ${FIRMA_GF} · ${FIRMA_HRB}`;
+  const lsListe = belegLieferscheine(b);
+  if(ctx.kontrakt?.nummer || lsListe) notes.unshift([ctx.kontrakt?.nummer ? `Kontrakt: ${ctx.kontrakt.nummer}` : '', lsListe ? `Lieferschein: ${lsListe}` : ''].filter(Boolean).join(' || '));
+  const regNote = `${FIRMA_NAME} · ${FIRMA_STRASSE} · ${FIRMA_PLZ} ${FIRMA_ORT} · Geschäftsführer: ${FIRMA_GF_NAME} · ${FIRMA_REGISTER}`;
 
   const lines = b.positionen.map((p, i) => `
     <ram:IncludedSupplyChainTradeLineItem>
@@ -205,13 +256,23 @@ export function erzeugeXml(b, ctx = {}) {
       <ram:SpecifiedLineTradeAgreement><ram:NetPriceProductTradePrice><ram:ChargeAmount>${a4(p.preis)}</ram:ChargeAmount></ram:NetPriceProductTradePrice></ram:SpecifiedLineTradeAgreement>
       <ram:SpecifiedLineTradeDelivery><ram:BilledQuantity unitCode="${x(p.einheit || 'C62')}">${a4(p.menge)}</ram:BilledQuantity></ram:SpecifiedLineTradeDelivery>
       <ram:SpecifiedLineTradeSettlement>
-        <ram:ApplicableTradeTax><ram:TypeCode>VAT</ram:TypeCode><ram:CategoryCode>${steuerKat(p.ust_satz)}</ram:CategoryCode><ram:RateApplicablePercent>${a2(p.ust_satz)}</ram:RateApplicablePercent></ram:ApplicableTradeTax>
+        <ram:ApplicableTradeTax><ram:TypeCode>VAT</ram:TypeCode><ram:CategoryCode>${steuerKat(b, p.ust_satz)}</ram:CategoryCode><ram:RateApplicablePercent>${a2(p.ust_satz)}</ram:RateApplicablePercent></ram:ApplicableTradeTax>
         <ram:SpecifiedTradeSettlementLineMonetarySummation><ram:LineTotalAmount>${a2(p.betrag)}</ram:LineTotalAmount></ram:SpecifiedTradeSettlementLineMonetarySummation>
       </ram:SpecifiedLineTradeSettlement>
     </ram:IncludedSupplyChainTradeLineItem>`).join('');
 
-  const taxes = sums.steuern.map(s => `
-      <ram:ApplicableTradeTax><ram:CalculatedAmount>${a2(s.betrag)}</ram:CalculatedAmount><ram:TypeCode>VAT</ram:TypeCode>${steuerKat(s.satz) === 'E' ? '<ram:ExemptionReason>Steuerfreie Lieferung</ram:ExemptionReason>' : ''}<ram:BasisAmount>${a2(s.basis)}</ram:BasisAmount><ram:CategoryCode>${steuerKat(s.satz)}</ram:CategoryCode><ram:RateApplicablePercent>${a2(s.satz)}</ram:RateApplicablePercent></ram:ApplicableTradeTax>`).join('');
+  const taxes = sums.steuern.map(s => {
+    const kat = steuerKat(b, s.satz);
+    const grund = bef ? bef.text(partner) : kat === 'E' ? 'Steuerfreie Lieferung' : '';
+    return `
+      <ram:ApplicableTradeTax><ram:CalculatedAmount>${a2(s.betrag)}</ram:CalculatedAmount><ram:TypeCode>VAT</ram:TypeCode>${grund ? `<ram:ExemptionReason>${x(grund)}</ram:ExemptionReason>` : ''}<ram:BasisAmount>${a2(s.basis)}</ram:BasisAmount><ram:CategoryCode>${kat}</ram:CategoryCode>${bef ? `<ram:ExemptionReasonCode>${bef.code}</ram:ExemptionReasonCode>` : ''}<ram:RateApplicablePercent>${a2(s.satz)}</ram:RateApplicablePercent></ram:ApplicableTradeTax>`;
+  }).join('');
+  // Lieferanschrift: bei steuerfreien Auslandslieferungen Pflicht (BR-IC-12)
+  const shipTo = bef ? `<ram:ShipToTradeParty><ram:Name>${x(partner.name)}</ram:Name><ram:PostalTradeAddress>`
+    + (partner.plz ? `<ram:PostcodeCode>${x(partner.plz)}</ram:PostcodeCode>` : '')
+    + (partner.strasse ? `<ram:LineOne>${x(partner.strasse)}</ram:LineOne>` : '')
+    + (partner.ort ? `<ram:CityName>${x(partner.ort)}</ram:CityName>` : '')
+    + `<ram:CountryID>${x(partner.land)}</ram:CountryID></ram:PostalTradeAddress></ram:ShipToTradeParty>` : '';
 
   // Zahlungsweg: Rechnung → unser Konto; Gutschrift → Konto des Lieferanten.
   const iban = gut ? partner.iban : FIRMA_IBAN_ROH;
@@ -235,12 +296,12 @@ export function erzeugeXml(b, ctx = {}) {
   <rsm:SupplyChainTradeTransaction>${lines}
     <ram:ApplicableHeaderTradeAgreement>
       <ram:BuyerReference>${x(ctx.kontrakt?.nummer || b.nummer)}</ram:BuyerReference>
-      ${parteiXml('SellerTradeParty', seller, gut ? { id: String(partner.kontakt_id || '') } : { kontakt: 'Buchhaltung' })}
-      ${parteiXml('BuyerTradeParty', buyer, gut ? { kontakt: 'Buchhaltung' } : { id: String(partner.kontakt_id || '') })}
+      ${parteiXml('SellerTradeParty', seller, gut ? { id: partnerNr(partner) } : { kontakt: FIRMA_ANSPRECHPARTNER })}
+      ${parteiXml('BuyerTradeParty', buyer, gut ? { kontakt: FIRMA_ANSPRECHPARTNER } : { id: partnerNr(partner) })}
       ${ctx.kontrakt?.nummer ? `<ram:ContractReferencedDocument><ram:IssuerAssignedID>${x(ctx.kontrakt.nummer)}</ram:IssuerAssignedID></ram:ContractReferencedDocument>` : ''}
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery>
-      ${b.leistung_bis ? `<ram:ActualDeliverySupplyChainEvent><ram:OccurrenceDateTime><udt:DateTimeString format="102">${d102(b.leistung_bis)}</udt:DateTimeString></ram:OccurrenceDateTime></ram:ActualDeliverySupplyChainEvent>` : ''}
+      ${shipTo}${b.leistung_bis ? `<ram:ActualDeliverySupplyChainEvent><ram:OccurrenceDateTime><udt:DateTimeString format="102">${d102(b.leistung_bis)}</udt:DateTimeString></ram:OccurrenceDateTime></ram:ActualDeliverySupplyChainEvent>` : ''}
     </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
       <ram:PaymentReference>${x(b.nummer)}</ram:PaymentReference>
@@ -268,11 +329,15 @@ export function zahlungsText(b) {
   if(brutto < 0) return b.art === 'gutschrift'
     ? 'Der Betrag wird mit künftigen Zahlungen verrechnet bzw. ist zurückzuzahlen.'
     : 'Der Betrag wird Ihnen erstattet bzw. mit offenen Posten verrechnet.';
+  const sofort = Number(b.zahlungsziel_tage) === 0;
   if(b.art === 'gutschrift') {
     const iban = b.empfaenger?.iban;
-    return iban ? `Auszahlung bis ${faellig} auf Ihr Konto ${ibanFormat(iban)}.` : `Auszahlung bis ${faellig}.`;
+    const wann = sofort ? 'umgehend' : `bis ${faellig}`;
+    return iban ? `Auszahlung ${wann} auf Ihr Konto ${ibanFormat(iban)}.` : `Auszahlung ${wann}.`;
   }
-  return `Zahlbar ohne Abzug bis ${faellig} auf ${FIRMA_BANK_NAME}, IBAN ${ibanFormat(FIRMA_IBAN_ROH)}, BIC ${FIRMA_BIC_ROH}. Verwendungszweck: ${b.nummer || ''}`;
+  const konto = `${FIRMA_BANK_NAME}, IBAN ${ibanFormat(FIRMA_IBAN_ROH)}, BIC ${FIRMA_BIC_ROH}. Verwendungszweck: ${b.nummer || ''}`;
+  return sofort ? `Ohne Abzug sofort fällig. Zahlung auf ${konto}`
+                : `Zahlbar ohne Abzug bis ${faellig} auf ${konto}`;
 }
 export const ibanFormat = i => String(i || '').replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim();
 
@@ -285,29 +350,14 @@ async function libs() {
     import('https://cdn.jsdelivr.net/npm/@pdf-lib/fontkit@1.1.1/+esm'),
   ]);
   const holen = async p => { const r = await fetch(p); if(!r.ok) throw new Error('Datei fehlt: ' + p); return new Uint8Array(await r.arrayBuffer()); };
-  const [reg, semi, bold, icc] = await Promise.all([
+  // Logo Saatgutservice (JPEG, RGB, 720×246 – unverändert aus der DATEV-Rechnung übernommen)
+  const [reg, semi, bold, icc, logo] = await Promise.all([
     holen('assets/rechnung/Inter-Regular.ttf'), holen('assets/rechnung/Inter-SemiBold.ttf'),
     holen('assets/rechnung/Inter-Bold.ttf'), holen('assets/rechnung/sRGB-v2-magic.icc'),
+    holen(RECHNUNG_LOGO).catch(() => null),
   ]);
-  _libs = { L: pdfLib, fontkit: fk.default || fk, fonts: { reg, semi, bold }, icc, logo: await logoPng() };
+  _libs = { L: pdfLib, fontkit: fk.default || fk, fonts: { reg, semi, bold }, icc, logo };
   return _libs;
-}
-
-// SVG-Logo → PNG (pdf-lib kann kein SVG einbetten).
-async function logoPng() {
-  try {
-    const img = new Image();
-    img.src = LOGO_DATA_URL;
-    await img.decode();
-    // Nur das Bildzeichen (linkes 60×60-Quadrat) – der Schriftzug wird als
-    // echter Text gesetzt (SVG-Text hängt von lokal installierten Fonts ab).
-    const c = document.createElement('canvas');
-    c.width = 60 * 6; c.height = 60 * 6;
-    const g = c.getContext('2d');
-    g.drawImage(img, 0, 0, 60, 60, 0, 0, c.width, c.height);
-    const blob = await new Promise(res => c.toBlob(res, 'image/png'));
-    return new Uint8Array(await blob.arrayBuffer());
-  } catch(e) { return null; }
 }
 
 const MM = 2.8346;
@@ -326,7 +376,7 @@ export async function erzeugePdf(b, ctx = {}) {
   const fR = await doc.embedFont(fonts.reg, { subset: false });
   const fS = await doc.embedFont(fonts.semi, { subset: false });
   const fB = await doc.embedFont(fonts.bold, { subset: false });
-  const logoImg = logo ? await doc.embedPng(logo) : null;
+  const logoImg = logo ? await doc.embedJpg(logo) : null;
 
   const gut = b.art === 'gutschrift';
   const storno = !!ctx.original;
@@ -367,11 +417,12 @@ export async function erzeugePdf(b, ctx = {}) {
   let pg = neueSeite();
 
   // Kopf
-  const logoY = H - 15 * MM - 40;
-  if(logoImg) pg.drawImage(logoImg, { x: LM, y: logoY, width: 40, height: 40 });
-  txt(pg, 'SAATGUT & AGRARSERVICE', LM + 48, logoY + 24, { s: 9.5, f: fB, c: C.gruen });
-  txt(pg, 'BEESENSTEDT GmbH', LM + 48, logoY + 10, { s: 12, f: fB, c: C.gruen });
-  pg.drawLine({ start: { x: LM + 48, y: logoY + 6 }, end: { x: LM + 48 + tw('BEESENSTEDT GmbH', fB, 12), y: logoY + 6 }, thickness: 1, color: C.gruen });
+  if(logoImg) {
+    const lw = 165, lh = lw * logoImg.height / logoImg.width;
+    pg.drawImage(logoImg, { x: LM - 18, y: H - 12 * MM - lh, width: lw, height: lh });
+  } else {
+    txt(pg, 'SAATGUT & AGRARSERVICE BEESENSTEDT GmbH', LM, H - 22 * MM, { s: 12, f: fB, c: C.gruen });
+  }
   const kopfR = [FIRMA_NAME, FIRMA_STRASSE, `${FIRMA_PLZ} ${FIRMA_ORT}`, `Tel. ${FIRMA_TEL}`, FIRMA_EMAIL];
   kopfR.forEach((t, i) => txt(pg, t, RM, H - 17 * MM - i * 11, { align: 'right', s: i ? 8 : 9, f: i ? fR : fS, c: i ? C.grau : C.text }));
 
@@ -380,17 +431,17 @@ export async function erzeugePdf(b, ctx = {}) {
   const absZeile = `${FIRMA_NAME} · ${FIRMA_STRASSE} · ${FIRMA_PLZ} ${FIRMA_ORT}`;
   txt(pg, absZeile, LM, y, { s: Math.min(6.5, 6.5 * (85 * MM) / tw(absZeile, fR, 6.5)), c: C.grau });
   y -= 16;
-  [p.name, p.strasse, [p.plz, p.ort].filter(Boolean).join(' '), p.land && p.land !== 'DE' ? p.land : '']
+  [p.name, p.strasse, [p.plz, p.ort].filter(Boolean).join(' '), p.land && p.land !== 'DE' ? landName(p.land) : '']
     .filter(Boolean).forEach((t, i) => { txt(pg, t, LM, y - i * 13, { s: 10, f: i ? fR : fS }); });
 
   // Infoblock
   const info = [
     [`${titel}-Nr.`, nummer],
-    ['Datum', datumDE(b.datum || isoDatum(new Date()))],
-    [gut ? 'Lieferanten-Nr.' : 'Kunden-Nr.', String(p.kontakt_id || '')],
-    ctx.kontrakt?.nummer ? ['Kontrakt', ctx.kontrakt.nummer] : null,
-    b.leistung_von ? ['Leistungszeitraum', b.leistung_von === b.leistung_bis ? datumDE(b.leistung_von) : `${datumDE(b.leistung_von)} – ${datumDE(b.leistung_bis)}`] : null,
+    [gut ? 'Lieferantennummer' : 'Kundennummer', partnerNr(p)],
     p.ust_id ? [gut ? 'USt-IdNr. Lieferant' : 'Ihre USt-IdNr.', p.ust_id] : null,
+    ['Belegdatum', datumDE(b.datum || isoDatum(new Date()))],
+    ctx.kontrakt?.nummer ? ['Kontrakt', ctx.kontrakt.nummer] : null,
+    b.leistung_von ? ['Liefer-/Leistungsdatum', b.leistung_von === b.leistung_bis ? datumDE(b.leistung_von) : `${datumDE(b.leistung_von)} – ${datumDE(b.leistung_bis)}`] : null,
     gut && !p.ust_id && p.steuernummer ? ['St.-Nr. Lieferant', p.steuernummer] : null,
     ['Unsere USt-IdNr.', FIRMA_USTID_ROH],
   ].filter(Boolean);
@@ -411,6 +462,10 @@ export async function erzeugePdf(b, ctx = {}) {
       ? `Für die${ctx.kontrakt?.nummer ? ' aus Kontrakt ' + ctx.kontrakt.nummer : ''} von Ihnen erhaltene Ware schreiben wir Ihnen gut:`
       : `Für die Lieferungen${ctx.kontrakt?.nummer ? ' aus Kontrakt ' + ctx.kontrakt.nummer : ''} berechnen wir Ihnen:`;
   for(const z of umbruch(intro, fR, 9.5, RM - LM)) { txt(pg, z, LM, y, { s: 9.5 }); y -= 13; }
+  // Bezugszeile wie in DATEV: "Kontrakt: … || Lieferschein: …"
+  const lsListe = belegLieferscheine(b);
+  const bezug = [ctx.kontrakt?.nummer ? `Kontrakt: ${ctx.kontrakt.nummer}` : '', lsListe ? `Lieferschein: ${lsListe}` : ''].filter(Boolean).join(' || ');
+  if(bezug) for(const z of umbruch(bezug, fR, 8.5, RM - LM)) { txt(pg, z, LM, y, { s: 8.5, c: C.grau }); y -= 12; }
   y -= 6;
 
   // Tabelle
@@ -464,7 +519,9 @@ export async function erzeugePdf(b, ctx = {}) {
 
   // Hinweise
   const hinweise = [];
-  hinweise.push(zahlungsText({ ...b, brutto: sums.brutto }));
+  const befText = befreiungsText(b);
+  if(befText) hinweise.push(befText);
+  hinweise.push('Bitte beachten Sie unsere Zahlungsbedingung: ' + zahlungsText({ ...b, brutto: sums.brutto }));
   if(gut) hinweise.push('Abrechnung im Gutschriftverfahren (§ 14 Abs. 2 Satz 2 UStG). Sofern Sie mit der Gutschrift nicht einverstanden sind, widersprechen Sie bitte innerhalb von 14 Tagen.');
   if(gut && b.ust_modus === 'pauschal24') hinweise.push('Umsatzsteuer nach Durchschnittssatz gemäß § 24 Abs. 1 UStG (land- und forstwirtschaftlicher Betrieb).');
   if(ctx.kontrakt?.bio) hinweise.push(`Bio-Ware. Öko-Kontrollstelle: ${FIRMA_OEKO_KONTROLLSTELLE}${p.oeko_kontrollstelle && gut ? ' · Lieferant: ' + p.oeko_kontrollstelle : ''}.`);
@@ -479,18 +536,17 @@ export async function erzeugePdf(b, ctx = {}) {
   }
 
   // Fußzeile + Seitenzahlen
-  const fuss = [
-    `${FIRMA_NAME} · ${FIRMA_STRASSE} · ${FIRMA_PLZ} ${FIRMA_ORT} · ${FIRMA_GF}`,
-    `${FIRMA_HRB} · ${FIRMA_STNR} · ${FIRMA_UST}`,
-    `${FIRMA_BANK1} · ${FIRMA_IBAN1} · ${FIRMA_BIC1}`,
-    `${FIRMA_BANK2} · ${FIRMA_IBAN2} · ${FIRMA_BIC2}`,
+  // Fußzeile in vier Spalten wie die DATEV-Ausgangsrechnungen (Pflichtangaben § 35a GmbHG, § 14 UStG)
+  const fussSpalten = [
+    [0,   [FIRMA_NAME, FIRMA_STRASSE, `${FIRMA_PLZ} ${FIRMA_ORT}`]],
+    [133, [`Tel.: ${FIRMA_TEL}`, FIRMA_EMAIL, FIRMA_REGISTER, `Geschäftsführer: ${FIRMA_GF_NAME}`]],
+    [258, [`Steuernummer: ${FIRMA_STNR_ROH}`, `USt-IdNr.: ${FIRMA_USTID_ROH}`]],
+    [350, [FIRMA_BANK_NAME, `IBAN: ${ibanFormat(FIRMA_IBAN_ROH)}`, `BIC: ${FIRMA_BIC_ROH}`]],
   ];
   seiten.forEach((s, i) => {
     s.drawLine({ start: { x: LM, y: 22 * MM }, end: { x: RM, y: 22 * MM }, thickness: 0.5, color: C.linie });
-    fuss.forEach((t, j) => {
-      const w = tw(t, fR, 6.5);
-      s.drawText(t, { x: (W - w) / 2, y: 22 * MM - 10 - j * 8.5, size: 6.5, font: fR, color: C.grau });
-    });
+    for(const [dx, zeilen] of fussSpalten) zeilen.forEach((t, j) =>
+      s.drawText(t, { x: LM + dx, y: 22 * MM - 10 - j * 8.5, size: 6.3, font: fR, color: C.grau }));
     const st = `Seite ${i + 1} von ${seiten.length}`;
     s.drawText(st, { x: RM - tw(st, fR, 7), y: 22 * MM + 6, size: 7, font: fR, color: C.grau });
   });
