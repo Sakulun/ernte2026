@@ -3,10 +3,10 @@
 // Performance: Die Karte lebt in einem persistenten Container weiter und wird
 // beim Zurückschalten nur wieder angehängt; alle Parzellen liegen in EINEM
 // GeoJSON-Layer; die Matching-Historie lädt erst NACH dem Zeichnen nach.
-import { showToast, escapeHtml } from './helpers.js?v=162';
+import { showToast, escapeHtml } from './helpers.js?v=163';
 import { ffState, ffLoadParzellen, ffEnsureMatching, ffGefilterteParzellen,
          ffIstPlanjahr, ffSetKultur, ffInvalidateJahr, ffRecompute, renderFruchtfolge,
-         ffOffeneFlags } from './fruchtfolge.js?v=162';
+         ffOffeneFlags } from './fruchtfolge.js?v=163';
 
 let hiddenKulturen = new Set(); // per Legende ausgeblendete kultur_id (0 = ohne Kultur)
 let mapWrap = null;             // persistenter DOM-Container mit der Leaflet-Karte

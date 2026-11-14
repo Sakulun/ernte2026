@@ -90,6 +90,8 @@ ernteneu/
 │   ├── onboarding.js       # Onboarding-Wizard für neue Benutzer
 │   ├── erntejahr.js        # Neues Erntejahr: CSV/Excel/KML-Import
 │   ├── export.js           # CSV-Export, Tagesbericht, Lieferungs-PDF
+│   ├── rechnungen.js       # Rechnungen/Gutschriften: Abzurechnen, Beleg-Editor, Belege, Abzugsregeln, Versand (Outlook)
+│   ├── erechnung.js        # Berechnung, ZUGFeRD-XML (CII EN 16931), PDF/A-3 via pdf-lib (CDN, lazy)
 │   ├── fruchtfolge.js      # Fruchtfolge: Modul-Shell, ffState, Datenzugriff, Filter (nur Admin)
 │   ├── ff-import-parser.js # Parser Agrarantrags-ZIP (fa:-XML, GML, XLSX, DBF/SHP-Fallback cp1252)
 │   ├── ff-import.js        # Import-UI: Drag&Drop, Vorschau, NC-Quick-Add, Upsert je (Betrieb, Jahr)
@@ -164,6 +166,8 @@ ernteneu/
 | `parzellen_nebenkulturen` | Fruchtfolge: Zwischenfrüchte/Zweitkulturen |
 | `parzellen_matching` | Fruchtfolge: Cache der geometrischen Jahres-Verschneidung (RPC `ff_recompute_matching`) |
 | `flags` | Fruchtfolge: Selbstfolge-/Anbaupause-Konflikte (RPC `ff_recompute_flags`) |
+
+**E-Rechnung:** Tabellen `belege` (Rechnung/Gutschrift, Status entwurf→festgeschrieben→versendet/storniert, Positionen als jsonb), `abzugsregeln`, `beleg_nummernkreise` (RE-JJJJ-NNNN / GS-JJJJ-NNNN). `warenbewegungen`/`fuhren`/`lieferungen.beleg_id` setzt ein Trigger aus den Positionen. RPC `beleg_festschreiben(id, datum)` vergibt die Nummer; Trigger `belege_schutz` sperrt festgeschriebene Belege (GoBD, nur Storno). RLS über `beleg_berechtigt()` (Recht `kontrakte` oder `rechnungen`). PDFs im privaten Bucket `belege`. Versand vorerst manuell über Outlook (rechnungen@): PDF-Download + mailto, danach „Als versendet markieren“. Für späteren SMTP-Versand ist die Edge Function `beleg-senden` deployt (Quelle `supabase/functions/beleg-senden/`, Secrets `SMTP_*` noch nicht gesetzt). Schriften/ICC-Profil für PDF/A in `assets/rechnung/`. Kontakte: `ust_id`, `steuernummer`, `land`, `rechnung_email`, `zahlungsziel_tage`, `ust_modus` (regel | pauschal24 = § 24 UStG 7,8 %); Artikel: `ust_satz`. Migration: `supabase/migrations/20261114150000_erechnung_belege.sql`.
 
 **Fruchtfolge-Backend:** PostGIS aktiv; RLS aller `ff`-Tabellen über `ff_is_admin()` (Auth-E-Mail → Recht `fruchtfolge` in `nutzer.rechte`; der Funktionsname ist historisch). RPCs: `ff_recompute_matching(leitjahr)`, `ff_recompute_flags()`, `ff_create_planjahr(jahr, basis, kultur_übernehmen)`, `ff_delete_planjahr(id)`. Views: `ff_parzellen_info` (inkl. vereinfachtem GeoJSON), `ff_matching_info`, `ff_flags_info`. Überlappungs-Schwellen: <5 % der Leitparzelle UND <0,1 ha wird ignoriert. **Flags entstehen nur für Planjahre** (Vergangenheit = Fakt; Konfliktseite darf jedes Jahr sein). PostgREST liefert max. 1000 Zeilen/Request — Client lädt paginiert (`ffFetchAlle`). Parser-Tests: `tests/fruchtfolge-tests.html` (Browser).
 

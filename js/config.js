@@ -15,6 +15,20 @@ export const FIRMA_BANK2 = 'Raiffeisenbank Pfaffenwinkel';
 export const FIRMA_IBAN2 = 'IBAN: DE10 7016 9509 0000 3126 14';
 export const FIRMA_BIC2 = 'BIC: GENODEF1PEI';
 
+// Stammdaten für E-Rechnungen (ZUGFeRD / EN 16931) – maschinenlesbare Form.
+export const FIRMA_STRASSE = 'Bahnhofstraße 11';
+export const FIRMA_PLZ     = '06198';
+export const FIRMA_ORT     = 'Salzatal OT Beesenstedt';
+export const FIRMA_LAND    = 'DE';
+export const FIRMA_TEL     = '034773 39001';
+export const FIRMA_EMAIL   = 'office@landgut-nuscheler.de';
+export const FIRMA_USTID_ROH = 'DE139712562';
+export const FIRMA_STNR_ROH  = '110/299/41574';
+export const FIRMA_IBAN_ROH  = 'DE17800537620387301820';   // Zahlungskonto auf Rechnungen
+export const FIRMA_BIC_ROH   = 'NOLADE21HAL';
+export const FIRMA_BANK_NAME = 'Saalkreissparkasse Halle';
+export const FIRMA_OEKO_KONTROLLSTELLE = 'DE-ÖKO-006';
+
 // Zertifikats-/Siegel-Nummern für den Lieferschein (je nach Kontrakt-Auswahl).
 export const ZERT_NACHHALTIG = 'EU-REDcert-505-81711102';
 // EU-Öko: DE-ÖKO-006 ist die Kontrollstellennummer (Fußzeile); dies die Zertifikatsnummer.

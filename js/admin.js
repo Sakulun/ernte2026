@@ -1,5 +1,5 @@
-import { state } from './state.js?v=162';
-import { NAV, erlaubteTabs } from './rechte.js?v=162';
+import { state } from './state.js?v=163';
+import { NAV, erlaubteTabs } from './rechte.js?v=163';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';
@@ -20,6 +20,7 @@ const NAV_SYMBOLE = {
   silos: 'M5 8a7 4 0 0 1 14 0v13H5zM5 8h14M5 14h14',
   warenausgang: 'M7 21V4M3 8l4-4 4 4M17 3v17M13 16l4 4 4-4',
   kontrakte: 'M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6',
+  rechnungen: 'M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4',
   zukauf: 'M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3M7.5 15h9',
   kontakte: 'M3 21V5h11v16M14 10h7v11M7 9h3M7 13h3M7 17h3M17 14h1M17 18h1',
   artikel: 'M3 7h7l2 2h9v11H3zM3 7V4h7l2 3',
@@ -84,6 +85,7 @@ export function renderAdmin() {
   else if(adminTab==='warenausgang' && window.renderWarenausgang) window.renderWarenausgang();
   else if(adminTab==='kontrakte' && window.renderKontrakte) window.renderKontrakte();
   else if(adminTab==='kontakte' && window.renderKontakte) window.renderKontakte();
+  else if(adminTab==='rechnungen' && window.renderRechnungen) window.renderRechnungen();
   else if(adminTab==='lager' && window.renderAdminLager) window.renderAdminLager();
   else if(adminTab==='artikel' && window.renderArtikel) window.renderArtikel();
   else if(adminTab==='zukauf' && window.renderAdminZukauf) window.renderAdminZukauf();

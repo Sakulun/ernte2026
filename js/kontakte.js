@@ -1,7 +1,7 @@
-import { state } from './state.js?v=162';
-import { db } from './db.js?v=162';
-import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=162';
-import { hatRecht } from './rechte.js?v=162';
+import { state } from './state.js?v=163';
+import { db } from './db.js?v=163';
+import { showToast, escapeHtml, kontaktAnschriftZeile } from './helpers.js?v=163';
+import { hatRecht } from './rechte.js?v=163';
 
 export function renderKontakte() {
   const typen = [['kunde','Kunden'],['lieferant','Lieferanten'],['beides','Kunden & Lieferanten']];
@@ -82,6 +82,22 @@ export function kontaktNeuDialog(id) {
       <div class="form-group"><label>E-Mail</label><input type="email" id="kt-email" value="${k?escapeHtml(k.email||''):''}" placeholder="name@firma.de"></div>
       <div class="form-group"><label>IBAN</label><input type="text" id="kt-iban" value="${k?escapeHtml(k.iban||''):''}" placeholder="DE12 3456 7890 1234 5678 90"></div>
       <div class="form-group"><label>Notiz</label><input type="text" id="kt-notiz" value="${k?escapeHtml(k.notiz||''):''}" ></div>
+      <div class="section-label" style="margin:18px 0 10px">Rechnungsdaten (E-Rechnung)</div>
+      <div style="display:grid;grid-template-columns:1fr 80px;gap:10px">
+        <div class="form-group"><label>USt-IdNr.</label><input type="text" id="kt-ustid" value="${k?escapeHtml(k.ust_id||''):''}" placeholder="DE123456789"></div>
+        <div class="form-group"><label>Land</label><input type="text" id="kt-land" maxlength="2" value="${k?escapeHtml(k.land||'DE'):'DE'}" placeholder="DE"></div>
+      </div>
+      <div class="form-group"><label>Steuernummer <span style="font-size:10px;color:var(--text3);font-weight:400">– Pflicht für Gutschriften, falls keine USt-IdNr.</span></label><input type="text" id="kt-stnr" value="${k?escapeHtml(k.steuernummer||''):''}" placeholder="110/123/45678"></div>
+      <div class="form-group"><label>Rechnungs-E-Mail <span style="font-size:10px;color:var(--text3);font-weight:400">– leer = allgemeine E-Mail</span></label><input type="email" id="kt-remail" value="${k?escapeHtml(k.rechnung_email||''):''}" placeholder="rechnung@firma.de"></div>
+      <div style="display:grid;grid-template-columns:110px 1fr;gap:10px">
+        <div class="form-group"><label>Zahlungsziel</label><input type="number" id="kt-ziel" min="0" step="1" value="${k?.zahlungsziel_tage ?? 14}"></div>
+        <div class="form-group"><label>USt als Lieferant (Gutschriften)</label>
+          <select id="kt-ustmodus">
+            <option value="regel"${(k?.ust_modus||'regel')==='regel'?' selected':''}>Regelbesteuert (Satz lt. Artikel)</option>
+            <option value="pauschal24"${k?.ust_modus==='pauschal24'?' selected':''}>Pauschalierer § 24 UStG (7,8 %)</option>
+          </select>
+        </div>
+      </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-primary" style="flex:1" onclick="kontaktSpeichern(${k?k.id:'null'})">${k?'Speichern':'Anlegen'}</button>
         <button class="btn btn-outline" onclick="document.getElementById('kontakt-modal').remove()">Abbrechen</button>
@@ -105,6 +121,12 @@ export async function kontaktSpeichern(id) {
     email:document.getElementById('kt-email').value.trim()||null,
     iban:document.getElementById('kt-iban').value.trim()||null,
     notiz:document.getElementById('kt-notiz').value.trim()||null,
+    ust_id:(document.getElementById('kt-ustid')?.value||'').replace(/\s+/g,'').toUpperCase()||null,
+    land:(document.getElementById('kt-land')?.value||'DE').trim().toUpperCase()||'DE',
+    steuernummer:document.getElementById('kt-stnr')?.value.trim()||null,
+    rechnung_email:document.getElementById('kt-remail')?.value.trim()||null,
+    zahlungsziel_tage:(() => { const n = parseInt(document.getElementById('kt-ziel')?.value); return isNaN(n) ? 14 : Math.max(0, n); })(),
+    ust_modus:document.getElementById('kt-ustmodus')?.value||'regel',
   };
   try {
     if(id) {
@@ -118,7 +140,9 @@ export async function kontaktSpeichern(id) {
     }
     document.getElementById('kontakt-modal')?.remove();
     showToast('✓ Kontakt gespeichert');
-    renderKontakte();
+    // Aus dem Rechnungs-Editor geöffnet → dort bleiben statt auf Kontakte zu springen.
+    if(window.adminTab === 'rechnungen' && window.rechnungKontaktAktualisiert) window.rechnungKontaktAktualisiert();
+    else renderKontakte();
   } catch(e) { showToast('⚠ '+e.message,'error'); }
 }
 

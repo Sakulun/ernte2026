@@ -9,7 +9,7 @@ export const NAV = [
   { section: 'Übersicht',      items: [['dashboard','📊','Dashboard'],['fortschritt','📈','Fortschritt'],['karte','🗺','Karte'],['vermehrungen','🌱','Vermeh&shy;rungen']] },
   { section: 'Verwaltung',     items: [['schlaege','🌾','Schläge'],['fuhren','🚛','Fuhren'],['nutzer','👥','Nutzer']] },
   { section: 'Lager',          items: [['lager','📦','Lager&shy;übersicht'],['silos','🏭','Silo&shy;management']] },
-  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Waren&shy;bewegungen'],['kontrakte','📋','Kontrakte'],['zukauf','🧪','Zukauf (Dünger)'],['kontakte','👔','Kunden/&shy;Lieferanten'],['artikel','🗂','Artikel']] },
+  { section: 'Warenwirtschaft',items: [['warenausgang','⇅','Waren&shy;bewegungen'],['kontrakte','📋','Kontrakte'],['rechnungen','🧾','Rech&shy;nungen'],['zukauf','🧪','Zukauf (Dünger)'],['kontakte','👔','Kunden/&shy;Lieferanten'],['artikel','🗂','Artikel']] },
   { section: 'Flächen',        items: [['fruchtfolge','🌻','Frucht&shy;folge']] },
   { section: 'System',         items: [['erntejahr','🌱','Neues Erntejahr']] },
 ];

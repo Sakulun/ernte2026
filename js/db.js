@@ -1,8 +1,21 @@
-import { SB_URL, SB_KEY } from './config.js?v=162';
-import { fahrerLabel } from './rechte.js?v=162';
+import { SB_URL, SB_KEY } from './config.js?v=163';
+import { fahrerLabel } from './rechte.js?v=163';
 
 export let sb = null;
 export function getSb() { return sb; }
+
+// Rechnungsrelevante Kontaktfelder (E-Rechnung). Fehlen sie im Objekt
+// (z.B. Aufruf aus Altcode), bleiben die DB-Defaults erhalten.
+function kontaktRechnungsFelder(k) {
+  const o = {};
+  if(k.ust_id !== undefined)            o.ust_id = k.ust_id || null;
+  if(k.steuernummer !== undefined)      o.steuernummer = k.steuernummer || null;
+  if(k.land !== undefined)              o.land = (k.land || 'DE').toUpperCase();
+  if(k.rechnung_email !== undefined)    o.rechnung_email = k.rechnung_email || null;
+  if(k.zahlungsziel_tage !== undefined) o.zahlungsziel_tage = k.zahlungsziel_tage ?? 14;
+  if(k.ust_modus !== undefined)         o.ust_modus = k.ust_modus || 'regel';
+  return o;
+}
 
 export const db = {
   async getNutzer() {
@@ -138,6 +151,7 @@ export const db = {
       feuchte: f.feuchte ?? null, protein: f.protein ?? null, gluten: f.gluten ?? null,
       hl_gewicht: f.hlGewicht ?? null, oelgehalt: f.oelgehalt ?? null, fallzahl: f.fallzahl ?? null,
       kennzeichen: f.kennzeichen || null, einkaufskontrakt: f.einkaufskontrakt || null,
+      belegId: f.beleg_id || null,
       lat: f.lat ?? null, lon: f.lon ?? null,
       zeit: f.zeit
     }).select().single();
@@ -249,14 +263,16 @@ export const db = {
   },
   async insertArtikel(a) {
     const { data, error } = await sb.from('artikel').insert({
-      name: a.name, einheit: a.einheit, kategorie: a.kategorie, aktiv: true
+      name: a.name, einheit: a.einheit, kategorie: a.kategorie, aktiv: true,
+      ust_satz: a.ust_satz ?? 7
     }).select().single();
     if(error) throw error;
     return data;
   },
   async updateArtikel(a) {
     const { error } = await sb.from('artikel').update({
-      name: a.name, einheit: a.einheit, kategorie: a.kategorie, aktiv: a.aktiv
+      name: a.name, einheit: a.einheit, kategorie: a.kategorie, aktiv: a.aktiv,
+      ust_satz: a.ust_satz ?? 7
     }).eq('id', a.id);
     if(error) throw error;
   },
@@ -270,7 +286,8 @@ export const db = {
       strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null, herkunft:k.herkunft||null,
       oeko_kontrollstelle:k.oeko_kontrollstelle||null,
       telefon:k.telefon||null,
-      email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:true
+      email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:true,
+      ...kontaktRechnungsFelder(k)
     }).select().single();
     if(error) throw error; return data;
   },
@@ -280,7 +297,8 @@ export const db = {
       strasse:k.strasse||null, plz:k.plz||null, ort:k.ort||null, herkunft:k.herkunft||null,
       oeko_kontrollstelle:k.oeko_kontrollstelle||null,
       telefon:k.telefon||null,
-      email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:k.aktiv
+      email:k.email||null, iban:k.iban||null, notiz:k.notiz||null, aktiv:k.aktiv,
+      ...kontaktRechnungsFelder(k)
     }).eq('id', k.id);
     if(error) throw error;
   },
@@ -501,6 +519,79 @@ export const db = {
       nutzer_id: nutzerId, lat, lon, aktualisiert_am: new Date().toISOString()
     }, {onConflict:'nutzer_id'});
     if(error) console.warn('GPS upsert:', error.message);
+  },
+  // ── E-Rechnungen: Belege (Rechnungen/Gutschriften) & Abzugsregeln ──
+  async getBelege() {
+    const rows = [];
+    for(let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from('belege').select('*').order('id', {ascending:false}).range(from, from + 999);
+      if(error) throw error;
+      rows.push(...(data || []));
+      if(!data || data.length < 1000) break;
+    }
+    return rows;
+  },
+  async saveBelegEntwurf(b) {
+    const row = {
+      art: b.art, kontakt_id: b.kontakt_id, kontrakt_id: b.kontrakt_id || null,
+      storno_von_id: b.storno_von_id || null, datum: b.datum || null,
+      leistung_von: b.leistung_von || null, leistung_bis: b.leistung_bis || null,
+      zahlungsziel_tage: b.zahlungsziel_tage ?? 14, empfaenger: b.empfaenger,
+      positionen: b.positionen, steuern: b.steuern, netto: b.netto, ust: b.ust, brutto: b.brutto,
+      ust_modus: b.ust_modus || 'regel', bemerkung: b.bemerkung || null
+    };
+    if(b.id) {
+      const { data, error } = await sb.from('belege').update(row).eq('id', b.id).select().single();
+      if(error) throw error; return data;
+    }
+    const { data, error } = await sb.from('belege').insert({ ...row, erstellt_von: b.erstellt_von || null }).select().single();
+    if(error) throw error; return data;
+  },
+  async deleteBeleg(id) {
+    const { error } = await sb.from('belege').delete().eq('id', id);
+    if(error) throw error;
+  },
+  async festschreibenBeleg(id, datum) {
+    const { data, error } = await sb.rpc('beleg_festschreiben', { p_id: id, p_datum: datum || null });
+    if(error) throw error; return data;
+  },
+  async belegArchivieren(id, pfad, xml) {
+    const { error } = await sb.from('belege').update({ pdf_pfad: pfad, xml }).eq('id', id);
+    if(error) throw error;
+  },
+  async uploadBelegPdf(pfad, bytes) {
+    const { error } = await sb.storage.from('belege').upload(pfad, new Blob([bytes], {type:'application/pdf'}),
+      { contentType: 'application/pdf', upsert: false });
+    if(error) throw error;
+  },
+  async downloadBelegPdf(pfad) {
+    const { data, error } = await sb.storage.from('belege').download(pfad);
+    if(error) throw error; return data;
+  },
+  // Versand erfolgt vorerst manuell über Outlook (rechnungen@) – hier nur den Status setzen.
+  // Automatischer SMTP-Versand: Edge Function supabase/functions/beleg-senden (vorbereitet, noch ohne Secrets).
+  async belegVersendetMarkieren(id, status, an) {
+    const { error } = await sb.from('belege').update({
+      status, versendet_am: new Date().toISOString(), versendet_an: an || null
+    }).eq('id', id);
+    if(error) throw error;
+  },
+  async getAbzugsregeln() {
+    const { data, error } = await sb.from('abzugsregeln').select('*').order('name');
+    if(error) throw error; return data || [];
+  },
+  async saveAbzugsregel(r) {
+    const row = { name: r.name, art: r.art, feld: r.feld || null, vergleich: r.vergleich || 'ueber',
+      schwelle: r.schwelle ?? null, wert: r.wert ?? 0, vorzeichen: r.vorzeichen || 'abzug',
+      gilt_fuer: r.gilt_fuer || 'beide', artikel_id: r.artikel_id || null, kontakt_id: r.kontakt_id || null,
+      aktiv: r.aktiv !== false };
+    const { error } = r.id ? await sb.from('abzugsregeln').update(row).eq('id', r.id)
+                           : await sb.from('abzugsregeln').insert(row);
+    if(error) throw error;
+  },
+  async deleteAbzugsregel(id) {
+    const { error } = await sb.from('abzugsregeln').delete().eq('id', id);
+    if(error) throw error;
   },
   async getGPS() {
     const { data } = await sb.from('gps_positionen').select('*');

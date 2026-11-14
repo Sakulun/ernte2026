@@ -1,6 +1,6 @@
-import { state } from './state.js?v=162';
-import { db } from './db.js?v=162';
-import { showToast, escapeHtml } from './helpers.js?v=162';
+import { state } from './state.js?v=163';
+import { db } from './db.js?v=163';
+import { showToast, escapeHtml } from './helpers.js?v=163';
 
 export function renderArtikel() {
   const kategorien = ['getreide','betriebsmittel','saatgut','sonstige'];
@@ -10,7 +10,7 @@ export function renderArtikel() {
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <div style="flex:1">
           <div style="font-weight:600;color:var(--text)">${escapeHtml(a.name)}</div>
-          <div style="font-size:11px;color:var(--text3);">${a.einheit} · ${katLabel[a.kategorie]||a.kategorie}</div>
+          <div style="font-size:11px;color:var(--text3);">${a.einheit} · ${katLabel[a.kategorie]||a.kategorie} · USt ${Number(a.ust_satz ?? 7).toLocaleString('de-DE')} %</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0">
           <button class="btn btn-sm btn-outline" onclick="artikelEditDialog(${a.id})">✏</button>
@@ -56,6 +56,11 @@ export function artikelNeuDialog(id) {
           <option value="sonstige"${a?.kategorie==='sonstige'?' selected':''}>Sonstige</option>
         </select>
       </div>
+      <div class="form-group"><label>Umsatzsteuersatz (Rechnungen)</label>
+        <select id="art-ust">
+          ${[7,19,0].map(u=>`<option value="${u}"${Number(a?.ust_satz ?? 7)===u?' selected':''}>${u} %${u===7?' – Getreide, Ölsaaten, Saatgut':u===19?' – Dünger, Dienstleistungen':' – steuerfrei'}</option>`).join('')}
+        </select>
+      </div>
       <div style="display:flex;gap:8px;margin-top:8px">
         <button class="btn btn-primary" style="flex:1" onclick="artikelSpeichern(${a?a.id:'null'})">${a?'Speichern':'Anlegen'}</button>
         <button class="btn btn-outline" onclick="document.getElementById('artikel-modal').remove()">Abbrechen</button>
@@ -69,14 +74,15 @@ export async function artikelSpeichern(id) {
   const name     = document.getElementById('art-name')?.value.trim();
   const einheit  = document.getElementById('art-einheit')?.value;
   const kategorie= document.getElementById('art-kategorie')?.value;
+  const ust_satz = Number(document.getElementById('art-ust')?.value ?? 7);
   if(!name) { showToast('⚠ Name erforderlich','error'); return; }
   try {
     if(id) {
       const a = state.artikel.find(x=>x.id===id);
-      await db.updateArtikel({...a, name, einheit, kategorie});
-      Object.assign(a, {name, einheit, kategorie});
+      await db.updateArtikel({...a, name, einheit, kategorie, ust_satz});
+      Object.assign(a, {name, einheit, kategorie, ust_satz});
     } else {
-      const saved = await db.insertArtikel({name, einheit, kategorie});
+      const saved = await db.insertArtikel({name, einheit, kategorie, ust_satz});
       state.artikel.push(saved);
       state.artikel.sort((a,b)=>a.name.localeCompare(b.name));
     }
