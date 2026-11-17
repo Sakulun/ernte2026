@@ -1,4 +1,4 @@
-import { state } from './state.js?v=164';
+import { state } from './state.js?v=165';
 
 export const getFeld = id => state.felder.find(f=>f.id===id)||{name:'–',fruchtart:'–',flaeche:0,status:'inaktiv',betrieb:''};
 export const getSorte = id => state.sorten.find(s=>s.id===id)||{};
@@ -103,12 +103,14 @@ export function navigiereZuSchlag(feldId) {
 }
 
 // ── Füllzyklus eines Silos/Lagers ────────────────────────────────────────────
-// Liefert die Fuhren, die AKTUELL im Lager liegen: alles seit der letzten
-// vollständigen Leerung. Ein- (Fuhren) und Ausgänge (Warenbewegungen) werden
-// zeitlich sortiert aufsummiert; fällt der Saldo nach einem Ausgang auf ~0, gilt
-// das Lager als geleert und ältere Fuhren zählen nicht mehr. Kultur, Bio-Status,
-// Qualitäts-Durchschnitte und Feuchtewarnung beziehen sich damit nur auf den
-// heutigen Inhalt – nicht auf längst ausgelagerte Ware.
+// Liefert die Fuhren, die AKTUELL im Lager liegen. Alle Ausgänge (Warenbewegungen)
+// werden nach dem FIFO-Prinzip von den ältesten Fuhren abgezogen; übrig bleiben
+// die Fuhren, deren Menge (ganz oder teilweise) noch im Lager liegt. Kultur,
+// Bio-Status, Qualitäts-Durchschnitte und Feuchtewarnung beziehen sich damit nur
+// auf den heutigen Inhalt – nicht auf längst ausgelagerte Ware.
+// Früher wurde nur zurückgesetzt, wenn der Saldo zeitlich auf ~0 fiel. Wurde ein
+// Altrest erst ausgebucht, nachdem schon neue Ware lag (z. B. Weizenrest aus B1
+// umgelagert, als bereits Mais eingelagert war), blieb die alte Kultur hängen.
 // (Der Bestand selbst wird weiterhin über alle Buchungen gerechnet.)
 const LAGER_LEER_TOLERANZ_KG = 100;
 export function siloZyklusFuhren(siloId) {
@@ -117,17 +119,17 @@ export function siloZyklusFuhren(siloId) {
   const ausgaenge = (state.warenbewegungen || []).filter(w => w.silo_von_id === siloId && w.typ === 'ausgang');
   if(!ausgaenge.length) return fuhren;
   const zugangKg  = fuhren.reduce((sum, f) => sum + (netto(f) || 0), 0);
-  const ausgangKg = ausgaenge.reduce((sum, w) => sum + (Number(w.menge_kg) || 0), 0);
-  if(zugangKg - ausgangKg <= LAGER_LEER_TOLERANZ_KG) return [];   // heute leer
-  const ev = [
-    ...fuhren.map(f => ({ t: new Date(f.zeit).getTime() || 0, kg: netto(f) || 0, f })),
-    ...ausgaenge.map(w => ({ t: new Date(w.erstellt_am).getTime() || 0, kg: -(Number(w.menge_kg) || 0), f: null })),
-  ].sort((a, b) => a.t - b.t || (a.f ? -1 : 1));   // gleiche Zeit: Eingang vor Ausgang
-  let saldo = 0, zyklus = [];
-  for(const e of ev) {
-    saldo += e.kg;
-    if(e.f) zyklus.push(e.f);
-    else if(saldo <= LAGER_LEER_TOLERANZ_KG) { saldo = 0; zyklus = []; }   // geleert → neuer Zyklus
+  let restAusgang = ausgaenge.reduce((sum, w) => sum + (Number(w.menge_kg) || 0), 0);
+  if(zugangKg - restAusgang <= LAGER_LEER_TOLERANZ_KG) return [];   // heute leer
+  const sortiert = [...fuhren].sort((a, b) =>
+    (new Date(a.zeit).getTime() || 0) - (new Date(b.zeit).getTime() || 0) || (a.id - b.id));
+  const inhalt = [];
+  for(const f of sortiert) {
+    if(restAusgang <= LAGER_LEER_TOLERANZ_KG) { inhalt.push(f); continue; }
+    const kg = netto(f) || 0;
+    if(kg <= restAusgang) { restAusgang -= kg; continue; }          // komplett ausgelagert
+    if(kg - restAusgang > LAGER_LEER_TOLERANZ_KG) inhalt.push(f);   // teilweise noch drin
+    restAusgang = 0;
   }
-  return zyklus;
+  return inhalt;
 }

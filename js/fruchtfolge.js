@@ -1,9 +1,9 @@
 // Fruchtfolgemanagement – Modul-Shell, gemeinsamer Zustand und Datenzugriff.
 // Nur mit dem Recht 'fruchtfolge' (zusätzlich serverseitig via RLS ff_is_admin()).
-import { getSb } from './db.js?v=164';
-import { state } from './state.js?v=164';
-import { showToast, escapeHtml } from './helpers.js?v=164';
-import { hatRecht } from './rechte.js?v=164';
+import { getSb } from './db.js?v=165';
+import { state } from './state.js?v=165';
+import { showToast, escapeHtml } from './helpers.js?v=165';
+import { hatRecht } from './rechte.js?v=165';
 
 export const ffState = {
   loaded: false,
