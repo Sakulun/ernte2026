@@ -1,10 +1,10 @@
-import { state } from './state.js?v=176';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=176';
-import { getFruchtFarbe } from './frucht.js?v=176';
-import { isBioFuhre } from './bio.js?v=176';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=176';
-import { ensureXLSX } from './export.js?v=176';
-import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=176';
+import { state } from './state.js?v=177';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=177';
+import { getFruchtFarbe } from './frucht.js?v=177';
+import { isBioFuhre } from './bio.js?v=177';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=177';
+import { ensureXLSX } from './export.js?v=177';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=177';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -73,22 +73,55 @@ export const BEREICHE = [
   { key:'vermehrung|bio',  art:'vermehrung', bio:true,  titel:'🌱 Vermehrungsware · Bio' },
 ];
 
+// ── Körnermais: Umrechnung Nass- auf Trockenware ────────────────────────────
+// Formel wie in der Excel-Übersicht Körnermais:  trocken = Menge − Menge × 0,98 × (Feuchte − 14,5) × 1,4 %
+// Unter 14,5 % Feuchte wird nichts abgezogen. Fuhren ohne Feuchtewert bekommen die mengengewichtete
+// Ø-Feuchte der übrigen Körnermais-Fuhren desselben Bereichs (Bio/konventionell).
+export const MAIS_ZIELFEUCHTE = 14.5;
+export function maisTrockenKg(kg, feuchte) {
+  const ueber = Math.max(0, (Number(feuchte) || 0) - MAIS_ZIELFEUCHTE);
+  return kg - kg * 0.98 * ueber * 0.014;
+}
+const TROCKNEN = new Set(['Körnermais']);
+
 export function massenbilanzDaten() {
   const leer = () => ({ ernteKg:0, zukaufKg:0, absiebeKg:0, ekOffenT:0, kontrahiertT:0, geliefertT:0,
-    kontrakte:[], ekKontrakte:[], quellen:{}, betriebe:{}, lieferanten:{} });
+    kontrakte:[], ekKontrakte:[], quellen:{}, betriebe:{}, lieferanten:{}, nass:null });
   const bil = Object.fromEntries(BEREICHE.map(b => [b.key, {}]));
   const zeile = (art, bio, p) => { const t = bil[art + '|' + (bio ? 'bio' : 'konv')]; return t[p] || (t[p] = leer()); };
   const quelle = (z, name, kg) => { z.quellen[name] = (z.quellen[name] || 0) + kg; };
+  const fertigeFuhren = state.fuhren.filter(f => f.status === 'fertig' && (netto(f) || 0) > 0
+    && (getFeld(f.feldId).typ || 'schlag') !== 'umlagerung');
 
-  state.fuhren.filter(f => f.status === 'fertig').forEach(f => {
-    const kg = netto(f) || 0;
-    if(kg <= 0) return;
+  // Ø-Feuchte je Bereich für Trocknungs-Kulturen ohne Feuchtewert
+  const fGew = {};
+  fertigeFuhren.forEach(f => {
+    const p = produktVon(f.fruchtart);
+    if(!TROCKNEN.has(p) || f.feuchte == null) return;
+    const k = (f.sorte ? 'v' : 'k') + (isBioFuhre(f) ? 'b' : 'c') + p;
+    const e = fGew[k] || (fGew[k] = { s:0, m:0 });
+    e.s += netto(f) * f.feuchte; e.m += netto(f);
+  });
+
+  fertigeFuhren.forEach(f => {
+    const nassKg = netto(f) || 0;
     const feld = getFeld(f.feldId);
     const typ = feld.typ || 'schlag';
-    if(typ === 'umlagerung') return;           // intern, zählt nicht
     const p = produktVon(f.fruchtart);
     const bio = isBioFuhre(f);
     const art = f.sorte ? 'vermehrung' : 'konsum';
+    // Trocknungs-Kultur: Bilanz rechnet mit Trockenware, Nassware wird daneben mitgeführt
+    let kg = nassKg;
+    if(TROCKNEN.has(p) && typ !== 'reinigung') {
+      const z = zeile(art, bio, p);
+      const n = z.nass || (z.nass = { ernteKg:0, zukaufKg:0, feuchteSumme:0, ohneFeuchte:0 });
+      const fk = fGew[(f.sorte ? 'v' : 'k') + (bio ? 'b' : 'c') + p];
+      let feuchte = f.feuchte;
+      if(feuchte == null) { n.ohneFeuchte++; feuchte = fk?.m ? fk.s / fk.m : MAIS_ZIELFEUCHTE; }
+      kg = maisTrockenKg(nassKg, feuchte);
+      n.feuchteSumme += nassKg * feuchte;
+      if(typ === 'lieferant' || f.einkaufskontrakt) n.zukaufKg += nassKg; else n.ernteKg += nassKg;
+    }
     if(typ === 'lieferant' || f.einkaufskontrakt) {
       const l = feld.name || 'Lieferant';
       const z = zeile(art, bio, p); z.zukaufKg += kg; quelle(z, '🚚 Zukauf · ' + l, kg);
@@ -126,7 +159,10 @@ export function massenbilanzDaten() {
     .filter(([p]) => !(_ohneSilomais && p === 'Silomais'))
     .map(([produkt, z]) => {
       const aufkommenT = (z.ernteKg + z.zukaufKg + z.absiebeKg) / 1000;
-      return { produkt, ...z, ernteT:z.ernteKg/1000, zukaufT:z.zukaufKg/1000, absiebeT:z.absiebeKg/1000,
+      const nass = z.nass ? { ernteT:z.nass.ernteKg/1000, zukaufT:z.nass.zukaufKg/1000,
+        aufkommenT:(z.nass.ernteKg + z.nass.zukaufKg)/1000, ohneFeuchte:z.nass.ohneFeuchte,
+        feuchte: (z.nass.ernteKg + z.nass.zukaufKg) ? z.nass.feuchteSumme / (z.nass.ernteKg + z.nass.zukaufKg) : null } : null;
+      return { produkt, ...z, nass, ernteT:z.ernteKg/1000, zukaufT:z.zukaufKg/1000, absiebeT:z.absiebeKg/1000,
         aufkommenT, offenT: Math.max(0, z.kontrahiertT - z.geliefertT), freiT: aufkommenT - z.kontrahiertT, ...preisDaten(z.kontrakte) };
     })
     .filter(r => Math.abs(r.aufkommenT) > 0.05 || r.kontrahiertT > 0 || r.ekOffenT > 0 || Math.abs(r.absiebeT) > 0.05)
@@ -228,7 +264,15 @@ const kopfStil = 'font-size:10px;text-transform:uppercase;letter-spacing:.5px;co
 
 function produktZelle(key, r) {
   return `<td style="padding:7px 8px;white-space:nowrap"><span style="color:var(--text3);font-size:11px">${_offen===key?'▾':'▸'}</span>
-    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe(r.produkt)};margin:0 5px 0 3px"></span><b style="color:var(--text)">${escapeHtml(r.produkt)}</b></td>`;
+    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe(r.produkt)};margin:0 5px 0 3px"></span><b style="color:var(--text)">${escapeHtml(r.produkt)}</b>${r.nass ? ` <span style="color:var(--text2);font-size:11px" title="Trockenware: Menge − Menge × 0,98 × (Feuchte − 14,5) × 1,4 %">trocken · 14,5 %</span>` : ''}</td>`;
+}
+// Info-Zeile Nassware über der Trockenzeile (zählt nicht in Summen, Kontrakte laufen auf trocken)
+function nassZeile(r, restSpalten) {
+  if(!r.nass) return '';
+  const n = r.nass, z = v => `<td style="padding:4px 8px;text-align:right;white-space:nowrap;color:var(--text2)">${tZ(v)}</td>`;
+  return `<tr style="font-size:11.5px;font-style:italic;border-top:1px solid var(--color-border)">
+    <td style="padding:4px 8px 4px 26px;white-space:nowrap;color:var(--text2)">💧 ${escapeHtml(r.produkt)} nass${n.feuchte != null ? ` · Ø ${n.feuchte.toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 })} % Feuchte` : ''}${n.ohneFeuchte ? ` <span style="color:var(--color-warning)" title="Ohne Feuchtewert – mit der Ø-Feuchte gerechnet">· ${n.ohneFeuchte} ohne Feuchte</span>` : ''}</td>
+    ${z(n.ernteT)}${z(n.zukaufT)}${z(0)}${z(n.aufkommenT)}${restSpalten ? `<td colspan="${restSpalten}"></td>` : ''}</tr>`;
 }
 function abschnitt(b, inhalt, hinweis, aktion = '') {
   return `<div style="margin-bottom:22px">
@@ -259,7 +303,7 @@ function konsumTabelle(b, rows) {
     : `<span style="color:${GRUEN};font-weight:700">${t1(v)}</span>`;
   const zeile = r => {
     const key = b.key + '|' + r.produkt;
-    return `<tr style="border-top:1px solid var(--color-border);cursor:pointer" data-key="${escapeHtml(key)}" onclick="toggleMassenbilanzZeile(this.dataset.key)">
+    return `${nassZeile(r, 7)}<tr style="border-top:1px solid var(--color-border);cursor:pointer" data-key="${escapeHtml(key)}" onclick="toggleMassenbilanzZeile(this.dataset.key)">
       ${produktZelle(key, r)}
       ${zelle(tZ(r.ernteT))}${zelle(tZ(r.zukaufT))}${zelle(tZ(r.absiebeT), 'color:var(--text2)')}
       ${zelle(`<b>${t1(r.aufkommenT)}</b>`, 'background:var(--bg2)')}
@@ -294,7 +338,7 @@ function vermehrungTabelle(b, rows) {
   const sum = k => rows.reduce((s, r) => s + r[k], 0);
   const zeile = r => {
     const key = b.key + '|' + r.produkt;
-    return `<tr style="border-top:1px solid var(--color-border);cursor:pointer" data-key="${escapeHtml(key)}" onclick="toggleMassenbilanzZeile(this.dataset.key)">
+    return `${nassZeile(r, 0)}<tr style="border-top:1px solid var(--color-border);cursor:pointer" data-key="${escapeHtml(key)}" onclick="toggleMassenbilanzZeile(this.dataset.key)">
       ${produktZelle(key, r)}
       ${zelle(tZ(r.ernteT))}${zelle(tZ(r.zukaufT))}${zelle(tZ(r.absiebeT), 'color:var(--text2)')}
       ${zelle(`<b>${t1(r.aufkommenT)}</b>`, 'background:var(--bg2)')}
@@ -372,7 +416,10 @@ export async function exportMassenbilanzExcel() {
   const aoa = [['Art', 'Bio', 'Produkt', 'Ernte t', 'Zukauf t', 'Absiebe t', 'Aufkommen t', 'Kontrahiert t', 'Ø Preis €/t', 'geliefert t', 'noch zu liefern t', 'Frei t', 'EK offen t']];
   BEREICHE.forEach(b => d[b.key].forEach(r => {
     const konsum = b.art === 'konsum';
-    aoa.push([konsum ? 'Konsum' : 'Vermehrung', b.bio ? 'Bio' : 'konventionell', r.produkt, r1(r.ernteT), r1(r.zukaufT), r1(r.absiebeT), r1(r.aufkommenT),
+    if(r.nass) aoa.push([konsum ? 'Konsum' : 'Vermehrung', b.bio ? 'Bio' : 'konventionell',
+      `${r.produkt} nass (Ø ${r.nass.feuchte != null ? (Math.round(r.nass.feuchte * 10) / 10) : '–'} % Feuchte, nur Info)`,
+      r1(r.nass.ernteT), r1(r.nass.zukaufT), '', r1(r.nass.aufkommenT), '', '', '', '', '', '']);
+    aoa.push([konsum ? 'Konsum' : 'Vermehrung', b.bio ? 'Bio' : 'konventionell', r.produkt + (r.nass ? ' trocken (14,5 %)' : ''), r1(r.ernteT), r1(r.zukaufT), r1(r.absiebeT), r1(r.aufkommenT),
       ...(konsum ? [r1(r.kontrahiertT), r.avgPreis == null ? '' : Math.round(r.avgPreis * 100) / 100, r1(r.geliefertT), r1(r.offenT), r1(r.freiT), r1(r.ekOffenT)] : ['', '', '', '', '', ''])]);
   }));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -425,8 +472,10 @@ export function massenbilanzPdf(bereich) {
     const rows = d[b.key];
     const sum = k => rows.reduce((s, x) => s + x[k], 0);
     const frei = v => `<span class="${v < -0.05 ? 'rot' : 'gruen'}">${t1(v)}</span>`;
-    const zeile = (r, gesamt) => `<tr class="${gesamt ? 'summe' : 'prod'}">
-      <td>${gesamt ? 'Gesamt' : esc(r.produkt)}</td>
+    const nassPdf = r => r.nass ? `<tr class="sub nass"><td>${esc(r.produkt)} nass${r.nass.feuchte != null ? ` · Ø ${r.nass.feuchte.toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 })} % Feuchte` : ''}${r.nass.ohneFeuchte ? ` · ${r.nass.ohneFeuchte} ohne Feuchte` : ''}</td>
+      <td class="num">${nz(r.nass.ernteT)}</td><td class="num">${nz(r.nass.zukaufT)}</td><td class="num">–</td><td class="num">${t1(r.nass.aufkommenT)}</td><td colspan="7"></td></tr>` : '';
+    const zeile = (r, gesamt) => `${gesamt ? '' : nassPdf(r)}<tr class="${gesamt ? 'summe' : 'prod'}">
+      <td>${gesamt ? 'Gesamt' : esc(r.produkt) + (r.nass ? ' <span style="font-weight:400;color:#555">trocken · 14,5 %</span>' : '')}</td>
       <td class="num">${nz(r.ernteT)}</td><td class="num">${nz(r.zukaufT)}</td><td class="num">${nz(r.absiebeT)}</td>
       <td class="num b">${t1(r.aufkommenT)}</td><td class="num">${nz(r.kontrahiertT)}</td><td class="num b">${gesamt || r.avgPreis == null ? '–' : eur(r.avgPreis).replace(' €/t', '') + (r.preisMengeT < r.kontrahiertT - 0.05 ? ' *' : '')}</td><td class="num">${nz(r.geliefertT)}</td>
       <td class="num">${nz(r.offenT)}</td><td class="num b">${frei(r.freiT)}</td>
@@ -477,6 +526,7 @@ export function massenbilanzPdf(bereich) {
     tr.prod td:first-child { font-weight:700; }
     tr.sub td { font-size:9.5px; color:#555; background:#f7faf7; }
     tr.sub td:first-child { padding-left:20px; }
+    tr.nass td { font-style:italic; }
     .preis { color:#1a1a1a; margin-left:6px; }
     tr.summe td { font-weight:700; border-top:2px solid #1a3a1a; border-bottom:none; }
     .num { text-align:right; font-variant-numeric:tabular-nums; }
@@ -494,7 +544,7 @@ export function massenbilanzPdf(bereich) {
   <div class="kacheln">${kacheln}</div>
   ${bereiche.map(tabelle).join('')}
   <div class="hinweis">Ernte = abgeschlossene Fuhren von eigenen Schlägen ohne Vermehrungssorte · Zukauf = Anlieferungen von Dritten ·
-    Absiebe = Reinigungsabgänge der Vermehrung · Frei = Aufkommen − kontrahiert · Ø Preis = mengengewichteter Kontraktpreis (* = nicht für alle Kontrakte ein Preis hinterlegt) · EK offen = noch nicht angelieferte Menge aus Einkaufskontrakten.
+    Absiebe = Reinigungsabgänge der Vermehrung · Körnermais = Trockenware (Menge − Menge × 0,98 × (Feuchte − 14,5) × 1,4 %), Nassware als Info-Zeile · Frei = Aufkommen − kontrahiert · Ø Preis = mengengewichteter Kontraktpreis (* = nicht für alle Kontrakte ein Preis hinterlegt) · EK offen = noch nicht angelieferte Menge aus Einkaufskontrakten.
     Vermehrungsware ist nicht enthalten, sie steht nicht für den Konsumverkauf zur Verfügung. Umlagerungen und Verkäufe ohne Kontrakt zählen nicht.</div>
   <div class="footer"><span>${esc(FIRMA_NAME)} · Landgut Nuscheler</span><span>${stand}</span></div>
   <script>window.onload=()=>window.print();<\/script>

@@ -1,8 +1,8 @@
 // Fruchtfolge: Import der Agrarantrags-Export-ZIPs (UI + Übernahme nach Supabase)
-import { getSb } from './db.js?v=176';
-import { showToast, escapeHtml } from './helpers.js?v=176';
-import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=176';
-import { parseAgrarantragZip } from './ff-import-parser.js?v=176';
+import { getSb } from './db.js?v=177';
+import { showToast, escapeHtml } from './helpers.js?v=177';
+import { ffState, ffLoadStammdaten, ffRecompute, ffInvalidateJahr, renderFruchtfolge } from './fruchtfolge.js?v=177';
+import { parseAgrarantragZip } from './ff-import-parser.js?v=177';
 
 // Geparste, noch nicht übernommene Pakete (Index = Anzeige-Reihenfolge)
 let pakete = [];
