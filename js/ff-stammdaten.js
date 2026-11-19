@@ -1,8 +1,8 @@
 // Fruchtfolge: Stammdaten-CRUD – Kulturen, Kulturgruppen, Nutzungscode-Mapping,
 // Betriebe. Farben per Colorpicker, Anbaupausen/Selbstfolge editierbar.
-import { getSb } from './db.js?v=165';
-import { showToast, escapeHtml } from './helpers.js?v=165';
-import { ffState, ffLoadStammdaten, renderFruchtfolge } from './fruchtfolge.js?v=165';
+import { getSb } from './db.js?v=166';
+import { showToast, escapeHtml } from './helpers.js?v=166';
+import { ffState, ffLoadStammdaten, renderFruchtfolge } from './fruchtfolge.js?v=166';
 
 let bereich = 'kulturen'; // kulturen | gruppen | codes | betriebe
 

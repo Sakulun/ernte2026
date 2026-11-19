@@ -1,4 +1,4 @@
-import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=165';
+import { sb, bgState, bgDb, escapeHtml, showToast, renderBgMain } from './bg-app.js?v=166';
 
 // ── Stammdaten (nur Admin): Lieferanten, Schläge, Hängerzüge, Nutzer ─────────
 

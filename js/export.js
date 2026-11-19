@@ -1,12 +1,12 @@
-import { state } from './state.js?v=165';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=165';
-import { getSiloFill, getSiloKultur } from './silo.js?v=165';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=165';
-import { kontraktEingangFuhren } from './kontrakte.js?v=165';
+import { state } from './state.js?v=166';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=166';
+import { getSiloFill, getSiloKultur } from './silo.js?v=166';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=166';
+import { kontraktEingangFuhren } from './kontrakte.js?v=166';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=165';
+} from './config.js?v=166';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
@@ -362,7 +362,7 @@ export function exportCSVSeitLetztem() {
 }
 
 // ── Excel-Auswertung (.xlsx) mit mehreren Blättern und Formeln ───────────────
-function ensureXLSX() {
+export function ensureXLSX() {
   if(window.XLSX) return Promise.resolve();
   return new Promise((res, rej) => {
     const s = document.createElement('script');

@@ -1,6 +1,6 @@
-import { state } from './state.js?v=165';
-import { db } from './db.js?v=165';
-import { showToast, escapeHtml } from './helpers.js?v=165';
+import { state } from './state.js?v=166';
+import { db } from './db.js?v=166';
+import { showToast, escapeHtml } from './helpers.js?v=166';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -340,6 +340,7 @@ export function renderKontrakte() {
               ${k.zert_nachhaltig?'<span class="badge" style="background:var(--green-100,#e6f2e6);color:var(--green2)">♻ Nachhaltig</span>':''}
               ${k.zert_gmp?'<span class="badge" style="background:var(--neutral-200);color:var(--text)">GMP+</span>':''}
               ${k.bio?'<span class="badge badge-aktiv">🌿 EU-Öko</span>':''}
+              ${k.vermehrung?'<span class="badge" style="background:var(--color-info-wash);color:var(--color-info)">🌱 Vermehrung</span>':''}
               ${k.abfahrer_frei?'<span class="badge" style="background:var(--gold);color:#1a1400">🚛 Abfahrer</span>':''}
               ${k.pdf_pfad?'<span class="badge" style="background:var(--neutral-200);color:var(--text)" title="Original-PDF angeheftet">📄 PDF</span>':''}
               <span class="badge badge-${k.status==='aktiv'?'aktiv':'inaktiv'}">${k.status.toUpperCase()}</span>
@@ -635,6 +636,9 @@ export function kontraktNeuDialog(id, prefill={}, pdfName='', pdfText='') {
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="kk-bio" style="width:17px;height:17px;accent-color:var(--gold)" ${(v.bio||k?.bio)?'checked':''}> 🌿 EU-Öko-Ware</label>
         </div>
       </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer"><input type="checkbox" id="kk-vermehrung" style="width:17px;height:17px;accent-color:var(--gold)" ${k?.vermehrung?'checked':''}> 🌱 Vermehrungsware (Z-Saatgut) <span style="font-size:10px;color:var(--text3);font-weight:400">– sonst Konsumware (Massenbilanz)</span></label>
+      </div>
       <div class="form-group"><label>Notiz</label><input type="text" id="kk-notiz" value="${escapeHtml(v.notiz||k?.notiz||'')}"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn btn-primary" style="flex:1" onclick="kontraktSpeichern(${k?k.id:'null'})">${k?'Speichern':'Anlegen'}</button>
@@ -661,6 +665,7 @@ export async function kontraktSpeichern(id) {
     lieferungBis: document.getElementById('kk-bis')?.value||null,
     paritaet: document.getElementById('kk-paritaet')?.value.trim()||null,
     bio: document.getElementById('kk-bio')?.checked||false,
+    vermehrung: document.getElementById('kk-vermehrung')?.checked||false,
     zertNachhaltig: document.getElementById('kk-nachhaltig')?.checked||false,
     zertGmp: document.getElementById('kk-gmp')?.checked||false,
     notiz: document.getElementById('kk-notiz')?.value.trim()||null,
@@ -678,7 +683,7 @@ export async function kontraktSpeichern(id) {
       Object.assign(k, {nummer:data.nummer, kontakt_id:data.kontaktId, artikel_id:data.artikelId,
         fruchtart_text:data.fruchtartText, menge_t:data.mengeT, preis_eur:data.preisEur,
         lieferung_von:data.lieferungVon, lieferung_bis:data.lieferungBis,
-        paritaet:data.paritaet, bio:data.bio, notiz:data.notiz,
+        paritaet:data.paritaet, bio:data.bio, vermehrung:data.vermehrung, notiz:data.notiz,
         zert_nachhaltig:data.zertNachhaltig, zert_gmp:data.zertGmp});
     } else {
       const saved = await db.insertKontrakt(data);
