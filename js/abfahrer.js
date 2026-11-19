@@ -1,9 +1,9 @@
-import { state } from './state.js?v=167';
-import { db } from './db.js?v=167';
-import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=167';
-import { isBioFuhre, bioBadge } from './bio.js?v=167';
-import { getFruchtFarbe } from './frucht.js?v=167';
-import { getQualitaetsfelder } from './quality.js?v=167';
+import { state } from './state.js?v=168';
+import { db } from './db.js?v=168';
+import { getFeld, netto, kg2t, fmtTime, showToast, navigiereZuSchlag, sorteBadge, escapeHtml } from './helpers.js?v=168';
+import { isBioFuhre, bioBadge } from './bio.js?v=168';
+import { getFruchtFarbe } from './frucht.js?v=168';
+import { getQualitaetsfelder } from './quality.js?v=168';
 
 export let aTab = 'erfassen';
 export function setATab(tab) { aTab = tab; renderAbfahrer(); }

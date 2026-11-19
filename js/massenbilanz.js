@@ -1,9 +1,9 @@
-import { state } from './state.js?v=167';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=167';
-import { getFruchtFarbe } from './frucht.js?v=167';
-import { isBioFuhre } from './bio.js?v=167';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=167';
-import { ensureXLSX } from './export.js?v=167';
+import { state } from './state.js?v=168';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=168';
+import { getFruchtFarbe } from './frucht.js?v=168';
+import { isBioFuhre } from './bio.js?v=168';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=168';
+import { ensureXLSX } from './export.js?v=168';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -29,7 +29,8 @@ let _ohneSilomais = true;   // Silomais (Biogas) standardmäßig ausblenden
 // laufen auf denselben Namen. Reihenfolge zählt (Silomais vor Mais, Öl vor Sonnenblumen …).
 const PRODUKTE = [
   ['Umstellungsweizen', /umstell/i],
-  ['Silomais', /silomais/i],
+  // Nur wenn die Kultur MIT Silomais beginnt – "Mais (ohne Silomais NC 411)" ist Körnermais!
+  ['Silomais', /^s*silomais/i],
   ['Durum', /durum|hartweizen/i],
   ['Weizen', /weizen/i],
   ['Gerste', /gerste/i],
@@ -41,7 +42,7 @@ const PRODUKTE = [
   ['Sonnenblumenpresskuchen', /presskuchen/i],
   ['Sonnenblumen', /sonnenblume/i],
   ['Sojabohnen', /soja/i],
-  ['Mais', /mais/i],
+  ['Körnermais', /mais/i],
   ['Erbsen', /erbse/i],
   ['Ackerbohnen', /ackerbohne/i],
   ['Zuckerrüben', /zuckerr/i],
@@ -54,7 +55,7 @@ export function produktVon(name) {
 }
 // Farbe der Produktzeile aus der passenden Kultur
 const FARB_KULTUR = { Weizen:'Winterweichweizen', Durum:'Winterdurum (Hartweizen)', Gerste:'Wintergerste',
-  Triticale:'Wintertriticale', Raps:'Winterraps', Mais:'Mais (ohne Silomais NC 411)', Sojabohnen:'Sojabohnen' };
+  Triticale:'Wintertriticale', Raps:'Winterraps', 'Körnermais':'Mais (ohne Silomais NC 411)', Sojabohnen:'Sojabohnen' };
 const farbe = p => getFruchtFarbe(FARB_KULTUR[p] || p).dot;
 
 function kontraktName(k) {

@@ -12,7 +12,7 @@
 import { FIRMA_NAME_RECHNUNG as FIRMA_NAME, FIRMA_GF_NAME, FIRMA_REGISTER, FIRMA_STRASSE, FIRMA_PLZ,
          FIRMA_ORT, FIRMA_LAND, FIRMA_TEL, FIRMA_EMAIL, FIRMA_ANSPRECHPARTNER, FIRMA_USTID_ROH,
          FIRMA_STNR_ROH, FIRMA_IBAN_ROH, FIRMA_BIC_ROH, FIRMA_BANK_NAME, FIRMA_OEKO_KONTROLLSTELLE,
-         RECHNUNG_LOGO } from './config.js?v=167';
+         RECHNUNG_LOGO } from './config.js?v=168';
 
 // ─── Steuerfälle ───────────────────────────────────────────────────────────
 // belege.ust_modus: Rechnungen 'regel' | 'ig' (innergemeinschaftl. Lieferung) | 'ausfuhr' (Drittland);
