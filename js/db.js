@@ -1,5 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=166';
-import { fahrerLabel } from './rechte.js?v=166';
+import { SB_URL, SB_KEY } from './config.js?v=167';
+import { fahrerLabel } from './rechte.js?v=167';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -313,7 +313,7 @@ export const db = {
       fruchtart_text:k.fruchtartText||null, menge_t:k.mengeT,
       preis_eur:k.preisEur||null, lieferung_von:k.lieferungVon||null,
       lieferung_bis:k.lieferungBis||null, paritaet:k.paritaet||null,
-      bio:k.bio||false, vermehrung:k.vermehrung||false, zert_nachhaltig:k.zertNachhaltig||false, zert_gmp:k.zertGmp||false,
+      bio:k.bio||false, zert_nachhaltig:k.zertNachhaltig||false, zert_gmp:k.zertGmp||false,
       notiz:k.notiz||null, pdf_name:k.pdfName||null,
       pdf_text:k.pdfText||null, status:'aktiv', richtung: k.richtung || 'verkauf'
     }).select().single();
@@ -325,7 +325,7 @@ export const db = {
       fruchtart_text:k.fruchtart_text||null, menge_t:k.menge_t,
       preis_eur:k.preis_eur||null, lieferung_von:k.lieferung_von||null,
       lieferung_bis:k.lieferung_bis||null, paritaet:k.paritaet||null,
-      bio:k.bio||false, vermehrung:!!k.vermehrung, zert_nachhaltig:k.zert_nachhaltig||false, zert_gmp:k.zert_gmp||false,
+      bio:k.bio||false, zert_nachhaltig:k.zert_nachhaltig||false, zert_gmp:k.zert_gmp||false,
       notiz:k.notiz||null, status:k.status
     }).eq('id', k.id);
     if(error) throw error;

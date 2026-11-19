@@ -1,5 +1,5 @@
-import { state } from './state.js?v=166';
-import { getFeld, siloZyklusFuhren } from './helpers.js?v=166';
+import { state } from './state.js?v=167';
+import { getFeld, siloZyklusFuhren } from './helpers.js?v=167';
 
 // Fallback-Liste der Bio-Betriebe (nur relevant für Altdaten ohne pro-Feld-Bio-Flag).
 // Maßgeblich ist das bio-Feld in der felder-Tabelle (aus der Öko-Spalte der Flächenübersicht).
