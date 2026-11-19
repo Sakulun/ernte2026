@@ -1,7 +1,7 @@
-import { state } from './state.js?v=173';
-import { sb } from './db.js?v=173';
-import { showToast } from './helpers.js?v=173';
-import { hatRecht } from './rechte.js?v=173';
+import { state } from './state.js?v=175';
+import { sb } from './db.js?v=175';
+import { showToast } from './helpers.js?v=175';
+import { hatRecht } from './rechte.js?v=175';
 
 export async function adminSendNachricht(text, empfaenger='alle') {
   try {

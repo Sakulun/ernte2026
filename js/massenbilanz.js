@@ -1,10 +1,10 @@
-import { state } from './state.js?v=173';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=173';
-import { getFruchtFarbe } from './frucht.js?v=173';
-import { isBioFuhre } from './bio.js?v=173';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=173';
-import { ensureXLSX } from './export.js?v=173';
-import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=173';
+import { state } from './state.js?v=175';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=175';
+import { getFruchtFarbe } from './frucht.js?v=175';
+import { isBioFuhre } from './bio.js?v=175';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=175';
+import { ensureXLSX } from './export.js?v=175';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=175';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -127,11 +127,20 @@ export function massenbilanzDaten() {
     .map(([produkt, z]) => {
       const aufkommenT = (z.ernteKg + z.zukaufKg + z.absiebeKg) / 1000;
       return { produkt, ...z, ernteT:z.ernteKg/1000, zukaufT:z.zukaufKg/1000, absiebeT:z.absiebeKg/1000,
-        aufkommenT, offenT: Math.max(0, z.kontrahiertT - z.geliefertT), freiT: aufkommenT - z.kontrahiertT };
+        aufkommenT, offenT: Math.max(0, z.kontrahiertT - z.geliefertT), freiT: aufkommenT - z.kontrahiertT, ...preisDaten(z.kontrakte) };
     })
     .filter(r => Math.abs(r.aufkommenT) > 0.05 || r.kontrahiertT > 0 || r.ekOffenT > 0 || Math.abs(r.absiebeT) > 0.05)
     .sort((a, b) => (b.aufkommenT + b.kontrahiertT) - (a.aufkommenT + a.kontrahiertT));
   return Object.fromEntries(BEREICHE.map(b => [b.key, fertig(b.key)]));
+}
+
+// Ø-Kontraktpreis je Kultur, mengengewichtet über die Verkaufskontrakte mit Preis.
+// preisMengeT < kontrahiertT heißt: für einen Teil der Menge fehlt der Preis im Kontrakt.
+function preisDaten(kontrakte) {
+  const mit = kontrakte.filter(k => Number(k.preis_eur) > 0);
+  const preisMengeT = mit.reduce((s, k) => s + (Number(k.menge_t) || 0), 0);
+  const avgPreis = preisMengeT > 0 ? mit.reduce((s, k) => s + Number(k.preis_eur) * (Number(k.menge_t) || 0), 0) / preisMengeT : null;
+  return { avgPreis, preisMengeT };
 }
 
 export function toggleMassenbilanzZeile(key) { _offen = _offen === key ? null : key; renderMassenbilanz(); }
@@ -180,13 +189,13 @@ function kontraktZeilen(r) {
   const { vk, avg, ek } = kontraktZeilenDaten(r);
   const td = (v, extra = '') => `<td style="padding:4px 8px;text-align:right;white-space:nowrap;${extra}">${v}</td>`;
   const name = (icon, x) => `<td style="padding:4px 8px 4px 34px;white-space:nowrap;color:var(--text2)">${icon} ${escapeHtml(x.nummer)} · ${escapeHtml(x.partner)}${x.erfuellt?' <span style="color:var(--text3)">· erfüllt</span>':''}
-      <b style="color:var(--text);margin-left:6px">${eur(x.preis)}</b></td>`;
+      ${x.ek ? `<b style="color:var(--text);margin-left:6px">${eur(x.preis)}</b>` : ""}</td>`;
   const stil = 'font-size:11.5px;background:var(--bg2)';
   const vkZ = vk.map(x => `<tr style="${stil}">${name('📋', x)}<td colspan="4"></td>
-      ${td(t1(x.mengeT))}${td(t1(x.geliefertT), 'color:var(--gold)')}${td(t1(x.offenT), 'color:var(--text2)')}<td colspan="3"></td></tr>`).join('');
+      ${td(t1(x.mengeT))}${td(x.preis == null ? '–' : eur(x.preis).replace(' €/t', ''))}${td(t1(x.geliefertT), 'color:var(--gold)')}${td(t1(x.offenT), 'color:var(--text2)')}<td colspan="3"></td></tr>`).join('');
   const avgZ = avg ? `<tr style="${stil}"><td style="padding:4px 8px 4px 34px;white-space:nowrap;color:var(--text2)">Ø Kontraktpreis (mengengewichtet)
-      <b style="color:var(--text);margin-left:6px">${eur(avg.preis)}</b></td><td colspan="4"></td>${td(t1(avg.mengeT), 'font-weight:700')}<td colspan="5"></td></tr>` : '';
-  const ekZ = ek.map(x => `<tr style="${stil}">${name('🛒 EK', x)}<td colspan="9"></td>${td(t1(x.offenT), 'color:var(--text3)')}</tr>`).join('');
+      <b style="color:var(--text);margin-left:6px">${eur(avg.preis)}</b></td><td colspan="4"></td>${td(t1(avg.mengeT), 'font-weight:700')}${td(eur(avg.preis).replace(' €/t', ''), 'font-weight:700')}<td colspan="5"></td></tr>` : '';
+  const ekZ = ek.map(x => `<tr style="${stil}">${name('🛒 EK', x)}<td colspan="10"></td>${td(t1(x.offenT), 'color:var(--text3)')}</tr>`).join('');
   return vkZ + avgZ + ekZ;
 }
 const tZ = n => Math.abs(n) < 0.05 ? '<span style="color:var(--text3)">–</span>' : t1(n);
@@ -232,6 +241,11 @@ function abschnitt(b, inhalt, hinweis, aktion = '') {
 }
 
 // Konsumware: Aufkommen gegen Verkaufskontrakte
+function preisZelle(r) {
+  if(r.avgPreis == null) return '<span style="color:var(--text3)">–</span>';
+  const teil = r.preisMengeT < r.kontrahiertT - 0.05;
+  return `<b>${eur(r.avgPreis).replace(' €/t', '')}</b>${teil ? `<span style="color:var(--color-warning)" title="Preis nur für ${t1(r.preisMengeT)} von ${t1(r.kontrahiertT)} t hinterlegt"> *</span>` : ''}`;
+}
 function konsumTabelle(b, rows) {
   const sum = k => rows.reduce((s, r) => s + r[k], 0);
   const bar = r => {
@@ -249,25 +263,25 @@ function konsumTabelle(b, rows) {
       ${produktZelle(key, r)}
       ${zelle(tZ(r.ernteT))}${zelle(tZ(r.zukaufT))}${zelle(tZ(r.absiebeT), 'color:var(--text2)')}
       ${zelle(`<b>${t1(r.aufkommenT)}</b>`, 'background:var(--bg2)')}
-      ${zelle(tZ(r.kontrahiertT))}${zelle(tZ(r.geliefertT), 'color:var(--gold)')}${zelle(tZ(r.offenT), 'color:var(--text2)')}
+      ${zelle(tZ(r.kontrahiertT))}${zelle(preisZelle(r))}${zelle(tZ(r.geliefertT), 'color:var(--gold)')}${zelle(tZ(r.offenT), 'color:var(--text2)')}
       ${zelle(frei(r.freiT), 'background:var(--bg2)')}
       <td style="padding:7px 8px;min-width:110px">${bar(r)}</td>
       ${zelle(tZ(r.ekOffenT), 'color:var(--text3)')}
-    </tr>${_detail ? betriebsZeilen(r, 8) + kontraktZeilen(r) : ''}${_offen === key ? `<tr><td colspan="11" style="padding:0">${detailHTML(r, true)}</td></tr>` : ''}`;
+    </tr>${_detail ? betriebsZeilen(r, 9) + kontraktZeilen(r) : ''}${_offen === key ? `<tr><td colspan="12" style="padding:0">${detailHTML(r, true)}</td></tr>` : ''}`;
   };
   const tot = { aufkommenT:sum('aufkommenT'), kontrahiertT:sum('kontrahiertT') };
   return abschnitt(b, `<table style="${tabStil}">
       <thead><tr style="${kopfStil}">
         ${th('Produkt', false)}${th('Ernte')}${th('Zukauf', true, 'Von Dritten angeliefert (Lieferanten, Einkaufskontrakte)')}${th('Absiebe', true, 'Reinigungsabgänge der Vermehrung, in die Konsumware umgebucht')}
-        ${th('Aufkommen')}${th('Kontrahiert', true, 'Verkaufskontrakte (aktiv + erfüllt)')}${th('geliefert')}${th('noch zu liefern')}
+        ${th('Aufkommen')}${th('Kontrahiert', true, 'Verkaufskontrakte (aktiv + erfüllt)')}${th('Ø Preis', true, 'Mengengewichteter Durchschnitt der Kontraktpreise (€/t), nur Kontrakte mit Preis')}${th('geliefert')}${th('noch zu liefern')}
         ${th('Frei', true, 'Aufkommen − kontrahiert = noch nicht verkauft')}${th('verkauft', false)}${th('EK offen', true, 'Einkaufskontrakte: noch nicht angelieferte Menge (künftiger Zugang)')}
       </tr></thead>
       <tbody>
-        ${rows.map(zeile).join('') || `<tr><td colspan="11" style="padding:12px;color:var(--text3)">Keine Daten.</td></tr>`}
+        ${rows.map(zeile).join('') || `<tr><td colspan="12" style="padding:12px;color:var(--text3)">Keine Daten.</td></tr>`}
         ${rows.length ? `<tr style="border-top:2px solid var(--border2);font-weight:700">
           <td style="padding:7px 8px">Gesamt</td>
           ${zelle(t1(sum('ernteT')))}${zelle(t1(sum('zukaufT')))}${zelle(tZ(sum('absiebeT')))}
-          ${zelle(t1(tot.aufkommenT), 'background:var(--bg2)')}${zelle(t1(tot.kontrahiertT))}${zelle(t1(sum('geliefertT')))}${zelle(t1(sum('offenT')))}
+          ${zelle(t1(tot.aufkommenT), 'background:var(--bg2)')}${zelle(t1(tot.kontrahiertT))}${zelle('')}${zelle(t1(sum('geliefertT')))}${zelle(t1(sum('offenT')))}
           ${zelle(frei(sum('freiT')), 'background:var(--bg2)')}<td style="padding:7px 8px">${bar(tot)}</td>${zelle(tZ(sum('ekOffenT')))}
         </tr>` : ''}
       </tbody>
@@ -355,14 +369,14 @@ export async function exportMassenbilanzExcel() {
   const XLSX = window.XLSX;
   const d = massenbilanzDaten();
   const r1 = n => Math.round(n * 10) / 10;
-  const aoa = [['Art', 'Bio', 'Produkt', 'Ernte t', 'Zukauf t', 'Absiebe t', 'Aufkommen t', 'Kontrahiert t', 'geliefert t', 'noch zu liefern t', 'Frei t', 'EK offen t']];
+  const aoa = [['Art', 'Bio', 'Produkt', 'Ernte t', 'Zukauf t', 'Absiebe t', 'Aufkommen t', 'Kontrahiert t', 'Ø Preis €/t', 'geliefert t', 'noch zu liefern t', 'Frei t', 'EK offen t']];
   BEREICHE.forEach(b => d[b.key].forEach(r => {
     const konsum = b.art === 'konsum';
     aoa.push([konsum ? 'Konsum' : 'Vermehrung', b.bio ? 'Bio' : 'konventionell', r.produkt, r1(r.ernteT), r1(r.zukaufT), r1(r.absiebeT), r1(r.aufkommenT),
-      ...(konsum ? [r1(r.kontrahiertT), r1(r.geliefertT), r1(r.offenT), r1(r.freiT), r1(r.ekOffenT)] : ['', '', '', '', ''])]);
+      ...(konsum ? [r1(r.kontrahiertT), r.avgPreis == null ? '' : Math.round(r.avgPreis * 100) / 100, r1(r.geliefertT), r1(r.offenT), r1(r.freiT), r1(r.ekOffenT)] : ['', '', '', '', '', ''])]);
   }));
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols'] = [{ wch:12 }, { wch:14 }, { wch:26 }, ...Array(9).fill({ wch:13 })];
+  ws['!cols'] = [{ wch:12 }, { wch:14 }, { wch:26 }, ...Array(10).fill({ wch:13 })];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Massenbilanz');
   const det = [['Art', 'Bio', 'Produkt', 'Herkunft', 'Betrieb / Lieferant', 't', 'Anteil %']];
@@ -395,17 +409,17 @@ export function massenbilanzPdf(bereich) {
 
   const subZeilen = r => {
     const sort = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
-    const zeile = (name, ernte, zukauf) => `<tr class="sub"><td>${name}</td><td class="num">${ernte}</td><td class="num">${zukauf}</td><td colspan="8"></td></tr>`;
+    const zeile = (name, ernte, zukauf) => `<tr class="sub"><td>${name}</td><td class="num">${ernte}</td><td class="num">${zukauf}</td><td colspan="9"></td></tr>`;
     return sort(r.betriebe).map(([n, kg]) => zeile(esc(n), t1(kg/1000) + ' t · ' + pct(kg, r.ernteKg), '')).join('')
       + sort(r.lieferanten).map(([n, kg]) => zeile('Zukauf ' + esc(n), '', t1(kg/1000) + ' t · ' + pct(kg, r.zukaufKg))).join('')
       + kontraktPdf(r);
   };
   const kontraktPdf = r => {
     const { vk, avg, ek } = kontraktZeilenDaten(r);
-    const nm = (pre, x) => `<td>${pre} ${esc(x.nummer)} · ${esc(x.partner)}${x.erfuellt ? ' · erfüllt' : ''} <b class="preis">${eur(x.preis)}</b></td>`;
-    return vk.map(x => `<tr class="sub">${nm('Kontrakt', x)}<td colspan="4"></td><td class="num">${t1(x.mengeT)}</td><td class="num">${t1(x.geliefertT)}</td><td class="num">${t1(x.offenT)}</td><td colspan="3"></td></tr>`).join('')
-      + (avg ? `<tr class="sub"><td>Ø Kontraktpreis (mengengewichtet) <b class="preis">${eur(avg.preis)}</b></td><td colspan="4"></td><td class="num b">${t1(avg.mengeT)}</td><td colspan="5"></td></tr>` : '')
-      + ek.map(x => `<tr class="sub">${nm('Einkauf', x)}<td colspan="9"></td><td class="num">${t1(x.offenT)}</td></tr>`).join('');
+    const nm = (pre, x) => `<td>${pre} ${esc(x.nummer)} · ${esc(x.partner)}${x.erfuellt ? ' · erfüllt' : ''} ${x.ek ? `<b class="preis">${eur(x.preis)}</b>` : ""}</td>`;
+    return vk.map(x => `<tr class="sub">${nm('Kontrakt', x)}<td colspan="4"></td><td class="num">${t1(x.mengeT)}</td><td class="num">${x.preis == null ? '–' : eur(x.preis).replace(' €/t', '')}</td><td class="num">${t1(x.geliefertT)}</td><td class="num">${t1(x.offenT)}</td><td colspan="3"></td></tr>`).join('')
+      + (avg ? `<tr class="sub"><td>Ø Kontraktpreis (mengengewichtet) <b class="preis">${eur(avg.preis)}</b></td><td colspan="4"></td><td class="num b">${t1(avg.mengeT)}</td><td class="num b">${eur(avg.preis).replace(' €/t', '')}</td><td colspan="5"></td></tr>` : '')
+      + ek.map(x => `<tr class="sub">${nm('Einkauf', x)}<td colspan="10"></td><td class="num">${t1(x.offenT)}</td></tr>`).join('');
   };
   const tabelle = b => {
     const rows = d[b.key];
@@ -414,7 +428,7 @@ export function massenbilanzPdf(bereich) {
     const zeile = (r, gesamt) => `<tr class="${gesamt ? 'summe' : 'prod'}">
       <td>${gesamt ? 'Gesamt' : esc(r.produkt)}</td>
       <td class="num">${nz(r.ernteT)}</td><td class="num">${nz(r.zukaufT)}</td><td class="num">${nz(r.absiebeT)}</td>
-      <td class="num b">${t1(r.aufkommenT)}</td><td class="num">${nz(r.kontrahiertT)}</td><td class="num">${nz(r.geliefertT)}</td>
+      <td class="num b">${t1(r.aufkommenT)}</td><td class="num">${nz(r.kontrahiertT)}</td><td class="num b">${gesamt || r.avgPreis == null ? '–' : eur(r.avgPreis).replace(' €/t', '') + (r.preisMengeT < r.kontrahiertT - 0.05 ? ' *' : '')}</td><td class="num">${nz(r.geliefertT)}</td>
       <td class="num">${nz(r.offenT)}</td><td class="num b">${frei(r.freiT)}</td>
       <td class="num">${r.aufkommenT > 0 ? Math.round(r.kontrahiertT / r.aufkommenT * 100) + ' %' : '–'}</td>
       <td class="num">${nz(r.ekOffenT)}</td></tr>`;
@@ -423,10 +437,10 @@ export function massenbilanzPdf(bereich) {
     return `<h2 class="${b.bio ? 'bio' : ''}">${b.bio ? 'Konsumware · Bio' : 'Konsumware · konventionell'}</h2>
       <table>
         <thead><tr><th>Produkt</th><th class="num">Ernte t</th><th class="num">Zukauf t</th><th class="num">Absiebe t</th>
-          <th class="num">Aufkommen t</th><th class="num">Kontrahiert t</th><th class="num">geliefert t</th><th class="num">noch zu liefern t</th>
+          <th class="num">Aufkommen t</th><th class="num">Kontrahiert t</th><th class="num">Ø Preis €/t</th><th class="num">geliefert t</th><th class="num">noch zu liefern t</th>
           <th class="num">Frei t</th><th class="num">verkauft</th><th class="num">EK offen t</th></tr></thead>
         <tbody>
-          ${rows.map(r => zeile(r) + (_detail ? subZeilen(r) : '')).join('') || '<tr><td colspan="11" class="leer">Keine Daten</td></tr>'}
+          ${rows.map(r => zeile(r) + (_detail ? subZeilen(r) : '')).join('') || '<tr><td colspan="12" class="leer">Keine Daten</td></tr>'}
           ${rows.length ? zeile(tot, true) : ''}
         </tbody>
       </table>`;
@@ -480,7 +494,7 @@ export function massenbilanzPdf(bereich) {
   <div class="kacheln">${kacheln}</div>
   ${bereiche.map(tabelle).join('')}
   <div class="hinweis">Ernte = abgeschlossene Fuhren von eigenen Schlägen ohne Vermehrungssorte · Zukauf = Anlieferungen von Dritten ·
-    Absiebe = Reinigungsabgänge der Vermehrung · Frei = Aufkommen − kontrahiert · EK offen = noch nicht angelieferte Menge aus Einkaufskontrakten.
+    Absiebe = Reinigungsabgänge der Vermehrung · Frei = Aufkommen − kontrahiert · Ø Preis = mengengewichteter Kontraktpreis (* = nicht für alle Kontrakte ein Preis hinterlegt) · EK offen = noch nicht angelieferte Menge aus Einkaufskontrakten.
     Vermehrungsware ist nicht enthalten, sie steht nicht für den Konsumverkauf zur Verfügung. Umlagerungen und Verkäufe ohne Kontrakt zählen nicht.</div>
   <div class="footer"><span>${esc(FIRMA_NAME)} · Landgut Nuscheler</span><span>${stand}</span></div>
   <script>window.onload=()=>window.print();<\/script>

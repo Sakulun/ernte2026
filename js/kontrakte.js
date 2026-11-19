@@ -1,6 +1,6 @@
-import { state } from './state.js?v=173';
-import { db } from './db.js?v=173';
-import { showToast, escapeHtml } from './helpers.js?v=173';
+import { state } from './state.js?v=175';
+import { db } from './db.js?v=175';
+import { showToast, escapeHtml } from './helpers.js?v=175';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -238,42 +238,85 @@ function kontraktDetailHTML(k) {
   </div>`;
 }
 
-// Übersicht der kontrahierten & gelieferten Mengen je Fruchtart/Artikel.
-// Über alle nicht-stornierten Kontrakte (aktiv + erfüllt).
+// Übersicht der kontrahierten & gelieferten Mengen je Fruchtart/Artikel – getrennt nach der
+// gewählten Richtung (Verkauf/Einkauf), über alle nicht-stornierten Kontrakte (aktiv + erfüllt).
+// Klick auf eine Fruchtart klappt deren Kontrakte auf (Nummer, Partner, Preis, Mengen).
+let _offeneFruchtart = null;
+export function toggleKontraktFruchtart(name) {
+  _offeneFruchtart = _offeneFruchtart === name ? null : name;
+  renderKontrakte();
+}
+// Kontrakt in der Liste aufklappen und hinscrollen (ohne ihn zu schließen, falls schon offen).
+export function kontraktOeffnen(id) {
+  _offenerKontrakt = id;
+  renderKontrakte();
+  document.getElementById('kontrakt-karte-' + id)?.scrollIntoView({ behavior:'smooth', block:'center' });
+}
 function fruchtartUebersichtHTML() {
   const map = {};
-  state.kontrakte.filter(k => k.status !== 'storniert').forEach(k => {
+  state.kontrakte.filter(k => k.status !== 'storniert' && (k.richtung||'verkauf') === _kRichtung).forEach(k => {
     const art = state.artikel.find(a => a.id === k.artikel_id);
     const name = (art?.name || k.fruchtart_text || 'Ohne Artikel').trim();
-    const e = map[name] || (map[name] = { kontrahiert:0, geliefert:0, anzahl:0 });
-    e.kontrahiert += (k.menge_t || 0);
-    e.geliefert   += getKontraktGeliefertKg(k.id) / 1000;
+    const e = map[name] || (map[name] = { kontrahiert:0, geliefert:0, anzahl:0, kontrakte:[], preisSumme:0, preisMenge:0 });
+    const geliefertT = getKontraktGeliefertKg(k.id) / 1000;
+    e.kontrahiert += (Number(k.menge_t) || 0);
+    e.geliefert   += geliefertT;
     e.anzahl      += 1;
+    e.kontrakte.push({ k, geliefertT });
+    if(Number(k.preis_eur) > 0) { e.preisSumme += Number(k.preis_eur) * (Number(k.menge_t) || 0); e.preisMenge += Number(k.menge_t) || 0; }
   });
   const rows = Object.entries(map).sort((a,b) => b[1].kontrahiert - a[1].kontrahiert);
   if(!rows.length) return '';
   const t0 = n => n.toLocaleString('de-DE', { maximumFractionDigits:0 });
   const t1 = n => n.toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
+  const eur = n => Number(n).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  const balken = (geliefert, kontrahiert) => {
+    const pct = kontrahiert ? Math.min(100, geliefert / kontrahiert * 100) : 0;
+    const bar = pct>=100 ? 'var(--green2)' : pct>70 ? 'var(--amber)' : 'var(--gold)';
+    return `<div style="background:var(--neutral-200);border-radius:6px;height:8px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${bar}"></div></div>`;
+  };
+  const avgPreis = e => {
+    if(!e.preisMenge) return '<span style="color:var(--text3)">–</span>';
+    const teil = e.preisMenge < e.kontrahiert - 0.05;
+    return `${eur(e.preisSumme / e.preisMenge)}${teil ? `<span style="color:var(--color-warning)" title="Preis nur für ${t1(e.preisMenge)} von ${t1(e.kontrahiert)} t hinterlegt"> *</span>` : ''}`;
+  };
+  const td = (v, extra = '') => `<td style="padding:7px 8px;text-align:right;${extra}">${v}</td>`;
+  const kontraktZeilen = e => [...e.kontrakte]
+    .sort((a, b) => (a.k.status === 'erfuellt') - (b.k.status === 'erfuellt') || (Number(b.k.menge_t)||0) - (Number(a.k.menge_t)||0))
+    .map(({ k, geliefertT }) => {
+      const menge = Number(k.menge_t) || 0;
+      const partner = state.kontakte.find(c => c.id === k.kontakt_id)?.name || '–';
+      const vonBis = [k.lieferung_von, k.lieferung_bis].filter(Boolean).map(d => new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
+      return `<tr style="font-size:11.5px;background:var(--bg2);cursor:pointer" onclick="kontraktOeffnen(${k.id})" title="Kontrakt in der Liste öffnen">
+        <td style="padding:5px 8px 5px 26px;color:var(--text2)">📋 <b style="color:var(--text)">${escapeHtml(k.nummer||'–')}</b> · ${escapeHtml(partner)}${k.bio?' · 🌿':''}${vonBis?` <span style="color:var(--text3)">· ${vonBis}</span>`:''}${k.status==='erfuellt'?' <span style="color:var(--text3)">· erfüllt</span>':''}</td>
+        ${td(t1(menge) + ' t', 'padding:5px 8px;color:var(--text)')}
+        ${td(Number(k.preis_eur) > 0 ? eur(k.preis_eur) : '–', 'padding:5px 8px;color:var(--text)')}
+        ${td(t1(geliefertT) + ' t', 'padding:5px 8px;color:var(--gold)')}
+        ${td(t1(Math.max(0, menge - geliefertT)) + ' t', 'padding:5px 8px;color:var(--text2)')}
+        <td style="padding:5px 8px;width:90px">${balken(geliefertT, menge)}</td>
+      </tr>`;
+    }).join('');
   const zeile = (name, e, total) => {
     const rest = Math.max(0, e.kontrahiert - e.geliefert);
-    const pct  = e.kontrahiert ? Math.min(100, e.geliefert / e.kontrahiert * 100) : 0;
-    const bar  = pct>=100 ? 'var(--green2)' : pct>70 ? 'var(--amber)' : 'var(--gold)';
-    return `<tr style="${total?'font-weight:700;border-top:2px solid var(--border2)':'border-top:1px solid var(--color-border)'}">
-      <td style="padding:7px 8px;color:var(--text)">${escapeHtml(name)}${total?'':` <span style="color:var(--text3);font-weight:400;font-size:11px">· ${e.anzahl}</span>`}</td>
-      <td style="padding:7px 8px;text-align:right;color:var(--text)">${t0(e.kontrahiert)} t</td>
-      <td style="padding:7px 8px;text-align:right;color:var(--gold)">${t1(e.geliefert)} t</td>
-      <td style="padding:7px 8px;text-align:right;color:var(--text2)">${t1(rest)} t</td>
-      <td style="padding:7px 8px;width:90px"><div style="background:var(--neutral-200);border-radius:6px;height:8px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${bar}"></div></div></td>
-    </tr>`;
+    const offen = !total && _offeneFruchtart === name;
+    return `<tr style="${total?'font-weight:700;border-top:2px solid var(--border2)':'border-top:1px solid var(--color-border);cursor:pointer'}"${total?'':` data-name="${escapeHtml(name)}" onclick="toggleKontraktFruchtart(this.dataset.name)"`}>
+      <td style="padding:7px 8px;color:var(--text)">${total?'':`<span style="color:var(--text3);font-size:11px">${offen?'▾':'▸'}</span> `}${escapeHtml(name)}${total?'':` <span style="color:var(--text3);font-weight:400;font-size:11px">· ${e.anzahl}</span>`}</td>
+      ${td(t0(e.kontrahiert) + ' t', 'color:var(--text)')}
+      ${td(total ? '' : avgPreis(e), 'color:var(--text);font-weight:700')}
+      ${td(t1(e.geliefert) + ' t', 'color:var(--gold)')}
+      ${td(t1(rest) + ' t', 'color:var(--text2)')}
+      <td style="padding:7px 8px;width:90px">${balken(e.geliefert, e.kontrahiert)}</td>
+    </tr>${offen ? kontraktZeilen(e) : ''}`;
   };
   const totK = rows.reduce((s,[,e]) => s+e.kontrahiert, 0);
   const totG = rows.reduce((s,[,e]) => s+e.geliefert, 0);
-  return `<div class="section-label" style="margin-bottom:8px">Kontrahiert &amp; geliefert je Fruchtart</div>
+  return `<div class="section-label" style="margin-bottom:8px">Kontrahiert &amp; geliefert je Fruchtart <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">· Klick auf eine Fruchtart zeigt die Kontrakte</span></div>
   <div style="overflow-x:auto;margin-bottom:16px">
     <table style="width:100%;border-collapse:collapse;font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);overflow:hidden">
       <thead><tr style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);background:var(--bg2)">
         <th style="padding:7px 8px;text-align:left">Fruchtart</th>
         <th style="padding:7px 8px;text-align:right">Kontrahiert</th>
+        <th style="padding:7px 8px;text-align:right" title="Mengengewichteter Durchschnitt der Kontraktpreise, nur Kontrakte mit Preis">Ø Preis €/t</th>
         <th style="padding:7px 8px;text-align:right">Geliefert</th>
         <th style="padding:7px 8px;text-align:right">Rest</th>
         <th style="padding:7px 8px;text-align:left">Fortschritt</th>
@@ -330,7 +373,7 @@ export function renderKontrakte() {
       ? ` · <span style="color:var(--red);font-weight:700" title="${einkauf?'Anlieferungen':'Auslieferungen'} ohne Gutschrift${einkauf?'-/Rechnung':''}-Nr. oder (bei Raps) ohne Qualitätsabrechnung-Nr.">${abrTeile}</span>`
       : abr.status==='fertig' ? ` · <span style="color:var(--green2);font-weight:600">✓ abgerechnet</span>` : '';
     const offen     = _offenerKontrakt === k.id;
-    return `<div class="card${abr.status==='offen'?' kontrakt-unabgerechnet':''}" style="margin-bottom:8px">
+    return `<div class="card${abr.status==='offen'?' kontrakt-unabgerechnet':''}" id="kontrakt-karte-${k.id}" style="margin-bottom:8px">
       <div onclick="toggleKontraktDetail(${k.id})" style="cursor:pointer">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px">
           <div style="flex:1;min-width:0">
