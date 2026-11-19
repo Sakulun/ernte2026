@@ -33,6 +33,7 @@ export const FIRMA_IBAN_ROH  = 'DE10701695090000312614';   // Zahlungskonto auf 
 export const FIRMA_BIC_ROH   = 'GENODEF1PEI';
 export const FIRMA_BANK_NAME = 'Raiffbk Pfaffenwinkel';
 export const RECHNUNG_LOGO   = 'assets/rechnung/logo-saatgutservice.jpg';
+export const BRIEFKOPF_LOGO  = 'assets/logo-briefkopf.png'; // Logo aus dem Kopfbogen (Word-Briefkopf), fuer Druckansichten
 export const FIRMA_OEKO_KONTROLLSTELLE = 'DE-ÖKO-006';
 
 // Zertifikats-/Siegel-Nummern für den Lieferschein (je nach Kontrakt-Auswahl).

@@ -1,7 +1,7 @@
-import { state, loadAppData } from './state.js?v=171';
-import { db, getSb } from './db.js?v=171';
-import { hashPW, hashPWLegacy } from './helpers.js?v=171';
-import { hatRecht, ansichtenVon, istVerwaltung } from './rechte.js?v=171';
+import { state, loadAppData } from './state.js?v=172';
+import { db, getSb } from './db.js?v=172';
+import { hashPW, hashPWLegacy } from './helpers.js?v=172';
+import { hatRecht, ansichtenVon, istVerwaltung } from './rechte.js?v=172';
 
 const _loginAttempts = {};
 

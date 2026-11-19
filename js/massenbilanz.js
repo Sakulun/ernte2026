@@ -1,10 +1,10 @@
-import { state } from './state.js?v=171';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=171';
-import { getFruchtFarbe } from './frucht.js?v=171';
-import { isBioFuhre } from './bio.js?v=171';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=171';
-import { ensureXLSX } from './export.js?v=171';
-import { LOGO_DATA_URL, FIRMA_NAME } from './config.js?v=171';
+import { state } from './state.js?v=172';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=172';
+import { getFruchtFarbe } from './frucht.js?v=172';
+import { isBioFuhre } from './bio.js?v=172';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=172';
+import { ensureXLSX } from './export.js?v=172';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=172';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -430,7 +430,7 @@ export function massenbilanzPdf(bereich) {
   </style></head><body>
   <div class="kopf">
     <div><h1>${titel}</h1><div class="sub-titel">Aufkommen (Ernte + Zukauf + Absiebe) gegen Verkaufskontrakte · Stand ${stand}${_detail ? ' · mit Aufteilung je Betrieb' : ''}${_ohneSilomais ? '' : ' · inkl. Silomais'}</div></div>
-    <img src="${LOGO_DATA_URL}" height="44" alt="Logo">
+    <img src="${new URL(BRIEFKOPF_LOGO, location.href).href}" style="height:42px;width:auto" alt="Saatgut & Agrarservice Beesenstedt">
   </div>
   <div class="kacheln">${kacheln}</div>
   ${bereiche.map(tabelle).join('')}
