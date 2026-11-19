@@ -3,13 +3,13 @@
 // Einkaufskontrakte → Gutschriften aus erhaltener Ware (Fuhren mit Einkaufskontrakt).
 // Ablauf: Entwurf → Festschreiben (Nummer, GoBD-Sperre, PDF/A-3 + XML archiviert) → Versand.
 
-import { state } from './state.js?v=170';
-import { db } from './db.js?v=170';
-import { showToast, escapeHtml } from './helpers.js?v=170';
-import { FIRMA_NAME_RECHNUNG as FIRMA_NAME } from './config.js?v=170';
+import { state } from './state.js?v=171';
+import { db } from './db.js?v=171';
+import { showToast, escapeHtml } from './helpers.js?v=171';
+import { FIRMA_NAME_RECHNUNG as FIRMA_NAME } from './config.js?v=171';
 import { r2, r3, eur, num, datumDE, isoDatum, pos, summen, regelnAnwenden, partnerSnapshot,
          pruefeBeleg, erzeugePdf, downloadBytes, oeffneBytes, QUALI_FELDER, REGEL_ARTEN,
-         EINHEITEN, UST_SAETZE, STEUERFAELLE, steuerfallVorschlag, istSteuerfrei } from './erechnung.js?v=170';
+         EINHEITEN, UST_SAETZE, STEUERFAELLE, steuerfallVorschlag, istSteuerfrei } from './erechnung.js?v=171';
 
 let _view = 'offen';            // 'offen' | 'belege' | 'regeln'
 let _belege = [];

@@ -1,9 +1,10 @@
-import { state } from './state.js?v=170';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=170';
-import { getFruchtFarbe } from './frucht.js?v=170';
-import { isBioFuhre } from './bio.js?v=170';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=170';
-import { ensureXLSX } from './export.js?v=170';
+import { state } from './state.js?v=171';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=171';
+import { getFruchtFarbe } from './frucht.js?v=171';
+import { isBioFuhre } from './bio.js?v=171';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=171';
+import { ensureXLSX } from './export.js?v=171';
+import { LOGO_DATA_URL, FIRMA_NAME } from './config.js?v=171';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -184,11 +185,11 @@ function produktZelle(key, r) {
   return `<td style="padding:7px 8px;white-space:nowrap"><span style="color:var(--text3);font-size:11px">${_offen===key?'▾':'▸'}</span>
     <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${farbe(r.produkt)};margin:0 5px 0 3px"></span><b style="color:var(--text)">${escapeHtml(r.produkt)}</b></td>`;
 }
-function abschnitt(b, inhalt, hinweis) {
+function abschnitt(b, inhalt, hinweis, aktion = '') {
   return `<div style="margin-bottom:22px">
     <div style="display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid ${b.bio?GRUEN:'var(--color-primary)'};padding-bottom:5px;margin-bottom:8px;gap:10px;flex-wrap:wrap">
       <div style="font-family:var(--font-display);font-size:17px;color:var(--color-text)">${b.titel}</div>
-      <div style="font-size:12px;color:var(--text2)">${hinweis}</div>
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text2)">${hinweis}${aktion}</div>
     </div>
     <div style="overflow-x:auto">${inhalt}</div>
   </div>`;
@@ -234,7 +235,8 @@ function konsumTabelle(b, rows) {
           ${zelle(frei(sum('freiT')), 'background:var(--bg2)')}<td style="padding:7px 8px">${bar(tot)}</td>${zelle(tZ(sum('ekOffenT')))}
         </tr>` : ''}
       </tbody>
-    </table>`, 'Ernte ohne Sorte · Zukauf · Absiebe aus der Reinigung');
+    </table>`, 'Ernte ohne Sorte · Zukauf · Absiebe aus der Reinigung',
+    `<button class="btn btn-sm btn-outline" onclick="massenbilanzPdf('${b.key}')" title="Diesen Bereich als PDF (Druckansicht)">📄 PDF</button>`);
 }
 
 // Vermehrungsware: nur Aufkommen – keine Kontrakte, nicht für den Konsumverkauf verfügbar
@@ -296,6 +298,7 @@ export function renderMassenbilanz() {
       </label>
       <div style="display:flex;gap:8px">
         <button class="btn btn-sm ${_detail?'btn-primary':'btn-outline'}" onclick="massenbilanzDetail()" title="Jede Kultur aufklappen: Menge je Betrieb und je Lieferant">${_detail?'▾ Detailansicht aus':'▸ Detailansicht'}</button>
+        <button class="btn btn-sm btn-outline" onclick="massenbilanzPdf()" title="Konsumware konventionell + Bio als PDF (Druckansicht)">📄 PDF Konsumware</button>
         <button class="btn btn-sm btn-outline" onclick="exportMassenbilanzExcel()">⬇ Excel</button>
       </div>
     </div>
@@ -338,4 +341,104 @@ export async function exportMassenbilanzExcel() {
   ws2['!cols'] = [{ wch:12 }, { wch:14 }, { wch:22 }, { wch:9 }, { wch:30 }, { wch:10 }, { wch:9 }];
   XLSX.utils.book_append_sheet(wb, ws2, 'Je Betrieb');
   XLSX.writeFile(wb, `Massenbilanz_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+// ── PDF-Ansicht Konsumware ───────────────────────────────────────────────────
+// Druckansicht in neuem Fenster (A4 quer), "Als PDF speichern" im Druckdialog –
+// wie der Tagesbericht. bereich = 'konsum|konv' | 'konsum|bio' | leer = beide.
+// Mit aktiver Detailansicht stehen die Betriebe/Lieferanten unter jeder Kultur.
+export function massenbilanzPdf(bereich) {
+  const d = massenbilanzDaten();
+  const bereiche = BEREICHE.filter(b => b.art === 'konsum' && (!bereich || b.key === bereich));
+  const esc = escapeHtml;
+  const nz = v => Math.abs(v) < 0.05 ? '–' : t1(v);
+  const pct = (a, g) => g > 0 ? Math.round(a / g * 100) + ' %' : '';
+  const jetzt = new Date();
+  const stand = jetzt.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' }) + ', '
+    + jetzt.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' }) + ' Uhr';
+
+  const subZeilen = r => {
+    const sort = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
+    const zeile = (name, ernte, zukauf) => `<tr class="sub"><td>${name}</td><td class="num">${ernte}</td><td class="num">${zukauf}</td><td colspan="8"></td></tr>`;
+    return sort(r.betriebe).map(([n, kg]) => zeile(esc(n), t1(kg/1000) + ' t · ' + pct(kg, r.ernteKg), '')).join('')
+      + sort(r.lieferanten).map(([n, kg]) => zeile('Zukauf ' + esc(n), '', t1(kg/1000) + ' t · ' + pct(kg, r.zukaufKg))).join('');
+  };
+  const tabelle = b => {
+    const rows = d[b.key];
+    const sum = k => rows.reduce((s, x) => s + x[k], 0);
+    const frei = v => `<span class="${v < -0.05 ? 'rot' : 'gruen'}">${t1(v)}</span>`;
+    const zeile = (r, gesamt) => `<tr class="${gesamt ? 'summe' : 'prod'}">
+      <td>${gesamt ? 'Gesamt' : esc(r.produkt)}</td>
+      <td class="num">${nz(r.ernteT)}</td><td class="num">${nz(r.zukaufT)}</td><td class="num">${nz(r.absiebeT)}</td>
+      <td class="num b">${t1(r.aufkommenT)}</td><td class="num">${nz(r.kontrahiertT)}</td><td class="num">${nz(r.geliefertT)}</td>
+      <td class="num">${nz(r.offenT)}</td><td class="num b">${frei(r.freiT)}</td>
+      <td class="num">${r.aufkommenT > 0 ? Math.round(r.kontrahiertT / r.aufkommenT * 100) + ' %' : '–'}</td>
+      <td class="num">${nz(r.ekOffenT)}</td></tr>`;
+    const tot = { ernteT:sum('ernteT'), zukaufT:sum('zukaufT'), absiebeT:sum('absiebeT'), aufkommenT:sum('aufkommenT'),
+      kontrahiertT:sum('kontrahiertT'), geliefertT:sum('geliefertT'), offenT:sum('offenT'), freiT:sum('freiT'), ekOffenT:sum('ekOffenT') };
+    return `<h2 class="${b.bio ? 'bio' : ''}">${b.bio ? 'Konsumware · Bio' : 'Konsumware · konventionell'}</h2>
+      <table>
+        <thead><tr><th>Produkt</th><th class="num">Ernte t</th><th class="num">Zukauf t</th><th class="num">Absiebe t</th>
+          <th class="num">Aufkommen t</th><th class="num">Kontrahiert t</th><th class="num">geliefert t</th><th class="num">noch zu liefern t</th>
+          <th class="num">Frei t</th><th class="num">verkauft</th><th class="num">EK offen t</th></tr></thead>
+        <tbody>
+          ${rows.map(r => zeile(r) + (_detail ? subZeilen(r) : '')).join('') || '<tr><td colspan="11" class="leer">Keine Daten</td></tr>'}
+          ${rows.length ? zeile(tot, true) : ''}
+        </tbody>
+      </table>`;
+  };
+  const kachel = (wert, lbl, cls = '') => `<div class="kachel"><div class="kv ${cls}">${wert}</div><div class="kl">${lbl}</div></div>`;
+  const kacheln = bereiche.map(b => {
+    const rows = d[b.key];
+    const auf = rows.reduce((s, x) => s + x.aufkommenT, 0), k = rows.reduce((s, x) => s + x.kontrahiertT, 0);
+    const art = b.bio ? 'Bio' : 'konv.';
+    return kachel(t1(auf) + ' t', 'Aufkommen ' + art) + kachel(t1(k) + ' t', 'kontrahiert ' + art)
+      + kachel(t1(auf - k) + ' t', 'frei ' + art, auf - k < -0.05 ? 'rot' : 'gruen');
+  }).join('');
+  const titel = bereich ? (bereiche[0]?.bio ? 'Massenbilanz Konsumware · Bio' : 'Massenbilanz Konsumware · konventionell') : 'Massenbilanz Konsumware';
+
+  const win = window.open('', '_blank');
+  if(!win) { showToast('Pop-up wurde blockiert – bitte für diese Seite erlauben.', 'error'); return; }
+  win.document.write(`<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8">
+  <title>${titel} – ${jetzt.toISOString().slice(0, 10)}</title>
+  <style>
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:'Segoe UI',Arial,sans-serif; font-size:10.5px; color:#1a1a1a; background:#fff; padding:20px 24px; }
+    .kopf { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #3a7d2c; padding-bottom:10px; margin-bottom:14px; }
+    h1 { font-size:18px; color:#1a3a1a; margin-bottom:3px; }
+    .sub-titel { font-size:11px; color:#555; }
+    h2 { font-size:13px; color:#1a3a1a; margin:16px 0 6px; border-bottom:2px solid #2d6a2d; padding-bottom:3px; }
+    h2.bio { color:#1d6b2f; border-color:#3f9b4f; }
+    .kacheln { display:grid; grid-template-columns:repeat(${Math.min(6, bereiche.length * 3)},1fr); gap:8px; margin-bottom:6px; }
+    .kachel { background:#f4f9f4; border:1px solid #c8e0c8; border-radius:6px; padding:7px 10px; }
+    .kv { font-size:16px; font-weight:700; color:#1a1a1a; }
+    .kl { font-size:9px; color:#555; text-transform:uppercase; letter-spacing:.4px; margin-top:2px; }
+    table { width:100%; border-collapse:collapse; margin-bottom:8px; }
+    th { background:#1a3a1a; color:#fff; padding:5px 7px; text-align:left; font-size:9.5px; font-weight:600; white-space:nowrap; }
+    td { padding:4px 7px; border-bottom:1px solid #e3ece3; white-space:nowrap; }
+    tr.prod td:first-child { font-weight:700; }
+    tr.sub td { font-size:9.5px; color:#555; background:#f7faf7; }
+    tr.sub td:first-child { padding-left:20px; }
+    tr.summe td { font-weight:700; border-top:2px solid #1a3a1a; border-bottom:none; }
+    .num { text-align:right; font-variant-numeric:tabular-nums; }
+    .b { font-weight:700; }
+    .gruen { color:#1a6a1a; font-weight:700; } .rot { color:#b3261e; font-weight:700; }
+    .leer { text-align:center; color:#888; padding:12px; }
+    .hinweis { margin-top:14px; font-size:9px; color:#666; line-height:1.5; }
+    .footer { margin-top:16px; padding-top:8px; border-top:1px solid #ddd; font-size:9px; color:#888; display:flex; justify-content:space-between; }
+    @media print { body { padding:0; } @page { margin:1.2cm; size:A4 landscape; } h2 { page-break-after:avoid; } tr { page-break-inside:avoid; } }
+  </style></head><body>
+  <div class="kopf">
+    <div><h1>${titel}</h1><div class="sub-titel">Aufkommen (Ernte + Zukauf + Absiebe) gegen Verkaufskontrakte · Stand ${stand}${_detail ? ' · mit Aufteilung je Betrieb' : ''}${_ohneSilomais ? '' : ' · inkl. Silomais'}</div></div>
+    <img src="${LOGO_DATA_URL}" height="44" alt="Logo">
+  </div>
+  <div class="kacheln">${kacheln}</div>
+  ${bereiche.map(tabelle).join('')}
+  <div class="hinweis">Ernte = abgeschlossene Fuhren von eigenen Schlägen ohne Vermehrungssorte · Zukauf = Anlieferungen von Dritten ·
+    Absiebe = Reinigungsabgänge der Vermehrung · Frei = Aufkommen − kontrahiert · EK offen = noch nicht angelieferte Menge aus Einkaufskontrakten.
+    Vermehrungsware ist nicht enthalten, sie steht nicht für den Konsumverkauf zur Verfügung. Umlagerungen und Verkäufe ohne Kontrakt zählen nicht.</div>
+  <div class="footer"><span>${esc(FIRMA_NAME)} · Landgut Nuscheler</span><span>${stand}</span></div>
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`);
+  win.document.close();
 }
