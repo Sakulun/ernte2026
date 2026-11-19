@@ -1,9 +1,9 @@
-import { state } from './state.js?v=168';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=168';
-import { getFruchtFarbe } from './frucht.js?v=168';
-import { isBioFuhre } from './bio.js?v=168';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=168';
-import { ensureXLSX } from './export.js?v=168';
+import { state } from './state.js?v=169';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=169';
+import { getFruchtFarbe } from './frucht.js?v=169';
+import { isBioFuhre } from './bio.js?v=169';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=169';
+import { ensureXLSX } from './export.js?v=169';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -24,6 +24,7 @@ import { ensureXLSX } from './export.js?v=168';
 
 let _offen = null;          // aufgeklappte Zeile 'konsum|bio|Weizen'
 let _ohneSilomais = true;   // Silomais (Biogas) standardmäßig ausblenden
+let _detail = false;        // Detailansicht: jede Kultur aufgeklappt nach Betrieben
 
 // Produktgruppen: Fuhren-Fruchtarten ("Winterweichweizen") und Artikel ("Winterweizen")
 // laufen auf denselben Namen. Reihenfolge zählt (Silomais vor Mais, Öl vor Sonnenblumen …).
@@ -73,7 +74,7 @@ export const BEREICHE = [
 
 export function massenbilanzDaten() {
   const leer = () => ({ ernteKg:0, zukaufKg:0, absiebeKg:0, ekOffenT:0, kontrahiertT:0, geliefertT:0,
-    kontrakte:[], quellen:{} });
+    kontrakte:[], quellen:{}, betriebe:{}, lieferanten:{} });
   const bil = Object.fromEntries(BEREICHE.map(b => [b.key, {}]));
   const zeile = (art, bio, p) => { const t = bil[art + '|' + (bio ? 'bio' : 'konv')]; return t[p] || (t[p] = leer()); };
   const quelle = (z, name, kg) => { z.quellen[name] = (z.quellen[name] || 0) + kg; };
@@ -89,6 +90,7 @@ export function massenbilanzDaten() {
     const art = f.sorte ? 'vermehrung' : 'konsum';
     if(typ === 'lieferant' || f.einkaufskontrakt) {
       const z = zeile(art, bio, p); z.zukaufKg += kg; quelle(z, 'Zukauf · ' + (feld.name || 'Lieferant'), kg);
+      const l = feld.name || 'Lieferant'; z.lieferanten[l] = (z.lieferanten[l] || 0) + kg;
     } else if(typ === 'reinigung') {
       // Absiebe aus der Saatgutreinigung: aus der Vermehrung in die Konsumware
       const n = 'Absiebe · ' + ((feld.name || '').replace(/^Reinigungsabgang\s*/i, '').trim() || 'Reinigung');
@@ -96,6 +98,7 @@ export function massenbilanzDaten() {
       const zv = zeile('vermehrung', bio, p); zv.absiebeKg -= kg; quelle(zv, n, -kg);
     } else if(typ === 'schlag') {
       const z = zeile(art, bio, p); z.ernteKg += kg; quelle(z, f.sorte ? 'Sorte · ' + f.sorte : 'Ernte · ' + (f.fruchtart || p), kg);
+      const be = (feld.betrieb || '').trim() || 'Ohne Betrieb'; z.betriebe[be] = (z.betriebe[be] || 0) + kg;
     }
   });
 
@@ -128,6 +131,22 @@ export function massenbilanzDaten() {
 
 export function toggleMassenbilanzZeile(key) { _offen = _offen === key ? null : key; renderMassenbilanz(); }
 export function massenbilanzSilomais(an) { _ohneSilomais = !an; renderMassenbilanz(); }
+export function massenbilanzDetail() { _detail = !_detail; renderMassenbilanz(); }
+
+// Detailansicht: Unterzeilen je eigenem Betrieb (Spalte Ernte) und je Lieferant (Spalte Zukauf).
+// spalten = Anzahl Zellen nach "Ernte" und "Zukauf" bis Tabellenende.
+function betriebsZeilen(r, restSpalten) {
+  const sortiert = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
+  const anteil = (kg, ges) => ges > 0 ? `<span style="color:var(--text3);font-weight:400"> · ${Math.round(kg / ges * 100)} %</span>` : '';
+  const sub = (name, ernte, zukauf) => `<tr style="font-size:11.5px;background:var(--bg2)">
+      <td style="padding:4px 8px 4px 34px;color:var(--text2);white-space:nowrap">${name}</td>
+      <td style="padding:4px 8px;text-align:right;white-space:nowrap;color:var(--text)">${ernte}</td>
+      <td style="padding:4px 8px;text-align:right;white-space:nowrap;color:var(--text)">${zukauf}</td>
+      <td colspan="${restSpalten}"></td></tr>`;
+  const b = sortiert(r.betriebe).map(([n, kg]) => sub('🏡 ' + escapeHtml(n), `${t1(kg/1000)}${anteil(kg, r.ernteKg)}`, ''));
+  const l = sortiert(r.lieferanten).map(([n, kg]) => sub('🚚 ' + escapeHtml(n), '', `${t1(kg/1000)}${anteil(kg, r.zukaufKg)}`));
+  return b.join('') + l.join('');
+}
 
 const t1 = n => (Math.abs(n) < 0.05 ? 0 : n).toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
 const tZ = n => Math.abs(n) < 0.05 ? '<span style="color:var(--text3)">–</span>' : t1(n);
@@ -194,7 +213,7 @@ function konsumTabelle(b, rows) {
       ${zelle(frei(r.freiT), 'background:var(--bg2)')}
       <td style="padding:7px 8px;min-width:110px">${bar(r)}</td>
       ${zelle(tZ(r.ekOffenT), 'color:var(--text3)')}
-    </tr>${_offen === key ? `<tr><td colspan="11" style="padding:0">${detailHTML(r, true)}</td></tr>` : ''}`;
+    </tr>${_detail ? betriebsZeilen(r, 8) : ''}${_offen === key ? `<tr><td colspan="11" style="padding:0">${detailHTML(r, true)}</td></tr>` : ''}`;
   };
   const tot = { aufkommenT:sum('aufkommenT'), kontrahiertT:sum('kontrahiertT') };
   return abschnitt(b, `<table style="${tabStil}">
@@ -224,7 +243,7 @@ function vermehrungTabelle(b, rows) {
       ${produktZelle(key, r)}
       ${zelle(tZ(r.ernteT))}${zelle(tZ(r.zukaufT))}${zelle(tZ(r.absiebeT), 'color:var(--text2)')}
       ${zelle(`<b>${t1(r.aufkommenT)}</b>`, 'background:var(--bg2)')}
-    </tr>${_offen === key ? `<tr><td colspan="5" style="padding:0">${detailHTML(r, false)}</td></tr>` : ''}`;
+    </tr>${_detail ? betriebsZeilen(r, 2) : ''}${_offen === key ? `<tr><td colspan="5" style="padding:0">${detailHTML(r, false)}</td></tr>` : ''}`;
   };
   return abschnitt(b, `<table style="${tabStil};max-width:640px">
       <thead><tr style="${kopfStil}">
@@ -272,7 +291,10 @@ export function renderMassenbilanz() {
       <label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">
         <input type="checkbox" ${_ohneSilomais?'':'checked'} onchange="massenbilanzSilomais(this.checked)" style="width:16px;height:16px;accent-color:var(--gold)"> Silomais einbeziehen
       </label>
-      <button class="btn btn-sm btn-outline" onclick="exportMassenbilanzExcel()">⬇ Excel</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-sm ${_detail?'btn-primary':'btn-outline'}" onclick="massenbilanzDetail()" title="Jede Kultur aufklappen: Menge je Betrieb und je Lieferant">${_detail?'▾ Detailansicht aus':'▸ Detailansicht'}</button>
+        <button class="btn btn-sm btn-outline" onclick="exportMassenbilanzExcel()">⬇ Excel</button>
+      </div>
     </div>
     ${BEREICHE.map(b => {
       const rows = d[b.key];
@@ -301,5 +323,16 @@ export async function exportMassenbilanzExcel() {
   ws['!cols'] = [{ wch:12 }, { wch:14 }, { wch:26 }, ...Array(9).fill({ wch:13 })];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Massenbilanz');
+  const det = [['Art', 'Bio', 'Produkt', 'Herkunft', 'Betrieb / Lieferant', 't', 'Anteil %']];
+  BEREICHE.forEach(b => d[b.key].forEach(r => {
+    const art = b.art === 'konsum' ? 'Konsum' : 'Vermehrung', bio = b.bio ? 'Bio' : 'konventionell';
+    Object.entries(r.betriebe).sort((a, c) => c[1] - a[1]).forEach(([n, kg]) =>
+      det.push([art, bio, r.produkt, 'Ernte', n, r1(kg/1000), r.ernteKg ? Math.round(kg / r.ernteKg * 100) : '']));
+    Object.entries(r.lieferanten).sort((a, c) => c[1] - a[1]).forEach(([n, kg]) =>
+      det.push([art, bio, r.produkt, 'Zukauf', n, r1(kg/1000), r.zukaufKg ? Math.round(kg / r.zukaufKg * 100) : '']));
+  }));
+  const ws2 = XLSX.utils.aoa_to_sheet(det);
+  ws2['!cols'] = [{ wch:12 }, { wch:14 }, { wch:22 }, { wch:9 }, { wch:30 }, { wch:10 }, { wch:9 }];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Je Betrieb');
   XLSX.writeFile(wb, `Massenbilanz_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

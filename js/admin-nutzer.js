@@ -1,7 +1,7 @@
-import { state } from './state.js?v=168';
-import { db } from './db.js?v=168';
-import { showToast, hashPW, escapeHtml } from './helpers.js?v=168';
-import { NAV, FAHRER_ANSICHTEN, WEITERE_RECHTE, fahrerLabel } from './rechte.js?v=168';
+import { state } from './state.js?v=169';
+import { db } from './db.js?v=169';
+import { showToast, hashPW, escapeHtml } from './helpers.js?v=169';
+import { NAV, FAHRER_ANSICHTEN, WEITERE_RECHTE, fahrerLabel } from './rechte.js?v=169';
 
 let nutzerEditId = null;
 
