@@ -1,4 +1,4 @@
-import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain, getKennzeichen } from './bg-app.js?v=172';
+import { sb, bgState, escapeHtml, showToast, kg2t, fmtDatum, nettoVon, renderBgMain, getKennzeichen } from './bg-app.js?v=173';
 
 // ── Übersicht: Tonnage nach Lieferant × Kultur (× Schlag), Fuhrenliste, Export ─
 

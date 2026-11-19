@@ -1,12 +1,12 @@
-import { state } from './state.js?v=172';
-import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=172';
-import { getSiloFill, getSiloKultur } from './silo.js?v=172';
-import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=172';
-import { kontraktEingangFuhren } from './kontrakte.js?v=172';
+import { state } from './state.js?v=173';
+import { getFeld, getUser, netto, showToast, istErnteFuhre, fuhrenArt, abfahrerName } from './helpers.js?v=173';
+import { getSiloFill, getSiloKultur } from './silo.js?v=173';
+import { mengenUebersichtDaten } from './admin-vermehrungen.js?v=173';
+import { kontraktEingangFuhren } from './kontrakte.js?v=173';
 import {
   LOGO_DATA_URL, FIRMA_NAME, FIRMA_GF, FIRMA_HRB, FIRMA_STNR, FIRMA_UST,
   FIRMA_BANK1, FIRMA_IBAN1, FIRMA_BIC1, FIRMA_BANK2, FIRMA_IBAN2, FIRMA_BIC2
-} from './config.js?v=172';
+} from './config.js?v=173';
 
 // Dezimalzahlen mit Komma ausgeben, damit deutsches Excel sie als Zahl liest
 // (Punkt wird sonst als Datum interpretiert, z.B. "10.3" -> "10. März").
