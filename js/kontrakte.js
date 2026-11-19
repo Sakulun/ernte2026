@@ -1,6 +1,6 @@
-import { state } from './state.js?v=175';
-import { db } from './db.js?v=175';
-import { showToast, escapeHtml } from './helpers.js?v=175';
+import { state } from './state.js?v=176';
+import { db } from './db.js?v=176';
+import { showToast, escapeHtml } from './helpers.js?v=176';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -253,10 +253,12 @@ export function kontraktOeffnen(id) {
   document.getElementById('kontrakt-karte-' + id)?.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 function fruchtartUebersichtHTML() {
-  const map = {};
+  // Getrennt nach konventionell / Bio (Schalter „EU-Öko-Ware“ am Kontrakt)
+  const maps = { konv:{}, bio:{} };
   state.kontrakte.filter(k => k.status !== 'storniert' && (k.richtung||'verkauf') === _kRichtung).forEach(k => {
     const art = state.artikel.find(a => a.id === k.artikel_id);
     const name = (art?.name || k.fruchtart_text || 'Ohne Artikel').trim();
+    const map = maps[k.bio ? 'bio' : 'konv'];
     const e = map[name] || (map[name] = { kontrahiert:0, geliefert:0, anzahl:0, kontrakte:[], preisSumme:0, preisMenge:0 });
     const geliefertT = getKontraktGeliefertKg(k.id) / 1000;
     e.kontrahiert += (Number(k.menge_t) || 0);
@@ -265,8 +267,10 @@ function fruchtartUebersichtHTML() {
     e.kontrakte.push({ k, geliefertT });
     if(Number(k.preis_eur) > 0) { e.preisSumme += Number(k.preis_eur) * (Number(k.menge_t) || 0); e.preisMenge += Number(k.menge_t) || 0; }
   });
-  const rows = Object.entries(map).sort((a,b) => b[1].kontrahiert - a[1].kontrahiert);
-  if(!rows.length) return '';
+  const gruppen = [['konv', '🌾 Konventionell'], ['bio', '🌿 Bio']]
+    .map(([g, titel]) => ({ g, titel, rows: Object.entries(maps[g]).sort((a,b) => b[1].kontrahiert - a[1].kontrahiert) }))
+    .filter(x => x.rows.length);
+  if(!gruppen.length) return '';
   const t0 = n => n.toLocaleString('de-DE', { maximumFractionDigits:0 });
   const t1 = n => n.toLocaleString('de-DE', { minimumFractionDigits:1, maximumFractionDigits:1 });
   const eur = n => Number(n).toLocaleString('de-DE', { minimumFractionDigits:2, maximumFractionDigits:2 });
@@ -296,10 +300,11 @@ function fruchtartUebersichtHTML() {
         <td style="padding:5px 8px;width:90px">${balken(geliefertT, menge)}</td>
       </tr>`;
     }).join('');
-  const zeile = (name, e, total) => {
+  const zeile = (name, e, total, g) => {
     const rest = Math.max(0, e.kontrahiert - e.geliefert);
-    const offen = !total && _offeneFruchtart === name;
-    return `<tr style="${total?'font-weight:700;border-top:2px solid var(--border2)':'border-top:1px solid var(--color-border);cursor:pointer'}"${total?'':` data-name="${escapeHtml(name)}" onclick="toggleKontraktFruchtart(this.dataset.name)"`}>
+    const key = g + '|' + name;
+    const offen = !total && _offeneFruchtart === key;
+    return `<tr style="${total?'font-weight:700;border-top:2px solid var(--border2)':'border-top:1px solid var(--color-border);cursor:pointer'}"${total?'':` data-name="${escapeHtml(key)}" onclick="toggleKontraktFruchtart(this.dataset.name)"`}>
       <td style="padding:7px 8px;color:var(--text)">${total?'':`<span style="color:var(--text3);font-size:11px">${offen?'▾':'▸'}</span> `}${escapeHtml(name)}${total?'':` <span style="color:var(--text3);font-weight:400;font-size:11px">· ${e.anzahl}</span>`}</td>
       ${td(t0(e.kontrahiert) + ' t', 'color:var(--text)')}
       ${td(total ? '' : avgPreis(e), 'color:var(--text);font-weight:700')}
@@ -308,11 +313,12 @@ function fruchtartUebersichtHTML() {
       <td style="padding:7px 8px;width:90px">${balken(e.geliefert, e.kontrahiert)}</td>
     </tr>${offen ? kontraktZeilen(e) : ''}`;
   };
-  const totK = rows.reduce((s,[,e]) => s+e.kontrahiert, 0);
-  const totG = rows.reduce((s,[,e]) => s+e.geliefert, 0);
-  return `<div class="section-label" style="margin-bottom:8px">Kontrahiert &amp; geliefert je Fruchtart <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">· Klick auf eine Fruchtart zeigt die Kontrakte</span></div>
-  <div style="overflow-x:auto;margin-bottom:16px">
-    <table style="width:100%;border-collapse:collapse;font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);overflow:hidden">
+  const tabelle = ({ g, titel, rows }) => {
+    const sumE = { kontrahiert:0, geliefert:0, preisSumme:0, preisMenge:0 };
+    rows.forEach(([, e]) => { sumE.kontrahiert += e.kontrahiert; sumE.geliefert += e.geliefert; });
+    return `<div style="font-size:13px;font-weight:700;color:var(--text);margin:4px 0 6px">${titel}</div>
+  <div style="overflow-x:auto;margin-bottom:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius);overflow:hidden;table-layout:fixed;min-width:620px"><colgroup><col style="width:36%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:13%"><col style="width:12%"></colgroup>
       <thead><tr style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);background:var(--bg2)">
         <th style="padding:7px 8px;text-align:left">Fruchtart</th>
         <th style="padding:7px 8px;text-align:right">Kontrahiert</th>
@@ -322,11 +328,14 @@ function fruchtartUebersichtHTML() {
         <th style="padding:7px 8px;text-align:left">Fortschritt</th>
       </tr></thead>
       <tbody>
-        ${rows.map(([name,e]) => zeile(name, e, false)).join('')}
-        ${zeile('Gesamt', { kontrahiert:totK, geliefert:totG }, true)}
+        ${rows.map(([name,e]) => zeile(name, e, false, g)).join('')}
+        ${zeile('Gesamt', sumE, true, g)}
       </tbody>
     </table>
   </div>`;
+  };
+  return `<div class="section-label" style="margin-bottom:8px">Kontrahiert &amp; geliefert je Fruchtart <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3)">· Klick auf eine Fruchtart zeigt die Kontrakte</span></div>
+  ${gruppen.map(tabelle).join('')}`;
 }
 
 export function renderKontrakte() {

@@ -1,8 +1,8 @@
 // Fruchtfolge: Planjahre verwalten – anlegen (Kopie eines Basisjahres),
 // löschen, auf anderem Basisjahr neu aufbauen.
-import { getSb } from './db.js?v=175';
-import { showToast, escapeHtml } from './helpers.js?v=175';
-import { ffState, ffLoadStammdaten, ffRecompute, renderFruchtfolge } from './fruchtfolge.js?v=175';
+import { getSb } from './db.js?v=176';
+import { showToast, escapeHtml } from './helpers.js?v=176';
+import { ffState, ffLoadStammdaten, ffRecompute, renderFruchtfolge } from './fruchtfolge.js?v=176';
 
 export async function renderFFPlan(el) {
   const jahre = ffState.jahre;

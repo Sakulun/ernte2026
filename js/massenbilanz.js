@@ -1,10 +1,10 @@
-import { state } from './state.js?v=175';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=175';
-import { getFruchtFarbe } from './frucht.js?v=175';
-import { isBioFuhre } from './bio.js?v=175';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=175';
-import { ensureXLSX } from './export.js?v=175';
-import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=175';
+import { state } from './state.js?v=176';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=176';
+import { getFruchtFarbe } from './frucht.js?v=176';
+import { isBioFuhre } from './bio.js?v=176';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=176';
+import { ensureXLSX } from './export.js?v=176';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=176';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
