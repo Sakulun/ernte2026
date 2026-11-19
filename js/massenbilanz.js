@@ -1,9 +1,9 @@
-import { state } from './state.js?v=169';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=169';
-import { getFruchtFarbe } from './frucht.js?v=169';
-import { isBioFuhre } from './bio.js?v=169';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=169';
-import { ensureXLSX } from './export.js?v=169';
+import { state } from './state.js?v=170';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=170';
+import { getFruchtFarbe } from './frucht.js?v=170';
+import { isBioFuhre } from './bio.js?v=170';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=170';
+import { ensureXLSX } from './export.js?v=170';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -89,16 +89,19 @@ export function massenbilanzDaten() {
     const bio = isBioFuhre(f);
     const art = f.sorte ? 'vermehrung' : 'konsum';
     if(typ === 'lieferant' || f.einkaufskontrakt) {
-      const z = zeile(art, bio, p); z.zukaufKg += kg; quelle(z, 'Zukauf · ' + (feld.name || 'Lieferant'), kg);
-      const l = feld.name || 'Lieferant'; z.lieferanten[l] = (z.lieferanten[l] || 0) + kg;
+      const l = feld.name || 'Lieferant';
+      const z = zeile(art, bio, p); z.zukaufKg += kg; quelle(z, '🚚 Zukauf · ' + l, kg);
+      z.lieferanten[l] = (z.lieferanten[l] || 0) + kg;
     } else if(typ === 'reinigung') {
-      // Absiebe aus der Saatgutreinigung: aus der Vermehrung in die Konsumware
-      const n = 'Absiebe · ' + ((feld.name || '').replace(/^Reinigungsabgang\s*/i, '').trim() || 'Reinigung');
+      // Absiebe aus der Saatgutreinigung: aus der Vermehrung in die Konsumware (nicht je Sorte aufteilen)
+      const n = '🌀 Absiebe aus der Reinigung';
       const zk = zeile('konsum', bio, p); zk.absiebeKg += kg; quelle(zk, n, kg);
       const zv = zeile('vermehrung', bio, p); zv.absiebeKg -= kg; quelle(zv, n, -kg);
     } else if(typ === 'schlag') {
-      const z = zeile(art, bio, p); z.ernteKg += kg; quelle(z, f.sorte ? 'Sorte · ' + f.sorte : 'Ernte · ' + (f.fruchtart || p), kg);
-      const be = (feld.betrieb || '').trim() || 'Ohne Betrieb'; z.betriebe[be] = (z.betriebe[be] || 0) + kg;
+      // Ernte je eigenem Betrieb (Betrieb des Schlags)
+      const be = (feld.betrieb || '').trim() || 'Ohne Betrieb';
+      const z = zeile(art, bio, p); z.ernteKg += kg; quelle(z, '🏡 ' + be, kg);
+      z.betriebe[be] = (z.betriebe[be] || 0) + kg;
     }
   });
 
