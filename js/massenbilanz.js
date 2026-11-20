@@ -1,10 +1,11 @@
-import { state } from './state.js?v=177';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=177';
-import { getFruchtFarbe } from './frucht.js?v=177';
-import { isBioFuhre } from './bio.js?v=177';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=177';
-import { ensureXLSX } from './export.js?v=177';
-import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=177';
+import { state } from './state.js?v=178';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=178';
+import { getFruchtFarbe, produktVon } from './frucht.js?v=178';
+export { produktVon };
+import { isBioFuhre } from './bio.js?v=178';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=178';
+import { ensureXLSX } from './export.js?v=178';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=178';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,
@@ -27,34 +28,6 @@ let _offen = null;          // aufgeklappte Zeile 'konsum|bio|Weizen'
 let _ohneSilomais = true;   // Silomais (Biogas) standardmäßig ausblenden
 let _detail = false;        // Detailansicht: jede Kultur aufgeklappt nach Betrieben
 
-// Produktgruppen: Fuhren-Fruchtarten ("Winterweichweizen") und Artikel ("Winterweizen")
-// laufen auf denselben Namen. Reihenfolge zählt (Silomais vor Mais, Öl vor Sonnenblumen …).
-const PRODUKTE = [
-  ['Umstellungsweizen', /umstell/i],
-  // Nur wenn die Kultur MIT Silomais beginnt – "Mais (ohne Silomais NC 411)" ist Körnermais!
-  ['Silomais', /^s*silomais/i],
-  ['Durum', /durum|hartweizen/i],
-  ['Weizen', /weizen/i],
-  ['Gerste', /gerste/i],
-  ['Triticale', /triticale/i],
-  ['Roggen', /roggen/i],
-  ['Hafer', /hafer/i],
-  ['Raps', /raps/i],
-  ['Sonnenblumenöl', /sonnenblumen\s*-?öl/i],
-  ['Sonnenblumenpresskuchen', /presskuchen/i],
-  ['Sonnenblumen', /sonnenblume/i],
-  ['Sojabohnen', /soja/i],
-  ['Körnermais', /mais/i],
-  ['Erbsen', /erbse/i],
-  ['Ackerbohnen', /ackerbohne/i],
-  ['Zuckerrüben', /zuckerr/i],
-];
-export function produktVon(name) {
-  const n = (name || '').trim();
-  if(!n) return 'Ohne Zuordnung';
-  const p = PRODUKTE.find(([, re]) => re.test(n));
-  return p ? p[0] : n;
-}
 // Farbe der Produktzeile aus der passenden Kultur
 const FARB_KULTUR = { Weizen:'Winterweichweizen', Durum:'Winterdurum (Hartweizen)', Gerste:'Wintergerste',
   Triticale:'Wintertriticale', Raps:'Winterraps', 'Körnermais':'Mais (ohne Silomais NC 411)', Sojabohnen:'Sojabohnen' };

@@ -21,3 +21,33 @@ export function getFruchtFarbe(fa) {
   }
   return {bg:'rgba(100,100,100,0.15)', border:'rgba(100,100,100,0.4)', dot:'#888'};
 }
+
+// Gemeinsame Produktzuordnung für Massenbilanz und Kontraktübersicht.
+// Produktgruppen: Fuhren-Fruchtarten ("Winterweichweizen") und Artikel ("Winterweizen")
+// laufen auf denselben Namen. Reihenfolge zählt (Silomais vor Mais, Öl vor Sonnenblumen …).
+const PRODUKTE = [
+  ['Umstellungsweizen', /umstell/i],
+  // Nur wenn die Kultur MIT Silomais beginnt – "Mais (ohne Silomais NC 411)" ist Körnermais!
+  ['Silomais', /^s*silomais/i],
+  ['Durum', /durum|hartweizen/i],
+  ['Weizen', /weizen/i],
+  ['Gerste', /gerste/i],
+  ['Triticale', /triticale/i],
+  ['Roggen', /roggen/i],
+  ['Hafer', /hafer/i],
+  ['Raps', /raps/i],
+  ['Sonnenblumenöl', /sonnenblumen\s*-?öl/i],
+  ['Sonnenblumenpresskuchen', /presskuchen/i],
+  ['Sonnenblumen', /sonnenblume/i],
+  ['Sojabohnen', /soja/i],
+  ['Körnermais', /mais/i],
+  ['Erbsen', /erbse/i],
+  ['Ackerbohnen', /ackerbohne/i],
+  ['Zuckerrüben', /zuckerr/i],
+];
+export function produktVon(name) {
+  const n = (name || '').trim();
+  if(!n) return 'Ohne Zuordnung';
+  const p = PRODUKTE.find(([, re]) => re.test(n));
+  return p ? p[0] : n;
+}

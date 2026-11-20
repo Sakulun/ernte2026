@@ -1,6 +1,7 @@
-import { state } from './state.js?v=177';
-import { db } from './db.js?v=177';
-import { showToast, escapeHtml } from './helpers.js?v=177';
+import { state } from './state.js?v=178';
+import { db } from './db.js?v=178';
+import { showToast, escapeHtml } from './helpers.js?v=178';
+import { produktVon } from './frucht.js?v=178';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -257,7 +258,8 @@ function fruchtartUebersichtHTML() {
   const maps = { konv:{}, bio:{} };
   state.kontrakte.filter(k => k.status !== 'storniert' && (k.richtung||'verkauf') === _kRichtung).forEach(k => {
     const art = state.artikel.find(a => a.id === k.artikel_id);
-    const name = (art?.name || k.fruchtart_text || 'Ohne Artikel').trim();
+    // Gleiche Produktzuordnung wie die Massenbilanz ("Weizen" + "Winterweizen" → Weizen, "Mais" → Körnermais …)
+    const name = produktVon(art?.name || k.fruchtart_text || '');
     const map = maps[k.bio ? 'bio' : 'konv'];
     const e = map[name] || (map[name] = { kontrahiert:0, geliefert:0, anzahl:0, kontrakte:[], preisSumme:0, preisMenge:0 });
     const geliefertT = getKontraktGeliefertKg(k.id) / 1000;

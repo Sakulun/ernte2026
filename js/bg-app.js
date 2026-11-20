@@ -1,12 +1,12 @@
-import { SB_URL, SB_KEY } from './config.js?v=177';
+import { SB_URL, SB_KEY } from './config.js?v=178';
 import { renderBgErfassen, bgFuhreSpeichern, bgLieferantWahl, bgUpdNetto, bgFmtGewicht,
-         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=177';
+         openBgHaengerzug, closeBgHaengerzug, waehleBgHaengerzug } from './bg-erfassung.js?v=178';
 import { renderBgUebersicht, bgFuhreLoeschen, toggleBgLieferant, exportBgExcel, exportBgCSV,
-         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=177';
+         renderBgMeineFuhren, bgFuhreEditToggle, bgFuhreEditSpeichern } from './bg-auswertung.js?v=178';
 import { renderBgStammdaten, bgLieferantSpeichern, bgLieferantToggle, bgFeldSpeichern, bgFeldLoeschen,
          bgLieferantEditToggle, bgLieferantEditSpeichern, bgLieferantLoeschen,
          bgKulturSpeichern, bgKulturToggle,
-         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=177';
+         bgHzSpeichern, bgHzLoeschen, bgNutzerSpeichern, bgNutzerLoeschen, setBgStammTab } from './bg-stammdaten.js?v=178';
 
 // ── Biogas-App (Biomasse-Erfassung, Anlage Bayern) ───────────────────────────
 // Eigenständiger Einstieg (biogas/index.html) mit eigenem, schlankem Modulsatz.
