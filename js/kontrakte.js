@@ -1,7 +1,7 @@
-import { state } from './state.js?v=178';
-import { db } from './db.js?v=178';
-import { showToast, escapeHtml } from './helpers.js?v=178';
-import { produktVon } from './frucht.js?v=178';
+import { state } from './state.js?v=179';
+import { db } from './db.js?v=179';
+import { showToast, escapeHtml } from './helpers.js?v=179';
+import { produktVon } from './frucht.js?v=179';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -154,13 +154,138 @@ export async function kontraktFuhreFeld(id, feld, wert, quelle) {
   } catch(e) { showToast('⚠ '+e.message, 'error'); }
 }
 
+// ─── Eingangsbelege des Handels (Gutschrift / Qualitäts- / Frachtabrechnung) ───
+// Legt die Routine "Eingangsrechnungen sortieren" an (docs/gutschriften-abgleich.md):
+// Sie ordnet die Positionen den Auslieferungen zu, trägt die Nummern ein und setzt
+// bei Abweichungen "zu klären". Hier nur Anzeige, PDF öffnen und Abweichung erledigen.
+const BELEG_ART = {
+  gutschrift: { icon: '💶', label: 'Gutschrift', kurz: 'GS', feld: 'gutschrift_nr' },
+  quali:      { icon: '🧪', label: 'Qualitätsabrechnung', kurz: 'QA', feld: 'quali_nr' },
+  fracht:     { icon: '🚚', label: 'Frachtabrechnung', kurz: 'FA', feld: 'fracht_nr' },
+};
+const BELEG_STATUS = {
+  ok:           { txt: '✓ geprüft', farbe: 'var(--green2)' },
+  abweichung:   { txt: '⚠ Abweichung', farbe: 'var(--color-warning)' },
+  unzugeordnet: { txt: '⚠ nicht zugeordnet', farbe: 'var(--red)' },
+  erledigt:     { txt: '✓ erledigt', farbe: 'var(--text3)' },
+};
+const ebListe = () => state.eingangsbelege || [];
+function kontraktEingangsbelege(k) {
+  return ebListe().filter(b => (b.kontrakt_ids || []).includes(k.id));
+}
+// Beleg zur Nummer im Feld einer Auslieferung (nur Belege desselben Kontrakts).
+function belegZuFuhre(w, art) {
+  const nr = String(w[BELEG_ART[art].feld] || '').trim();
+  if(!nr || !w.kontrakt_id) return null;
+  return ebListe().find(b => b.art === art && b.nummer === nr && (b.kontrakt_ids || []).includes(w.kontrakt_id)) || null;
+}
+// Offene Abweichungen der Belege dieses Kontrakts (erledigte zählen nicht).
+function ebOffen(b) { return b.status !== 'erledigt' && (b.status === 'unzugeordnet' || (b.abweichungen || []).length > 0); }
+// Abweichungen einzelner Positionen, die auf diese Auslieferung zeigen.
+function fuhreBelegAbweichungen(w) {
+  const out = [];
+  for(const b of ebListe()) {
+    if(b.status === 'erledigt' || !(b.kontrakt_ids || []).includes(w.kontrakt_id)) continue;
+    for(const p of (b.positionen || [])) {
+      if(p.warenbewegung_id === w.id && (p.abweichungen || []).length)
+        out.push(`${BELEG_ART[b.art]?.kurz || ''} ${b.nummer}: ${p.abweichungen.join('; ')}`);
+    }
+  }
+  return out;
+}
+
+// Belege werden nicht per Realtime verteilt (Spaltenrechte) – beim Anzeigen der
+// Kontrakte höchstens einmal pro Minute nachladen und bei Änderung neu zeichnen.
+let _ebGeladenAm = 0;
+async function eingangsbelegeNachladen() {
+  if(Date.now() - _ebGeladenAm < 60000) return;
+  _ebGeladenAm = Date.now();
+  try {
+    const neu = await db.getEingangsbelege();
+    if(JSON.stringify(neu) === JSON.stringify(ebListe())) return;
+    state.eingangsbelege = neu;
+    const akt = document.activeElement;
+    const tippt = akt && ['INPUT','SELECT','TEXTAREA'].includes(akt.tagName);
+    if(window.adminTab === 'kontrakte' && !tippt) renderKontrakte();
+  } catch(e) { console.warn('getEingangsbelege:', e); }
+}
+
+const eurFmt = v => v == null || v === '' ? '–'
+  : Number(v).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+
+function eingangsbelegeHTML(k) {
+  const belege = kontraktEingangsbelege(k)
+    .sort((a, b) => String(b.datum || '').localeCompare(String(a.datum || '')));
+  if(!belege.length) return '';
+  const zeilen = belege.map(b => {
+    const art = BELEG_ART[b.art] || { icon: '📑', label: b.art };
+    const st = BELEG_STATUS[b.status] || { txt: b.status, farbe: 'var(--text3)' };
+    const datum = b.datum ? new Date(b.datum).toLocaleDateString('de-DE') : '';
+    const zugeordnet = (b.positionen || []).filter(p => p.warenbewegung_id).length;
+    const posN = (b.positionen || []).length;
+    const offen = ebOffen(b);
+    const abw = offen ? (b.abweichungen || []).map(t => `<li>${escapeHtml(t)}</li>`).join('') : '';
+    return `<div style="border:1px solid ${offen ? 'var(--color-warning)' : 'var(--color-border)'};background:${offen ? 'var(--status-offen-bg)' : 'var(--color-surface)'};border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div style="font-size:12px;color:var(--text)">${art.icon} <b>${escapeHtml(art.label)} ${escapeHtml(b.nummer)}</b>${datum ? ' · ' + escapeHtml(datum) : ''}
+          <span style="color:var(--text3)">· ${zugeordnet}/${posN} Fuhre${posN === 1 ? '' : 'n'}${b.menge_t != null ? ' · ' + Number(b.menge_t).toLocaleString('de-DE', { maximumFractionDigits: 3 }) + ' t' : ''} · netto ${eurFmt(b.netto)}${b.brutto != null ? ' · brutto ' + eurFmt(b.brutto) : ''}</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;font-weight:700;color:${st.farbe}">${st.txt}</span>
+          ${b.pdf_pfad ? `<button class="btn btn-sm btn-outline" onclick="eingangsbelegPdfOeffnen(${b.id})" title="Beleg-PDF öffnen">📄 PDF</button>` : `<span style="font-size:10px;color:var(--text3)" title="PDF wurde nicht hochgeladen – liegt in DATEV">ohne PDF</span>`}
+          ${offen ? `<button class="btn btn-sm" style="background:none;border:1px solid var(--border2);color:var(--text2)" onclick="eingangsbelegErledigt(${b.id})" title="Abweichung geklärt – Hinweis ausblenden">✓ Erledigt</button>` : ''}
+        </div>
+      </div>
+      ${abw ? `<ul style="margin:6px 0 0 18px;padding:0;font-size:11px;color:var(--color-warning)">${abw}</ul>` : ''}
+    </div>`;
+  }).join('');
+  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${belege.length} Beleg${belege.length === 1 ? '' : 'e'} vom Handel · automatisch geprüft</div>
+    ${zeilen}
+  </div>`;
+}
+
+export async function eingangsbelegPdfOeffnen(id) {
+  const b = ebListe().find(x => x.id === id);
+  if(!b?.pdf_pfad) return;
+  // Fenster synchron im Klick öffnen (Popup-Blocker), signierte URL danach setzen.
+  const w = window.open('', '_blank');
+  try {
+    const url = await db.eingangsbelegPdfUrl(b.pdf_pfad);
+    if(w) w.location = url; else window.location = url;
+  } catch(e) { if(w) w.close(); showToast('⚠ PDF konnte nicht geöffnet werden: ' + e.message, 'error'); }
+}
+
+export async function eingangsbelegErledigt(id) {
+  const b = ebListe().find(x => x.id === id);
+  if(!b) return;
+  if(!confirm(`Abweichungen von ${BELEG_ART[b.art]?.label || 'Beleg'} ${b.nummer} als erledigt markieren?\n\n„Zu klären“ an den Fuhren bleibt bestehen und wird dort einzeln entfernt.`)) return;
+  const prev = b.status;
+  b.status = 'erledigt';
+  renderKontrakte();
+  try {
+    await db.setEingangsbelegStatus(id, 'erledigt');
+    showToast('✓ Als erledigt markiert');
+  } catch(e) {
+    b.status = prev;
+    renderKontrakte();
+    showToast('⚠ ' + e.message, 'error');
+  }
+}
+
 // Belegfelder (Gutschrift/Fracht/Quali + zu klären + Bemerkung) einer Fuhre –
 // gemeinsam für Verkauf (warenbewegung) und Einkauf (Zukauf-Fuhre, quelle 'fuhre').
 function belegFelderHTML(w, { quelle, fracht, raps, gutschriftLabel }) {
   const q = quelle ? `,'${quelle}'` : '';
+  // Bei Auslieferungen: PDF-Knopf neben der Nummer, wenn die Routine den Beleg erfasst hat.
+  const pdfKnopf = feld => {
+    if(quelle) return '';
+    const art = Object.keys(BELEG_ART).find(a => BELEG_ART[a].feld === feld);
+    const b = art && belegZuFuhre(w, art);
+    return b?.pdf_pfad ? `<button type="button" class="btn btn-sm btn-outline" style="padding:4px 7px;flex-shrink:0" onclick="eingangsbelegPdfOeffnen(${b.id})" title="${escapeHtml(BELEG_ART[art].label + ' ' + b.nummer)} öffnen">📄</button>` : '';
+  };
   const feldInput = (feld, val, ph) =>
-    `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${w.id},'${feld}',this.value${q})"
-      style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
+    `<div style="display:flex;gap:4px;align-items:center"><input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${w.id},'${feld}',this.value${q})"
+      style="width:100%;min-width:0;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">${pdfKnopf(feld)}</div>`;
   const warn = !!w.klaeren;
   return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
         <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">${gutschriftLabel}</label>${feldInput('gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
@@ -230,10 +355,11 @@ function kontraktDetailHTML(k) {
         <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}${w.sonstige_angaben?` · <span style="color:var(--gold);font-weight:600" title="Freitexteingabe">📝 ${escapeHtml(w.sonstige_angaben)}</span>`:''}</div>
+      ${fuhreBelegAbweichungen(w).map(t => `<div style="font-size:11px;font-weight:600;color:var(--color-warning);margin-bottom:6px">⚠ ${escapeHtml(t)}</div>`).join('')}
       ${belegFelderHTML(w, { quelle:'', fracht:!abHof, raps, gutschriftLabel:'Gutschrift-Nr.' })}
     </div>`;
   }).join('');
-  return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
+  return `${eingangsbelegeHTML(k)}<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-border)">
     <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:8px">${fuhren.length} Fuhre${fuhren.length===1?'':'n'} · Abrechnung</div>
     ${rows}
   </div>`;
@@ -374,6 +500,7 @@ export function renderKontrakte() {
     const vonBis    = [k.lieferung_von,k.lieferung_bis].filter(Boolean).map(d=>new Date(d).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'})).join('–');
     const fuhren    = kontraktBelegFuhren(k);
     const klaerenN  = fuhren.filter(w=>w.klaeren).length;
+    const ebAbwN    = kontraktEingangsbelege(k).filter(ebOffen).length;
     const abr       = kontraktAbrechnung(k);
     const fehltTxt  = (n, sg, pl) => `${n} von ${abr.gesamt} ${abr.gesamt===1?sg:pl} fehl${n===1?'t':'en'}`;
     const abrTeile  = [
@@ -400,7 +527,7 @@ export function renderKontrakte() {
             </div>
             <div style="font-size:12px;color:var(--text2);margin-top:2px">${kt?escapeHtml(kt.name):'–'}${art?' · '+escapeHtml(art.name):k.fruchtart_text?' · '+escapeHtml(k.fruchtart_text):''}</div>
             <div style="font-size:11px;color:var(--text3)">${vonBis||''}${k.paritaet?' · '+escapeHtml(k.paritaet):''}${k.preis_eur?' · '+k.preis_eur.toFixed(2)+' €/t':''}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:3px">🚚 ${fuhren.length} Fuhre${fuhren.length===1?'':'n'}${klaerenN?` · <span style="color:var(--color-warning);font-weight:700">⚠ ${klaerenN} zu klären</span>`:''}${abrHTML}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:3px">🚚 ${fuhren.length} Fuhre${fuhren.length===1?'':'n'}${klaerenN?` · <span style="color:var(--color-warning);font-weight:700">⚠ ${klaerenN} zu klären</span>`:''}${ebAbwN?` · <span style="color:var(--color-warning);font-weight:700" title="Belege vom Handel mit Abweichung (Details im aufgeklappten Kontrakt)">📑 ${ebAbwN} Beleg${ebAbwN===1?'':'e'} prüfen</span>`:''}${abrHTML}</div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:18px;font-weight:700;color:var(--text)">${restT.toFixed(1)} t</div>
@@ -496,6 +623,7 @@ export function renderKontrakte() {
   else if(filterAktiv && !fAktiv.length && !fErfuellt.length && !fStornier.length)
     html += '<div class="empty-state">Kein Kontrakt passt zu Filter/Suche.</div>';
   document.getElementById('admintab').innerHTML = html;
+  eingangsbelegeNachladen();
 }
 
 // ─── PDF-Parsing ───

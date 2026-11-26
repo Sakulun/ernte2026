@@ -1,5 +1,5 @@
-import { SB_URL, SB_KEY } from './config.js?v=178';
-import { fahrerLabel } from './rechte.js?v=178';
+import { SB_URL, SB_KEY } from './config.js?v=179';
+import { fahrerLabel } from './rechte.js?v=179';
 
 export let sb = null;
 export function getSb() { return sb; }
@@ -357,6 +357,25 @@ export const db = {
     if(pfad) { const { error } = await sb.storage.from('kontrakte').remove([pfad]); if(error) throw error; }
     const { error: e2 } = await sb.from('kontrakte').update({ pdf_pfad: null, pdf_name: null }).eq('id', kontraktId);
     if(e2) throw e2;
+  },
+  // ── Eingangsbelege des Handels (Gutschrift/Quali-/Frachtabrechnung zu Verkaufskontrakten) ──
+  // Angelegt von der Routine "Eingangsrechnungen sortieren" (docs/gutschriften-abgleich.md),
+  // PDFs im privaten Bucket "eingangsbelege". upload_token ist für die App nicht lesbar,
+  // daher explizite Spaltenliste statt '*'.
+  async getEingangsbelege() {
+    const { data, error } = await sb.from('eingangsbelege')
+      .select('id, art, nummer, kontakt_id, kontrakt_ids, datum, menge_t, netto, ust, brutto, positionen, abzuege, abweichungen, status, pdf_pfad, erstellt_am')
+      .order('datum', { ascending: false });
+    if(error) throw error; return data || [];
+  },
+  async eingangsbelegPdfUrl(pfad) {
+    const { data, error } = await sb.storage.from('eingangsbelege').createSignedUrl(pfad, 600);
+    if(error) throw error;
+    return data.signedUrl;
+  },
+  async setEingangsbelegStatus(id, status) {
+    const { error } = await sb.from('eingangsbelege').update({ status }).eq('id', id);
+    if(error) throw error;
   },
   // Verkaufskontrakt für die Abfahrer-Selbstlieferung freischalten (oder sperren)
   async setKontraktAbfahrerFrei(id, frei) {

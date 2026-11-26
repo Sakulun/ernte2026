@@ -1,5 +1,5 @@
-import { state } from './state.js?v=178';
-import { NAV, erlaubteTabs } from './rechte.js?v=178';
+import { state } from './state.js?v=179';
+import { NAV, erlaubteTabs } from './rechte.js?v=179';
 
 export let adminTab = 'schlaege';
 export let schlagFilter = 'alle';

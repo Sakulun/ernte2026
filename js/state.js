@@ -1,5 +1,5 @@
-import { db } from './db.js?v=178';
-import { getSb, mapFuhre } from './db.js?v=178';
+import { db } from './db.js?v=179';
+import { getSb, mapFuhre } from './db.js?v=179';
 
 let appReady = false;
 
@@ -44,6 +44,7 @@ export const state = {
   warenbewegungen: [],
   kontakte: [],
   kontrakte: [],
+  eingangsbelege: [],
   fremdzukauf: [],
   haengerzuege: [],
   umlauf: [],
@@ -135,6 +136,8 @@ export async function loadAppData() {
     state.warenbewegungen = await db.getWarenbewegungen().catch(e => { console.warn('getWarenbewegungen:', e); return []; });
     state.kontakte = await db.getKontakte().catch(e => { console.warn('getKontakte:', e); return []; });
     state.kontrakte = await db.getKontrakte().catch(e => { console.warn('getKontrakte:', e); return []; });
+    // Nur mit Recht kontrakte/rechnungen lesbar (RLS) – sonst still leer.
+    state.eingangsbelege = await db.getEingangsbelege().catch(e => { console.warn('getEingangsbelege:', e); return []; });
     state.fremdzukauf = await db.getFremdzukauf().catch(e => { console.warn('getFremdzukauf:', e); return []; });
     state.haengerzuege = await db.getHaengerzuege().catch(e => { console.warn('getHaengerzuege:', e); return []; });
     state.umlauf = await db.getUmlauf().catch(e => { console.warn('getUmlauf:', e); return []; });
