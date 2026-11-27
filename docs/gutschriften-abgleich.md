@@ -36,7 +36,7 @@ SCHON VERARBEITET? select id from eingangsbelege where kontakt_id = <id> and art
   S3) Datum + Gewicht ≤ 40 kg (Kennzeichen abweichend, Tippfehler oder fehlend) → zuordnen, aber Hinweis in positionen ("Kennzeichen Beleg SKRV248 ≠ App SK-RV 348"), KEINE Abweichung.
   S4) Kennzeichen-Treffer + Datum + Gewicht ≤ 500 kg.
   S5) Datum + Gewicht ≤ 200 kg.
-  Mehrere Kandidaten in einer Stufe → die Fuhre mit der geringsten Gewichtsdifferenz, bevorzugt eine, die für diese Art noch keine Nummer hat. Gleich gute Kandidaten → nicht zuordnen.
+  Mehrere Kandidaten in einer Stufe → die Fuhre mit der geringsten Gewichtsdifferenz, bevorzugt eine, die für diese Art noch keine Nummer hat. Gleichstand → zuerst das genauere Datum (gleicher Tag vor ±1 Tag), dann die Fuhre, die schon genau diese Nummer trägt; bleibt es gleich → nicht zuordnen.
   Differenz > 1 t → NIE zuordnen.
   Teillieferung: Mehrere Positionen gleichen Lieferdatums, die einzeln nicht passen, deren Summe aber innerhalb ±200 kg einer Fuhre (Kennzeichen-Treffer oder einzige Fuhre des Tages) liegt → gemeinsam dieser Fuhre zuordnen (Hinweis "Teillieferung"), Gewichtsprüfung gegen die Summe. Sonst nicht zuordnen.
   Kein Treffer → Position "nicht zugeordnet" (Abweichung), NICHTS raten.
