@@ -11,7 +11,8 @@ Bisher bekannte Self-Billing-Händler: Cargill (Salzgitter/Riesa), Saalemühle A
 
 ART: 'gutschrift' (Gutschrift/Rechnung über die Ware) · 'quali' (Qualitätsabrechnung, z. B. Cargill Raps Ölgehalt) · 'fracht' (Frachtabrechnung zu unseren Auslieferungen). Feld an der Fuhre: gutschrift_nr / quali_nr / fracht_nr.
   Cargill-Sonderfall (heißt immer "Qualitätsabrechnung", maßgeblich ist der Inhalt):
-  - Art P = Duplikat der Waren-Gutschrift gleicher Nummer → kein eigener Beleg; ist die Gutschrift schon erfasst: nur "Abgleich: Duplikat zu GS <nr>" protokollieren; sonst wie die Gutschrift (art 'gutschrift') behandeln.
+  - PDF für die App (Anweisung von Lukas, 27.11.2026): immer die echte Gutschrift "Cargill Gutschrift_<nr>_<datum>_….pdf" hochladen, NIE ein "Quality Statement"/eine Qualitätsabrechnung als Beleg-PDF. Ist ein Beleg schon mit einer Qualitätsabrechnung als PDF erfasst und kommt die echte Gutschrift nach: neues Token holen (Schritt 7) und die echte Gutschrift hochladen (ersetzt die PDF).
+  - Art P = Duplikat der Waren-Gutschrift gleicher Nummer → kein eigener Beleg; ist die Gutschrift schon erfasst: nur "Abgleich: Duplikat zu GS <nr>" protokollieren; sonst wie die Gutschrift (art 'gutschrift') behandeln, als PDF aber erst die echte Gutschrift verwenden, sobald sie da ist.
   - Art F mit "Vorhergehende Abrechnung" > 0 → art 'quali', Nummer = die Nr. hinter "Gutschrift:" auf diesem Beleg.
   - Art F mit "Vorhergehende Abrechnung" = 0 → art 'gutschrift'.
   - Cargill-Quali-Beträge sind normalerweise Zuschläge (Ölbonus) = keine Abweichung. Zeilenbezeichnung und Betrag im PDF-Layout (pdftotext -layout) sorgfältig zuordnen; bei Unklarheit nicht als Abzug werten, sondern als Abweichung "Qualitätszeile nicht eindeutig lesbar".
