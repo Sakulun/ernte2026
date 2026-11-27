@@ -1,5 +1,5 @@
-import { state } from './state.js?v=179';
-import { ansichtenVon } from './rechte.js?v=179';
+import { state } from './state.js?v=180';
+import { ansichtenVon } from './rechte.js?v=180';
 
 export function renderMain() {
   const ansichten = ansichtenVon(state.currentUser);

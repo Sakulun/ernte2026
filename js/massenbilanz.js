@@ -1,11 +1,11 @@
-import { state } from './state.js?v=179';
-import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=179';
-import { getFruchtFarbe, produktVon } from './frucht.js?v=179';
+import { state } from './state.js?v=180';
+import { getFeld, netto, escapeHtml, showToast } from './helpers.js?v=180';
+import { getFruchtFarbe, produktVon } from './frucht.js?v=180';
 export { produktVon };
-import { isBioFuhre } from './bio.js?v=179';
-import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=179';
-import { ensureXLSX } from './export.js?v=179';
-import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=179';
+import { isBioFuhre } from './bio.js?v=180';
+import { getKontraktGeliefertKg, kontraktEingangFuhren } from './kontrakte.js?v=180';
+import { ensureXLSX } from './export.js?v=180';
+import { BRIEFKOPF_LOGO, FIRMA_NAME } from './config.js?v=180';
 
 // ── Massenbilanz ─────────────────────────────────────────────────────────────
 // Je Produkt das Aufkommen (eigene Ernte + Zukauf von Dritten) gegen die Mengen,

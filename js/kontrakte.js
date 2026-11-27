@@ -1,7 +1,7 @@
-import { state } from './state.js?v=179';
-import { db } from './db.js?v=179';
-import { showToast, escapeHtml } from './helpers.js?v=179';
-import { produktVon } from './frucht.js?v=179';
+import { state } from './state.js?v=180';
+import { db } from './db.js?v=180';
+import { showToast, escapeHtml } from './helpers.js?v=180';
+import { produktVon } from './frucht.js?v=180';
 
 let _offenerKontrakt = null;
 // PDF-Import-Daten des offenen Dialogs. Werden NICHT über das onclick-Attribut
@@ -179,6 +179,27 @@ function belegZuFuhre(w, art) {
   if(!nr || !w.kontrakt_id) return null;
   return ebListe().find(b => b.art === art && b.nummer === nr && (b.kontrakt_ids || []).includes(w.kontrakt_id)) || null;
 }
+// Alle Belege mit PDF, die an dieser Auslieferung hängen: über die zugeordnete
+// Position (warenbewegung_id) oder über die eingetragene Nummer. Reihenfolge GS, QA, FA.
+function fuhreBelege(w) {
+  const treffer = new Map();
+  for(const b of ebListe()) {
+    if(!b.pdf_pfad) continue;
+    if((b.positionen || []).some(p => p.warenbewegung_id === w.id)) treffer.set(b.id, b);
+  }
+  for(const art of Object.keys(BELEG_ART)) {
+    const b = belegZuFuhre(w, art);
+    if(b?.pdf_pfad) treffer.set(b.id, b);
+  }
+  const rang = Object.keys(BELEG_ART);
+  return [...treffer.values()].sort((a, b) => rang.indexOf(a.art) - rang.indexOf(b.art) || String(a.nummer).localeCompare(String(b.nummer)));
+}
+function fuhreBelegKnoepfeHTML(w) {
+  const belege = fuhreBelege(w);
+  if(!belege.length) return '';
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${belege.map(b =>
+    `<button type="button" class="btn btn-sm btn-outline" onclick="eingangsbelegPdfOeffnen(${b.id})" title="${escapeHtml(BELEG_ART[b.art]?.label + ' ' + b.nummer)} öffnen">📄 ${escapeHtml(BELEG_ART[b.art]?.label || 'Beleg')} ${escapeHtml(b.nummer)} anzeigen</button>`).join('')}</div>`;
+}
 // Offene Abweichungen der Belege dieses Kontrakts (erledigte zählen nicht).
 function ebOffen(b) { return b.status !== 'erledigt' && (b.status === 'unzugeordnet' || (b.abweichungen || []).length > 0); }
 // Abweichungen einzelner Positionen, die auf diese Auslieferung zeigen.
@@ -276,16 +297,9 @@ export async function eingangsbelegErledigt(id) {
 // gemeinsam für Verkauf (warenbewegung) und Einkauf (Zukauf-Fuhre, quelle 'fuhre').
 function belegFelderHTML(w, { quelle, fracht, raps, gutschriftLabel }) {
   const q = quelle ? `,'${quelle}'` : '';
-  // Bei Auslieferungen: PDF-Knopf neben der Nummer, wenn die Routine den Beleg erfasst hat.
-  const pdfKnopf = feld => {
-    if(quelle) return '';
-    const art = Object.keys(BELEG_ART).find(a => BELEG_ART[a].feld === feld);
-    const b = art && belegZuFuhre(w, art);
-    return b?.pdf_pfad ? `<button type="button" class="btn btn-sm btn-outline" style="padding:4px 7px;flex-shrink:0" onclick="eingangsbelegPdfOeffnen(${b.id})" title="${escapeHtml(BELEG_ART[art].label + ' ' + b.nummer)} öffnen">📄</button>` : '';
-  };
   const feldInput = (feld, val, ph) =>
-    `<div style="display:flex;gap:4px;align-items:center"><input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${w.id},'${feld}',this.value${q})"
-      style="width:100%;min-width:0;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">${pdfKnopf(feld)}</div>`;
+    `<input type="text" value="${escapeHtml(val||'')}" placeholder="${escapeHtml(ph)}" onchange="kontraktFuhreFeld(${w.id},'${feld}',this.value${q})"
+      style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--color-border);border-radius:var(--radius-xs);background:var(--color-surface);color:var(--text)">`;
   const warn = !!w.klaeren;
   return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:8px">
         <div><label style="font-size:10px;color:var(--text2);display:block;margin-bottom:2px">${gutschriftLabel}</label>${feldInput('gutschrift_nr',w.gutschrift_nr,'Nummer')}</div>
@@ -355,6 +369,7 @@ function kontraktDetailHTML(k) {
         <div style="font-size:14px;font-weight:700;color:var(--gold)">${nettoT} t</div>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-bottom:8px">🚚 ${escapeHtml(w.spedition||'–')}${w.kennzeichen?' · '+escapeHtml(w.kennzeichen):''}${w.sonstige_angaben?` · <span style="color:var(--gold);font-weight:600" title="Freitexteingabe">📝 ${escapeHtml(w.sonstige_angaben)}</span>`:''}</div>
+      ${fuhreBelegKnoepfeHTML(w)}
       ${fuhreBelegAbweichungen(w).map(t => `<div style="font-size:11px;font-weight:600;color:var(--color-warning);margin-bottom:6px">⚠ ${escapeHtml(t)}</div>`).join('')}
       ${belegFelderHTML(w, { quelle:'', fracht:!abHof, raps, gutschriftLabel:'Gutschrift-Nr.' })}
     </div>`;

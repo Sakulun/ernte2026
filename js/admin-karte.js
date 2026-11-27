@@ -1,7 +1,7 @@
-import { state } from './state.js?v=179';
-import { db } from './db.js?v=179';
-import { getUser, netto } from './helpers.js?v=179';
-import { hatRecht } from './rechte.js?v=179';
+import { state } from './state.js?v=180';
+import { db } from './db.js?v=180';
+import { getUser, netto } from './helpers.js?v=180';
+import { hatRecht } from './rechte.js?v=180';
 
 let _mapInstance = null;
 let _gpsWatcher = null;
